@@ -1,0 +1,149 @@
+[gd_scene format=3 uid="uid://ch7y0k0flout3"]
+
+[ext_resource type="Script" uid="uid://cj8lyske8qupd" path="res://scripts/ball.gd" id="1_ball"]
+[ext_resource type="Script" uid="uid://d0dav2qk7xdjq" path="res://scripts/ball_trail.gd" id="2_4dx81"]
+[ext_resource type="Shader" uid="uid://n5iipw47c14f" path="res://scenes/ball.gdshader" id="2_f7cbr"]
+[ext_resource type="Shader" uid="uid://berr1ad3exlim" path="res://scenes/ball_trail_energy.gdshader" id="3_eew57"]
+[ext_resource type="Texture2D" uid="uid://bdjibaetopyy2" path="res://Assets/ball_mask.png" id="3_f7cbr"]
+[ext_resource type="Texture2D" uid="uid://cxkt5pn1abx0k" path="res://Assets/soft_energy_particle.png" id="4_jj7gd"]
+
+[sub_resource type="Curve" id="Curve_iijjg"]
+_data = [Vector2(0, 1), 0.0, -1.1999999, 0, 1, Vector2(0.15, 0.82), -1.1999999, -1.1999999, 1, 1, Vector2(0.4, 0.52), -1.1999999, -1.08, 1, 1, Vector2(0.65, 0.25), -1.08, -0.8499998, 1, 1, Vector2(0.85, 0.08), -0.8499998, -0.5333334, 1, 1, Vector2(1, 0), -0.5333334, 0.0, 1, 0]
+point_count = 6
+
+[sub_resource type="Gradient" id="Gradient_f7kxq"]
+offsets = PackedFloat32Array(0, 0.26666668, 0.6, 0.8, 1)
+colors = PackedColorArray(0, 0.8980392, 1, 1, 0, 0.8117647, 0.9098039, 1, 0, 0.6156863, 0.70980394, 1, 0, 0.40784314, 0.47058824, 1, 1, 1, 1, 0)
+metadata/_snap_enabled = true
+metadata/_snap_count = 15
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_eew57"]
+shader = ExtResource("3_eew57")
+shader_parameter/flow_speed = 0.9
+shader_parameter/energy_strength = 1.350000064125
+shader_parameter/filament_strength = 1.7
+
+[sub_resource type="Curve" id="Curve_4dx81"]
+_data = [Vector2(0, 1), 0.0, -0.70625985, 0, 1, Vector2(0.35000002, 0.75280905), -0.70625985, -1.1420155, 1, 1, Vector2(0.655, 0.4044944), -1.1420155, -1.4589453, 1, 1, Vector2(0.85, 0.12), -1.4589453, -0.80000013, 1, 1, Vector2(1, 0), -0.80000013, 0.0, 1, 0]
+point_count = 5
+
+[sub_resource type="Curve" id="Curve_f7kxq"]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.05, 0.85), 0.0, 0.0, 0, 0, Vector2(0.12, 1), 0.0, 0.0, 0, 0, Vector2(0.35, 1), 0.0, 0.0, 0, 0, Vector2(0.6, 0.9), 0.0, 0.0, 0, 0, Vector2(0.82, 0.65), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 7
+
+[sub_resource type="CurveTexture" id="CurveTexture_e8gir"]
+curve = SubResource("Curve_f7kxq")
+
+[sub_resource type="Gradient" id="Gradient_fwo8l"]
+offsets = PackedFloat32Array(0, 0.26666668, 0.6666667, 0.8666667, 1)
+colors = PackedColorArray(0, 0.72156864, 0.83137256, 1, 0, 0.8980392, 1, 1, 0.25490198, 0.9019608, 0.9843137, 1, 0.72156864, 0.972549, 1, 1, 1, 1, 1, 1)
+metadata/_snap_enabled = true
+metadata/_snap_count = 15
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_v8l5b"]
+gradient = SubResource("Gradient_fwo8l")
+use_hdr = true
+
+[sub_resource type="Gradient" id="Gradient_jj7gd"]
+offsets = PackedFloat32Array(0, 0.53333336, 0.8, 1)
+colors = PackedColorArray(0, 0.8980392, 1, 1, 0.25490198, 0.9019608, 0.9843137, 1, 0.72156864, 0.972549, 1, 1, 1, 1, 1, 1)
+metadata/_snap_enabled = true
+metadata/_snap_count = 15
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_fwo8l"]
+gradient = SubResource("Gradient_jj7gd")
+use_hdr = true
+
+[sub_resource type="Curve" id="Curve_v8l5b"]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.1, 0.75), 0.0, 0.0, 0, 0, Vector2(0.22, 1), 0.0, 0.0, 0, 0, Vector2(0.5, 0.9), 0.0, 0.0, 0, 0, Vector2(0.75, 0.65), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 6
+
+[sub_resource type="CurveTexture" id="CurveTexture_iijjg"]
+curve = SubResource("Curve_v8l5b")
+
+[sub_resource type="Curve" id="Curve_fwo8l"]
+_limits = [0.0, 3.0, 0.0, 1.0]
+_data = [Vector2(0, 0.15), 0.0, 0.49999994, 0, 1, Vector2(0.2, 0.25), 0.49999994, 0.66666657, 1, 1, Vector2(0.5, 0.45), 0.66666657, 1.0714287, 1, 1, Vector2(0.78, 0.75), 1.0714287, 1.1363635, 1, 1, Vector2(1, 1), 1.1363635, 0.0, 1, 0]
+point_count = 5
+
+[sub_resource type="CurveTexture" id="CurveTexture_v8l5b"]
+curve = SubResource("Curve_fwo8l")
+
+[sub_resource type="Curve" id="Curve_jj7gd"]
+_data = [Vector2(0, 0.05), 0.0, 1.4999998, 0, 1, Vector2(0.2, 0.35), 1.4999998, 2.1666665, 1, 1, Vector2(0.5, 1), 2.1666665, -1.4000001, 1, 1, Vector2(0.75, 0.65), -1.4000001, -2.6, 1, 1, Vector2(1, 0), -2.6, 0.0, 1, 0]
+point_count = 5
+
+[sub_resource type="CurveTexture" id="CurveTexture_fwo8l"]
+curve = SubResource("Curve_jj7gd")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_fwo8l"]
+lifetime_randomness = 0.15
+emission_shape = 1
+emission_sphere_radius = 25.0
+direction = Vector3(0, 1, 0)
+spread = 30.0
+initial_velocity_min = 2.0
+initial_velocity_max = 14.0
+gravity = Vector3(0, 0, 0)
+tangential_accel_min = -10.000002
+tangential_accel_max = 9.999997
+damping_min = 15.000001
+damping_max = 30.000002
+scale_min = 0.29999998
+scale_max = 0.59999996
+scale_curve = SubResource("CurveTexture_iijjg")
+scale_over_velocity_curve = SubResource("CurveTexture_v8l5b")
+color_ramp = SubResource("GradientTexture1D_fwo8l")
+color_initial_ramp = SubResource("GradientTexture1D_v8l5b")
+alpha_curve = SubResource("CurveTexture_e8gir")
+hue_variation_min = -0.020000022
+hue_variation_max = 0.019999977
+turbulence_enabled = true
+turbulence_noise_strength = 2.0
+turbulence_noise_speed = Vector3(0.35, 0.2, 0)
+turbulence_noise_speed_random = 0.15
+turbulence_influence_max = 0.2
+turbulence_influence_over_life = SubResource("CurveTexture_fwo8l")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_4dx81"]
+shader = ExtResource("2_f7cbr")
+
+[node name="Ball" type="CharacterBody2D" unique_id=1745057106]
+script = ExtResource("1_ball")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1403364382]
+
+[node name="TrailVisual" type="Node2D" parent="." unique_id=2025838925]
+z_index = -1
+script = ExtResource("2_4dx81")
+
+[node name="TrailAura" type="Line2D" parent="TrailVisual" unique_id=333510001]
+width = 18.0
+width_curve = SubResource("Curve_iijjg")
+gradient = SubResource("Gradient_f7kxq")
+joint_mode = 2
+begin_cap_mode = 2
+end_cap_mode = 2
+antialiased = true
+
+[node name="EnergyLine" type="Line2D" parent="TrailVisual" unique_id=1281318945]
+material = SubResource("ShaderMaterial_eew57")
+width = 24.0
+width_curve = SubResource("Curve_4dx81")
+texture_mode = 2
+joint_mode = 2
+begin_cap_mode = 2
+end_cap_mode = 2
+antialiased = true
+
+[node name="TrailParticles" type="GPUParticles2D" parent="TrailVisual" unique_id=2074338206]
+amount = 28
+texture = ExtResource("4_jj7gd")
+lifetime = 1.25
+randomness = 0.45
+process_material = SubResource("ParticleProcessMaterial_fwo8l")
+
+[node name="Visual" type="Sprite2D" parent="." unique_id=213819786]
+material = SubResource("ShaderMaterial_4dx81")
+scale = Vector2(0.468, 0.468)
+texture = ExtResource("3_f7cbr")

@@ -1,0 +1,209 @@
+[gd_scene format=3 uid="uid://duphfmjjkd8ln"]
+
+[ext_resource type="Script" uid="uid://bqmyxoc1efg7n" path="res://scripts/platform.gd" id="1_platform"]
+[ext_resource type="Shader" uid="uid://2nd00bmk0t0w" path="res://scenes/platform.gdshader" id="2_nlgqw"]
+[ext_resource type="Shader" uid="uid://bketcyr37ts8e" path="res://scenes/platform_landing_surface.gdshader" id="3_507ja"]
+[ext_resource type="Texture2D" uid="uid://4ccuuilykjid" path="res://Assets/landing_particle_32x8.png" id="4_n1ckp"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_507ja"]
+shader = ExtResource("2_nlgqw")
+shader_parameter/platform_height = 20.0
+shader_parameter/reflection_height = 2.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_n1ckp"]
+shader = ExtResource("3_507ja")
+
+[sub_resource type="Shader" id="Shader_507ja"]
+code = "shader_type canvas_item;
+
+render_mode unshaded, blend_add;
+
+instance uniform float impact_progress: hint_range(0.0, 1.0) = 0.0;
+instance uniform float impact_x: hint_range(0.0, 1.0) = 0.5;
+
+instance uniform vec4 impact_color : source_color =
+	vec4(0.12, 0.32, 1.0, 1.0);
+
+void fragment() {
+
+	vec2 uv = UV;
+
+	// --------------------------------------------------
+	// CENTER THE EFFECT
+	// --------------------------------------------------
+
+	vec2 p = vec2(
+		uv.x,
+		uv.y
+	);
+
+	vec2 center = vec2(
+		impact_x,
+		0.90
+	);
+
+	vec2 delta = p - center;
+
+	// Compress vertical distance.
+	// This makes the aura feel like it is sitting
+	// ON the platform rather than being a circular
+	// explosion floating in space.
+	delta.y *= 2.8;
+
+	float distance_from_impact = length(delta);
+
+
+	// --------------------------------------------------
+	// IMPACT TIMING
+	// --------------------------------------------------
+
+	float progress = impact_progress;
+
+	float appear = smoothstep(
+		0.0,
+		0.10,
+		progress
+	);
+
+	float fade = 1.0 - smoothstep(
+		0.45,
+		1.0,
+		progress
+	);
+
+
+	// --------------------------------------------------
+	// MAIN SOFT AURA
+	// --------------------------------------------------
+
+	float aura_radius = mix(
+		0.025,
+		0.22,
+		smoothstep(
+			0.0,
+			0.45,
+			progress
+		)
+	);
+
+	float aura = 1.0 - smoothstep(
+		0.0,
+		0.055,
+		abs(
+			distance_from_impact -
+			aura_radius
+		)
+	);
+
+	aura *= 0.55;
+
+
+	// --------------------------------------------------
+	// SECONDARY SOFT AURA
+	// --------------------------------------------------
+
+	float secondary_radius = mix(
+		0.04,
+		0.32,
+		smoothstep(
+			0.08,
+			0.60,
+			progress
+		)
+	);
+
+	float secondary = 1.0 - smoothstep(
+		0.0,
+		0.035,
+		abs(
+			distance_from_impact -
+			secondary_radius
+		)
+	);
+
+	secondary *= 0.18;
+
+
+	// --------------------------------------------------
+	// IMPACT CORE
+	// --------------------------------------------------
+
+	float core = 1.0 - smoothstep(
+		0.0,
+		0.045,
+		distance_from_impact
+	);
+
+	core *= 1.0 - smoothstep(
+		0.05,
+		0.35,
+		progress
+	);
+
+
+	// --------------------------------------------------
+	// COMBINE
+	// --------------------------------------------------
+
+	float intensity =
+		(aura +
+		secondary +
+		core) *
+		appear *
+		fade;
+
+	COLOR = vec4(
+		impact_color.rgb * intensity,
+		intensity
+	);
+}"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_u7qrw"]
+shader = SubResource("Shader_507ja")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_u7qrw"]
+lifetime_randomness = 0.35
+particle_flag_disable_z = true
+direction = Vector3(0, -1, 0)
+spread = 110.0
+initial_velocity_min = 35.0
+initial_velocity_max = 75.0
+gravity = Vector3(0, 0, 0)
+damping_min = 20.0
+damping_max = 40.0
+scale_min = 0.7
+scale_max = 5.0
+
+[node name="Platform" type="StaticBody2D" unique_id=1162546100]
+script = ExtResource("1_platform")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=456115632]
+
+[node name="Visual" type="Polygon2D" parent="." unique_id=1665530009]
+material = SubResource("ShaderMaterial_507ja")
+
+[node name="NeonEdge" type="Polygon2D" parent="." unique_id=697089681]
+
+[node name="LandingEnergy" type="Polygon2D" parent="." unique_id=925189576]
+visible = false
+material = SubResource("ShaderMaterial_n1ckp")
+
+[node name="LandingImpact" type="Polygon2D" parent="." unique_id=1657944415]
+visible = false
+material = SubResource("ShaderMaterial_u7qrw")
+
+[node name="LandingParticles" type="GPUParticles2D" parent="." unique_id=1911507195]
+visible = false
+emitting = false
+amount = 4
+texture = ExtResource("4_n1ckp")
+lifetime = 0.28
+one_shot = true
+explosiveness = 0.2
+randomness = 0.2
+visibility_rect = Rect2(-100, -100, 200, 120)
+local_coords = true
+process_material = SubResource("ParticleProcessMaterial_u7qrw")
+
+[node name="LandingVFX" type="AnimatedSprite2D" parent="." unique_id=486458464]
+z_index = 10

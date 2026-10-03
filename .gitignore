@@ -1,0 +1,11 @@
+# Godot generated data
+.godot/
+
+# Android generated project
+android/
+
+# Exported builds
+builds/
+
+# Unrelated tooling
+.claude/

@@ -1,0 +1,27 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/ball.tscn" id="1_ball"]
+[ext_resource type="PackedScene" path="res://scenes/platform.tscn" id="2_platform"]
+[ext_resource type="Script" path="res://scripts/camera_follow.gd" id="3_camera"]
+[ext_resource type="Script" path="res://scripts/platform_test_room.gd" id="4_testroom"]
+
+[node name="PlatformTestRoom" type="Node2D"]
+script = ExtResource("4_testroom")
+platform_scene = ExtResource("2_platform")
+ball_path = NodePath("Ball")
+
+[node name="Ball" parent="." instance=ExtResource("1_ball")]
+position = Vector2(360, 600)
+
+[node name="GameCamera" type="Camera2D" parent="."]
+position = Vector2(360, 640)
+script = ExtResource("3_camera")
+target_path = NodePath("../Ball")
+
+[node name="Background" type="ColorRect" parent="GameCamera"]
+z_index = -10
+offset_left = -360.0
+offset_top = -640.0
+offset_right = 360.0
+offset_bottom = 640.0
+color = Color(0.09, 0.11, 0.16, 1)

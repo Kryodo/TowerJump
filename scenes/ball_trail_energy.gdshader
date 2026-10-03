@@ -1,0 +1,218 @@
+shader_type canvas_item;
+
+uniform float flow_speed : hint_range(0.0, 4.0) = 0.9;
+uniform float energy_strength : hint_range(0.0, 3.0) = 1.35;
+uniform float filament_strength : hint_range(0.0, 4.0) = 1.7;
+
+
+// ------------------------------------------------------------
+// Small deterministic noise
+// ------------------------------------------------------------
+
+float hash21(vec2 p)
+{
+	p = fract(p * vec2(123.34, 456.21));
+	p += dot(p, p + 45.32);
+
+	return fract(p.x * p.y);
+}
+
+
+float noise(vec2 p)
+{
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+
+	f = f * f * (3.0 - 2.0 * f);
+
+	float a = hash21(i);
+	float b = hash21(i + vec2(1.0, 0.0));
+	float c = hash21(i + vec2(0.0, 1.0));
+	float d = hash21(i + vec2(1.0, 1.0));
+
+	return mix(
+		mix(a, b, f.x),
+		mix(c, d, f.x),
+		f.y
+	);
+}
+
+
+// ------------------------------------------------------------
+// Fractal noise
+// ------------------------------------------------------------
+
+float fbm(vec2 p)
+{
+	float value = 0.0;
+	float amplitude = 0.5;
+
+	value += noise(p) * amplitude;
+
+	p *= 2.0;
+	amplitude *= 0.5;
+
+	value += noise(p) * amplitude;
+
+	p *= 2.0;
+	amplitude *= 0.5;
+
+	value += noise(p) * amplitude;
+
+	return value;
+}
+
+
+void fragment()
+{
+	vec2 uv = UV;
+
+	float time = TIME * flow_speed;
+
+	// --------------------------------------------------------
+	// Center of the energy channel
+	// --------------------------------------------------------
+
+	float center = 1.0 - abs(uv.y * 2.0 - 1.0);
+
+	center = smoothstep(
+		0.0,
+		0.8,
+		center
+	);
+
+
+	// --------------------------------------------------------
+	// Distort the energy field
+	//
+	// The important difference from the previous shader:
+	// the field is now warped in BOTH dimensions.
+	// --------------------------------------------------------
+
+	vec2 p = uv;
+
+	p.x *= 7.0;
+	p.y *= 3.0;
+
+	p.x -= time;
+
+
+	float distortion = fbm(
+		vec2(
+			p.x * 0.7,
+			p.y * 1.4 + time * 0.15
+		)
+	);
+
+	p.y += (distortion - 0.5) * 2.0;
+
+
+	// --------------------------------------------------------
+	// Main turbulent energy field
+	// --------------------------------------------------------
+
+	float field = fbm(
+		p * vec2(1.4, 2.2)
+	);
+
+	field = smoothstep(
+		0.42,
+		0.72,
+		field
+	);
+
+
+	// --------------------------------------------------------
+	// Secondary finer energy
+	// --------------------------------------------------------
+
+	float fine = fbm(
+		p * vec2(3.5, 4.5) +
+		vec2(-time * 0.7, time * 0.15)
+	);
+
+	fine = smoothstep(
+		0.55,
+		0.82,
+		fine
+	);
+
+
+	// --------------------------------------------------------
+	// Combine into irregular plasma
+	// --------------------------------------------------------
+
+	float energy =
+		field * 0.75 +
+		fine * filament_strength;
+
+
+	// Keep everything concentrated inside the core.
+	energy *= center;
+
+
+	// --------------------------------------------------------
+	// Soft base energy
+	// --------------------------------------------------------
+
+	float soft_energy =
+		center *
+		energy_strength *
+		0.34;
+
+
+	energy =
+		soft_energy +
+		energy * 0.55;
+
+
+	// --------------------------------------------------------
+	// Fade toward the tail.
+	//
+	// UV.x = 0 at ball
+	// UV.x = 1 at tail
+	// --------------------------------------------------------
+
+	float trail_fade = 1.0 - smoothstep(
+		0.55,
+		1.0,
+		uv.x
+	);
+
+	energy *= trail_fade;
+
+
+	// --------------------------------------------------------
+	// Cyan energy → bright cyan/white filament
+	// --------------------------------------------------------
+
+	vec3 base_color = vec3(
+		0.0,
+		0.65,
+		0.85
+	);
+
+	vec3 bright_color = vec3(
+		0.55,
+		1.0,
+		1.0
+	);
+
+	float brightness = clamp(
+		energy,
+		0.0,
+		1.0
+	);
+
+	vec3 final_color = mix(
+		base_color,
+		bright_color,
+		brightness
+	);
+
+
+	COLOR = vec4(
+		final_color,
+		energy
+	);
+}

@@ -1,0 +1,186 @@
+[gd_scene format=3 uid="uid://omudvbihhl7m"]
+
+[ext_resource type="PackedScene" uid="uid://ch7y0k0flout3" path="res://scenes/ball.tscn" id="1_ball"]
+[ext_resource type="PackedScene" uid="uid://duphfmjjkd8ln" path="res://scenes/platform.tscn" id="2_platform"]
+[ext_resource type="Script" uid="uid://cldahgopdhqwh" path="res://scripts/camera_follow.gd" id="3_camera"]
+[ext_resource type="Script" uid="uid://dwlapbcc2pl42" path="res://scripts/platform_spawner.gd" id="4_spawner"]
+[ext_resource type="Script" uid="uid://cb2dw168kltux" path="res://scripts/main.gd" id="5_main"]
+[ext_resource type="Script" uid="uid://dn847m8g78hfg" path="res://scripts/hud.gd" id="6_hud"]
+[ext_resource type="Script" uid="uid://c0id0qhhwsyql" path="res://scripts/game_over_screen.gd" id="7_gameover"]
+[ext_resource type="PackedScene" path="res://scenes/coin.tscn" id="8_coin"]
+[ext_resource type="Script" uid="uid://ck0ynampffokl" path="res://scripts/coin_spawner.gd" id="9_coinspawner"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.12, 0.13, 0.18, 0.95)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+
+[sub_resource type="Environment" id="Environment_85g3d"]
+background_mode = 3
+glow_enabled = true
+glow_levels/1 = 0.8
+glow_levels/2 = 0.7
+glow_levels/3 = 1.0
+glow_levels/4 = 0.2
+glow_intensity = 0.8
+glow_bloom = 0.3
+glow_hdr_threshold = 0.5
+
+[node name="Main" type="Node2D" unique_id=799501107]
+script = ExtResource("5_main")
+ball_path = NodePath("Ball")
+camera_path = NodePath("GameCamera")
+
+[node name="Ball" parent="." unique_id=1735909432 instance=ExtResource("1_ball")]
+position = Vector2(360, 600)
+
+[node name="GameCamera" type="Camera2D" parent="." unique_id=755950338]
+position = Vector2(360, 640)
+script = ExtResource("3_camera")
+target_path = NodePath("../Ball")
+
+[node name="Background" type="ColorRect" parent="GameCamera" unique_id=1587714943]
+z_index = -60
+offset_left = -360.0
+offset_top = -640.0
+offset_right = 360.0
+offset_bottom = 640.0
+color = Color(0.007843138, 0.023529412, 0.050980393, 1)
+
+[node name="CoinSpawner" type="Node2D" parent="." unique_id=606753791]
+script = ExtResource("9_coinspawner")
+coin_scene = ExtResource("8_coin")
+platform_spawner_path = NodePath("../PlatformSpawner")
+camera_path = NodePath("../GameCamera")
+
+[node name="PlatformSpawner" type="Node2D" parent="." unique_id=703496996]
+script = ExtResource("4_spawner")
+platform_scene = ExtResource("2_platform")
+ball_path = NodePath("../Ball")
+camera_path = NodePath("../GameCamera")
+
+[node name="HUD" type="CanvasLayer" parent="." unique_id=908125500]
+script = ExtResource("6_hud")
+
+[node name="DebugSectionLabel" type="Label" parent="HUD" unique_id=1043505798]
+modulate = Color(1, 1, 1, 0.003921569)
+offset_left = 225.0
+offset_top = 128.0
+offset_right = 501.0
+offset_bottom = 192.0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 32
+text = "Early Forest"
+horizontal_alignment = 1
+vertical_alignment = 1
+uppercase = true
+
+[node name="ScoreLabel" type="Label" parent="HUD" unique_id=1191689477]
+offset_left = 20.0
+offset_top = 50.0
+offset_right = 400.0
+offset_bottom = 100.0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 36
+text = "Score: 0"
+
+[node name="CoinLabel" type="Label" parent="HUD" unique_id=502937454]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -220.0
+offset_top = 50.0
+offset_right = -20.0
+offset_bottom = 100.0
+theme_override_colors/font_color = Color(1, 0.84, 0.15, 1)
+theme_override_font_sizes/font_size = 36
+text = "● 0"
+horizontal_alignment = 2
+
+[node name="GameOverScreen" type="CanvasLayer" parent="." unique_id=788048322]
+process_mode = 2
+script = ExtResource("7_gameover")
+
+[node name="Background" type="ColorRect" parent="GameOverScreen" unique_id=448816925]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.75)
+
+[node name="Panel" type="Panel" parent="GameOverScreen" unique_id=1810532299]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -260.0
+offset_top = -280.0
+offset_right = 260.0
+offset_bottom = 280.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="GameOverScreen/Panel" unique_id=560395507]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 30.0
+offset_top = 30.0
+offset_right = -30.0
+offset_bottom = -30.0
+theme_override_constants/separation = 20
+
+[node name="TitleLabel" type="Label" parent="GameOverScreen/Panel/VBoxContainer" unique_id=893914246]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 40
+text = "Game Over"
+horizontal_alignment = 1
+
+[node name="ScoreLabel" type="Label" parent="GameOverScreen/Panel/VBoxContainer" unique_id=398603917]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 28
+text = "Score: 0"
+horizontal_alignment = 1
+
+[node name="HighscoreLabel" type="Label" parent="GameOverScreen/Panel/VBoxContainer" unique_id=1882413821]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 28
+text = "Highscore: 0"
+horizontal_alignment = 1
+
+[node name="CoinsLabel" type="Label" parent="GameOverScreen/Panel/VBoxContainer" unique_id=735452919]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.84, 0.15, 1)
+theme_override_font_sizes/font_size = 24
+text = "Coins gesammelt: 0"
+horizontal_alignment = 1
+
+[node name="TotalCoinsLabel" type="Label" parent="GameOverScreen/Panel/VBoxContainer" unique_id=1515414802]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.84, 0.15, 1)
+theme_override_font_sizes/font_size = 24
+text = "Coins gesamt: 0"
+horizontal_alignment = 1
+
+[node name="NewHighscoreLabel" type="Label" parent="GameOverScreen/Panel/VBoxContainer" unique_id=2091273349]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
+theme_override_font_sizes/font_size = 26
+text = "Neuer Highscore!"
+horizontal_alignment = 1
+
+[node name="RestartButton" type="Button" parent="GameOverScreen/Panel/VBoxContainer" unique_id=396696401]
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+text = "Nochmal spielen"
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=174466091]
+environment = SubResource("Environment_85g3d")
