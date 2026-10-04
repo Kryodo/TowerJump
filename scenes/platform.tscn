@@ -15,31 +15,31 @@ shader = ExtResource("3_507ja")
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_vfx0"]
 atlas = ExtResource("4_vfx")
-region = Rect2(0, 0, 256, 246)
+region = Rect2(0, 0, 366, 352)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_vfx1"]
 atlas = ExtResource("4_vfx")
-region = Rect2(256, 0, 256, 246)
+region = Rect2(366, 0, 366, 352)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_vfx2"]
 atlas = ExtResource("4_vfx")
-region = Rect2(512, 0, 256, 246)
+region = Rect2(732, 0, 366, 352)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_vfx3"]
 atlas = ExtResource("4_vfx")
-region = Rect2(768, 0, 256, 246)
+region = Rect2(1098, 0, 366, 352)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_vfx4"]
 atlas = ExtResource("4_vfx")
-region = Rect2(1024, 0, 256, 246)
+region = Rect2(1464, 0, 366, 352)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_vfx5"]
 atlas = ExtResource("4_vfx")
-region = Rect2(1280, 0, 256, 246)
+region = Rect2(1830, 0, 366, 352)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_vfx6"]
 atlas = ExtResource("4_vfx")
-region = Rect2(1536, 0, 256, 246)
+region = Rect2(2196, 0, 366, 352)
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_vfx"]
 animations = [{
@@ -64,10 +64,13 @@ animations = [{
 }, {
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_vfx6")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_vfx7")
 }],
 "loop": 0,
 "name": &"impact",
-"speed": 12.0
+"speed": 20.0
 }]
 
 [node name="Platform" type="StaticBody2D" unique_id=1162546100]
@@ -85,6 +88,6 @@ material = SubResource("ShaderMaterial_n1ckp")
 
 [node name="LandingVFX" type="AnimatedSprite2D" parent="." unique_id=486458464]
 z_index = 10
-position = Vector2(0, -67)
+position = Vector2(0, -62)\nscale = Vector2(0.75, 0.75)
 sprite_frames = SubResource("SpriteFrames_vfx")
 animation = &"impact"
