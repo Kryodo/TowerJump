@@ -218,6 +218,10 @@ func _play_landing_pulse(landing_world_x: float) -> void:
 	# PLAY SPRITE-SHEET IMPACT VFX
 	# --------------------------------------------------
 
+	_landing_vfx.position = Vector2(
+		local_landing_x,
+		-62.0
+	)
 	_landing_vfx.visible = true
 	_landing_vfx.frame = 0
 	_landing_vfx.play("impact")
