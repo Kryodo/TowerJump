@@ -41,6 +41,10 @@ region = Rect2(1830, 0, 366, 352)
 atlas = ExtResource("4_vfx")
 region = Rect2(2196, 0, 366, 352)
 
+[sub_resource type="AtlasTexture" id="AtlasTexture_vfx7"]
+atlas = ExtResource("4_vfx")
+region = Rect2(2562, 0, 366, 352)
+
 [sub_resource type="SpriteFrames" id="SpriteFrames_vfx"]
 animations = [{
 "frames": [{
@@ -88,6 +92,7 @@ material = SubResource("ShaderMaterial_n1ckp")
 
 [node name="LandingVFX" type="AnimatedSprite2D" parent="." unique_id=486458464]
 z_index = 10
-position = Vector2(0, -62)\nscale = Vector2(0.75, 0.75)
+position = Vector2(0, -62)
+scale = Vector2(0.75, 0.75)
 sprite_frames = SubResource("SpriteFrames_vfx")
 animation = &"impact"
