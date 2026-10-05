@@ -327,22 +327,22 @@ func _update_landing_target() -> void:
 		var approach_range := 300.0
 
 		if dy > 0.0 and dy < approach_range:
-			var g := ball.gravity
-			var vy := ball.velocity.y
-			var discriminant := vy * vy + 2.0 * g * dy
+			var g: float = float(ball.gravity)
+			var vy: float = float(ball.velocity.y)
+			var discriminant: float = vy * vy + 2.0 * g * dy
 
 			if discriminant >= 0.0:
-				var t := (-vy + sqrt(discriminant)) / g
-				var predicted_x := ball.global_position.x + ball.velocity.x * t
+				var t: float = (-vy + sqrt(discriminant)) / g
+				var predicted_x: float = ball.global_position.x + ball.velocity.x * t
 
 				# Account for screen wrap when predicting the landing position.
-				var screen_width := get_viewport_rect().size.x
+				var screen_width: float = float(get_viewport_rect().size.x)
 				if predicted_x < 0.0:
 					predicted_x = fmod(predicted_x, screen_width) + screen_width
 				elif predicted_x > screen_width:
 					predicted_x = fmod(predicted_x, screen_width)
 
-				var local_x := predicted_x - global_position.x
+				var local_x: float = predicted_x - global_position.x
 				var landing_margin := 18.0
 
 				if local_x >= -half_width() - landing_margin and local_x <= half_width() + landing_margin:
