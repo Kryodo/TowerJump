@@ -2,7 +2,6 @@
 
 [ext_resource type="Script" uid="uid://bqmyxoc1efg7n" path="res://scripts/platform.gd" id="1_platform"]
 [ext_resource type="Shader" uid="uid://2nd00bmk0t0w" path="res://scenes/platform.gdshader" id="2_body"]
-[ext_resource type="Shader" uid="uid://bketcyr37ts8e" path="res://scenes/platform_landing_surface.gdshader" id="3_landing"]
 [ext_resource type="Shader" uid="uid://ctef0ytfupc5w" path="res://scenes/platform_edge_feedback.gdshader" id="4_edge"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_body"]
@@ -12,9 +11,6 @@ shader_parameter/reflection_height = 2.0
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_edge"]
 shader = ExtResource("4_edge")
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_landing"]
-shader = ExtResource("3_landing")
 
 [node name="Platform" type="StaticBody2D" unique_id=1162546100]
 script = ExtResource("1_platform")
@@ -26,7 +22,3 @@ material = SubResource("ShaderMaterial_body")
 
 [node name="NeonEdge" type="Polygon2D" parent="." unique_id=697089681]
 material = SubResource("ShaderMaterial_edge")
-
-[node name="LandingEnergy" type="Polygon2D" parent="." unique_id=925189576]
-visible = false
-material = SubResource("ShaderMaterial_landing")
