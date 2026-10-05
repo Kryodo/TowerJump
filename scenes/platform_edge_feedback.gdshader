@@ -90,6 +90,14 @@ void fragment() {
 		charge
 	);
 
+	float confirm = clamp(
+		landing_confirm,
+		0.0,
+		1.0
+	);
+
+	float confirm_flash = confirm * confirm;
+
 	float active = clamp(
 		active_region * 0.82 +
 		front_glow * 0.28 +
@@ -112,6 +120,9 @@ void fragment() {
 
 	// Tiny final lift at full connection.
 	result += vec3(0.0, 0.18, 0.24) * convergence * active;
+
+	// Short cyan confirmation peak when the two sides connect.
+	result += vec3(0.0, 0.75, 0.95) * confirm_flash;
 
 	COLOR.rgb = result;
 }
