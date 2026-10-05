@@ -33,7 +33,7 @@ const PLATFORM_BODY_COLOR := Color("#0B111B")
 
 
 const BEVEL := 4.0
-const EDGE_HEIGHT := 4.0
+const EDGE_HEIGHT := 8.0
 const EDGE_INSET := 1.0
 
 var platform_type: PlatformType = PlatformType.NORMAL
@@ -46,13 +46,11 @@ var _broken: bool = false
 @onready var _collision_shape: CollisionShape2D = $CollisionShape2D
 @onready var _visual: Polygon2D = $Visual
 @onready var _neon_edge: Polygon2D = $NeonEdge
-@onready var _landing_energy: Polygon2D = $LandingEnergy
 
 func _ready() -> void:
 	add_to_group("platforms")
 	_collision_shape.one_way_collision = true
 
-	_landing_energy.visible = false
 
 
 	_apply_geometry()
@@ -107,32 +105,6 @@ func _apply_geometry() -> void:
 
 	_neon_edge.color = NEON_COLOR
 
-	# --------------------------------------------------
-	# LANDING ENERGY SURFACE
-	# --------------------------------------------------
-
-	var energy_height := 34.0
-	var energy_top := -hh - energy_height
-	var energy_bottom := -hh + 5.0
-
-	_landing_energy.polygon = PackedVector2Array([
-		Vector2(-hw, energy_top),
-		Vector2(hw, energy_top),
-		Vector2(hw, energy_bottom),
-		Vector2(-hw, energy_bottom)
-	])
-
-	_landing_energy.color = Color.WHITE
-
-	_landing_energy.set_instance_shader_parameter(
-		"platform_width",
-		width * width_scale
-	)
-
-	_landing_energy.set_instance_shader_parameter(
-		"surface_y",
-		-hh
-	)
 
 func _physics_process(delta: float) -> void:
 	_update_landing_target()
@@ -164,7 +136,6 @@ func spawn_as(
 	_collision_shape.disabled = false
 	visible = true
 
-	_landing_energy.visible = false
 
 
 	_apply_geometry()
@@ -183,57 +154,15 @@ func on_ball_landed(landing_world_x: float) -> float:
 	return 1.0
 
 func _play_landing_pulse(landing_world_x: float) -> void:
-	_neon_edge.color = NEON_COLOR
-	_neon_edge.set_instance_shader_parameter("landing_confirm", 0.0)
+	_neon_edge.set_instance_shader_parameter("landing_confirm", 1.0)
 
 	_visual.set_instance_shader_parameter(
 		"landing_pulse",
 		0.0
 	)
 
-	# --------------------------------------------------
-	# CALCULATE LANDING POSITION ON PLATFORM
-	# --------------------------------------------------
-
-	var local_landing_x := landing_world_x - global_position.x
-
-	var landing_ratio := (
-		local_landing_x + half_width()
-	) / (width * width_scale)
-
-	landing_ratio = clamp(
-		landing_ratio,
-		0.0,
-		1.0
-	)
-
-	# --------------------------------------------------
-	# START SURFACE ENERGY
-	# --------------------------------------------------
-
-	_landing_energy.visible = true
-
-	_landing_energy.set_instance_shader_parameter(
-		"landing_x",
-		landing_ratio
-	)
-
-	_landing_energy.set_instance_shader_parameter(
-		"landing_energy",
-		0.0
-	)
-
 	var tween := create_tween()
-
 	tween.set_parallel(true)
-
-	# --------------------------------------------------
-	# NEON EDGE
-	# --------------------------------------------------
-
-	# --------------------------------------------------
-	# BODY
-	# --------------------------------------------------
 
 	tween.tween_method(
 		func(value: float) -> void:
@@ -243,41 +172,11 @@ func _play_landing_pulse(landing_world_x: float) -> void:
 			),
 		0.0,
 		1.0,
-		1.15
+		0.18
 	).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-
-	# --------------------------------------------------
-	# SURFACE ENERGY
-	# --------------------------------------------------
-
-	tween.tween_method(
-		func(value: float) -> void:
-			_landing_energy.set_instance_shader_parameter(
-				"landing_energy",
-				value
-			),
-		0.0,
-		1.0,
-		1.05
-	).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
 
 	tween.set_parallel(false)
 
-	# --------------------------------------------------
-	# NEON EDGE RECOVERY
-	# --------------------------------------------------
-
-	tween.tween_property(
-		_neon_edge,
-		"color",
-		NEON_COLOR,
-		1.92
-	).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-
-	# --------------------------------------------------
-	# BODY RECOVERY
-	# --------------------------------------------------
-
 	tween.tween_method(
 		func(value: float) -> void:
 			_visual.set_instance_shader_parameter(
@@ -286,27 +185,15 @@ func _play_landing_pulse(landing_world_x: float) -> void:
 			),
 		1.0,
 		0.0,
-		1.90
+		0.28
 	).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-
-	# --------------------------------------------------
-	# CLEANUP
-	# --------------------------------------------------
 
 	tween.tween_callback(
 		func() -> void:
-			_landing_energy.set_instance_shader_parameter(
-				"landing_energy",
-				0.0
-			)
-
-			_landing_energy.visible = false
-
 			_visual.set_instance_shader_parameter(
 				"landing_pulse",
 				0.0
 			)
-
 			_neon_edge.set_instance_shader_parameter(
 				"landing_confirm",
 				0.0
