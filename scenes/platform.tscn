@@ -1,9 +1,27 @@
 [gd_scene format=3 uid="uid://duphfmjjkd8ln"]
 
 [ext_resource type="Script" uid="uid://bqmyxoc1efg7n" path="res://scripts/platform.gd" id="1_platform"]
-[ext_resource type="Shader" uid="uid://2nd00bmk0t0w" path="res://scenes/platform.gdshader" id="2_nlgqw"]
-[ext_resource type="Shader" uid="uid://bketcyr37ts8e" path="res://scenes/platform_landing_surface.gdshader" id="3_507ja"]
-[ext_resource type="Shader" path="res://scenes/platform_edge_feedback.gdshader" id="4_edge_feedback"]
+[ext_resource type="Shader" uid="uid://2nd00bmk0t0w" path="res://scenes/platform.gdshader" id="2_body"]
+[ext_resource type="Shader" uid="uid://bketcyr37ts8e" path="res://scenes/platform_landing_surface.gdshader" id="3_landing"]
+[ext_resource type="Shader" path="res://scenes/platform_edge_feedback.gdshader" id="4_edge"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_body"]
+shader = ExtResource("2_body")
+shader_parameter/platform_height = 20.0
+shader_parameter/reflection_height = 2.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_edge"]
+shader = ExtResource("4_edge")
+shader_parameter/platform_width = 220.0
+shader_parameter/approach_charge = 0.0
+shader_parameter/approach_target_x = 0.5
+shader_parameter/landing_confirm = 0.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_landing"]
+shader = ExtResource("3_landing")
+shader_parameter/landing_energy = 0.0
+shader_parameter/landing_x = 0.5
+shader_parameter/platform_width = 220.0
 
 [node name="Platform" type="StaticBody2D" unique_id=1162546100]
 script = ExtResource("1_platform")
@@ -11,10 +29,10 @@ script = ExtResource("1_platform")
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=456115632]
 
 [node name="Visual" type="Polygon2D" parent="." unique_id=1665530009]
-material = SubResource("ShaderMaterial_507ja")
+material = SubResource("ShaderMaterial_body")
 
 [node name="NeonEdge" type="Polygon2D" parent="." unique_id=697089681]
-material = SubResource("ShaderMaterial_edge_feedback")
+material = SubResource("ShaderMaterial_edge")
 
 [node name="LandingEnergy" type="Polygon2D" parent="." unique_id=925189576]
-material = SubResource("ShaderMaterial_n1ckp")
+material = SubResource("ShaderMaterial_landing")
