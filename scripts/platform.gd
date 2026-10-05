@@ -47,16 +47,13 @@ var _broken: bool = false
 @onready var _visual: Polygon2D = $Visual
 @onready var _neon_edge: Polygon2D = $NeonEdge
 @onready var _landing_energy: Polygon2D = $LandingEnergy
-@onready var _landing_vfx: AnimatedSprite2D = $LandingVFX
 
 func _ready() -> void:
+	add_to_group("platforms")
 	_collision_shape.one_way_collision = true
 
 	_landing_energy.visible = false
 
-	_landing_vfx.visible = false
-	_landing_vfx.stop()
-	_landing_vfx.animation_finished.connect(_on_landing_vfx_animation_finished)
 
 	_apply_geometry()
 
@@ -137,12 +134,9 @@ func _apply_geometry() -> void:
 		-hh
 	)
 
-	_landing_energy.set_instance_shader_parameter(
-		"landing_color",
-		LANDING_EDGE_COLOR
-	)
-
 func _physics_process(delta: float) -> void:
+	_update_landing_target()
+
 	if platform_type == PlatformType.MOVING and not _is_breaking and not _broken:
 		_move_phase += move_speed * delta
 		position.x = _base_position.x + sin(_move_phase) * move_radius
@@ -172,13 +166,12 @@ func spawn_as(
 
 	_landing_energy.visible = false
 
-	_landing_vfx.visible = false
-	_landing_vfx.stop()
 
 	_apply_geometry()
 
 func on_ball_landed(landing_world_x: float) -> float:
 	_play_landing_pulse(landing_world_x)
+	_neon_edge.set_instance_shader_parameter("landing_confirm", 1.0)
 
 	if platform_type == PlatformType.BREAKABLE:
 		_start_breaking()
@@ -191,6 +184,7 @@ func on_ball_landed(landing_world_x: float) -> float:
 
 func _play_landing_pulse(landing_world_x: float) -> void:
 	_neon_edge.color = NEON_COLOR
+	_neon_edge.set_instance_shader_parameter("landing_confirm", 0.0)
 
 	_visual.set_instance_shader_parameter(
 		"landing_pulse",
@@ -212,18 +206,6 @@ func _play_landing_pulse(landing_world_x: float) -> void:
 		0.0,
 		1.0
 	)
-
-	# --------------------------------------------------
-	# PLAY SPRITE-SHEET IMPACT VFX
-	# --------------------------------------------------
-
-	_landing_vfx.position = Vector2(
-		local_landing_x,
-		-62.0
-	)
-	_landing_vfx.visible = true
-	_landing_vfx.frame = 0
-	_landing_vfx.play("impact")
 
 	# --------------------------------------------------
 	# START SURFACE ENERGY
@@ -324,11 +306,92 @@ func _play_landing_pulse(landing_world_x: float) -> void:
 				"landing_pulse",
 				0.0
 			)
+
+			_neon_edge.set_instance_shader_parameter(
+				"landing_confirm",
+				0.0
+			)
 	)
 
-func _on_landing_vfx_animation_finished() -> void:
-	_landing_vfx.stop()
-	_landing_vfx.visible = false
+func _update_landing_target() -> void:
+	var ball := get_tree().get_first_node_in_group("player_ball") as CharacterBody2D
+	if ball == null:
+		return
+
+	var is_target := _is_best_landing_target(ball)
+	var charge := 0.0
+	var target_ratio := 0.5
+
+	if is_target and ball.velocity.y > 0.0:
+		var dy := global_position.y - ball.global_position.y
+		var approach_range := 300.0
+
+		if dy > 0.0 and dy < approach_range:
+			var g := ball.gravity
+			var vy := ball.velocity.y
+			var discriminant := vy * vy + 2.0 * g * dy
+
+			if discriminant >= 0.0:
+				var t := (-vy + sqrt(discriminant)) / g
+				var predicted_x := ball.global_position.x + ball.velocity.x * t
+
+				# Account for screen wrap when predicting the landing position.
+				var screen_width := get_viewport_rect().size.x
+				if predicted_x < 0.0:
+					predicted_x = fmod(predicted_x, screen_width) + screen_width
+				elif predicted_x > screen_width:
+					predicted_x = fmod(predicted_x, screen_width)
+
+				var local_x := predicted_x - global_position.x
+				var landing_margin := 18.0
+
+				if local_x >= -half_width() - landing_margin and local_x <= half_width() + landing_margin:
+					target_ratio = clampf(
+						(local_x + half_width()) / (width * width_scale),
+						0.0,
+						1.0
+					)
+					charge = 1.0 - clampf(dy / approach_range, 0.0, 1.0)
+					charge = smoothstep(0.0, 1.0, charge)
+
+	if charge <= 0.001:
+		_landing_energy.set_instance_shader_parameter("landing_energy", 0.0)
+
+	_neon_edge.set_instance_shader_parameter("approach_charge", charge)
+	_neon_edge.set_instance_shader_parameter("approach_target_x", target_ratio)
+
+
+func _is_best_landing_target(ball: CharacterBody2D) -> bool:
+	if ball.velocity.y <= 0.0:
+		return false
+
+	var candidates: Array[Node] = get_tree().get_nodes_in_group("platforms")
+	var best: Node2D = null
+	var best_dy := INF
+
+	for candidate in candidates:
+		if not candidate is Node2D:
+			continue
+
+		var platform := candidate as Node2D
+		if not platform.visible:
+			continue
+
+		var platform_dy := platform.global_position.y - ball.global_position.y
+		if platform_dy <= 0.0 or platform_dy > 300.0:
+			continue
+
+		var candidate_half_width := float(platform.call("half_width"))
+		var local_x := ball.global_position.x - platform.global_position.x
+		var margin := 24.0
+
+		if local_x >= -candidate_half_width - margin and local_x <= candidate_half_width + margin:
+			if platform_dy < best_dy:
+				best_dy = platform_dy
+				best = platform
+
+	return best == self
+
 
 func _start_breaking() -> void:
 	if _is_breaking or _broken:
