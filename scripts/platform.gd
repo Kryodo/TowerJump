@@ -31,7 +31,6 @@ var width_scale: float = 1.0
 const NEON_COLOR := Color(0.0, 1.8, 2.4, 1.0)
 const PLATFORM_BODY_COLOR := Color("#0B111B")
 
-const LANDING_EDGE_COLOR := Color("#1F51FF")
 
 const BEVEL := 4.0
 const EDGE_HEIGHT := 4.0
@@ -249,13 +248,6 @@ func _play_landing_pulse(landing_world_x: float) -> void:
 	# --------------------------------------------------
 	# NEON EDGE
 	# --------------------------------------------------
-
-	tween.tween_property(
-		_neon_edge,
-		"color",
-		LANDING_EDGE_COLOR,
-		0.08
-	).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
 
 	# --------------------------------------------------
 	# BODY
