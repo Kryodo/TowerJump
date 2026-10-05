@@ -28,7 +28,7 @@ var width_scale: float = 1.0
 @export_group("Spring")
 @export var spring_multiplier: float = 1.75
 
-const NEON_COLOR := Color(0.0, 1.8, 2.4, 1.0)
+const NEON_COLOR := Color(0.0, 0.65, 0.90, 1.0)
 const PLATFORM_BODY_COLOR := Color("#0B111B")
 
 
@@ -318,13 +318,13 @@ func _update_landing_target() -> void:
 	if ball == null:
 		return
 
-	var is_target := _is_best_landing_target(ball)
+	var target := _find_best_landing_target(ball)
 	var charge := 0.0
 	var target_ratio := 0.5
 
-	if is_target and ball.velocity.y > 0.0:
-		var dy := global_position.y - ball.global_position.y
-		var approach_range := 300.0
+	if target == self and ball.velocity.y > 0.0:
+		var dy: float = global_position.y - ball.global_position.y
+		var approach_range: float = 360.0
 
 		if dy > 0.0 and dy < approach_range:
 			var g: float = float(ball.gravity)
@@ -337,17 +337,27 @@ func _update_landing_target() -> void:
 
 				# Account for screen wrap when predicting the landing position.
 				var screen_width: float = float(get_viewport_rect().size.x)
-				if predicted_x < 0.0:
-					predicted_x = fmod(predicted_x, screen_width) + screen_width
-				elif predicted_x > screen_width:
+				if screen_width > 0.0:
 					predicted_x = fmod(predicted_x, screen_width)
+					if predicted_x < 0.0:
+						predicted_x += screen_width
 
 				var local_x: float = predicted_x - global_position.x
-				var landing_margin := 18.0
+				var landing_margin: float = 18.0
+				var platform_half_width: float = half_width()
 
-				if local_x >= -half_width() - landing_margin and local_x <= half_width() + landing_margin:
+				# Also test the wrapped horizontal distance, so targets near the
+				# left/right screen edge behave correctly.
+				var wrapped_local_x: float = local_x
+				if screen_width > 0.0:
+					if wrapped_local_x > screen_width * 0.5:
+						wrapped_local_x -= screen_width
+					elif wrapped_local_x < -screen_width * 0.5:
+						wrapped_local_x += screen_width
+
+				if absf(wrapped_local_x) <= platform_half_width + landing_margin:
 					target_ratio = clampf(
-						(local_x + half_width()) / (width * width_scale),
+						(wrapped_local_x + platform_half_width) / (width * width_scale),
 						0.0,
 						1.0
 					)
@@ -361,13 +371,19 @@ func _update_landing_target() -> void:
 	_neon_edge.set_instance_shader_parameter("approach_target_x", target_ratio)
 
 
-func _is_best_landing_target(ball: CharacterBody2D) -> bool:
+func _find_best_landing_target(ball: CharacterBody2D) -> Node2D:
 	if ball.velocity.y <= 0.0:
-		return false
+		return null
 
 	var candidates: Array[Node] = get_tree().get_nodes_in_group("platforms")
 	var best: Node2D = null
-	var best_dy := INF
+	var best_dy: float = INF
+	var g: float = float(ball.gravity)
+	var vy: float = float(ball.velocity.y)
+	var screen_width: float = float(get_viewport_rect().size.x)
+
+	if g <= 0.0:
+		return null
 
 	for candidate in candidates:
 		if not candidate is Node2D:
@@ -377,20 +393,40 @@ func _is_best_landing_target(ball: CharacterBody2D) -> bool:
 		if not platform.visible:
 			continue
 
-		var platform_dy := platform.global_position.y - ball.global_position.y
-		if platform_dy <= 0.0 or platform_dy > 300.0:
+		var platform_dy: float = platform.global_position.y - ball.global_position.y
+		if platform_dy <= 0.0 or platform_dy > 360.0:
 			continue
 
-		var candidate_half_width := float(platform.call("half_width"))
-		var local_x := ball.global_position.x - platform.global_position.x
-		var margin := 24.0
+		var discriminant: float = vy * vy + 2.0 * g * platform_dy
+		if discriminant < 0.0:
+			continue
 
-		if local_x >= -candidate_half_width - margin and local_x <= candidate_half_width + margin:
+		var t: float = (-vy + sqrt(discriminant)) / g
+		if t <= 0.0:
+			continue
+
+		var predicted_x: float = ball.global_position.x + ball.velocity.x * t
+		if screen_width > 0.0:
+			predicted_x = fmod(predicted_x, screen_width)
+			if predicted_x < 0.0:
+				predicted_x += screen_width
+
+		var candidate_half_width: float = float(platform.call("half_width"))
+		var local_x: float = predicted_x - platform.global_position.x
+
+		if screen_width > 0.0:
+			if local_x > screen_width * 0.5:
+				local_x -= screen_width
+			elif local_x < -screen_width * 0.5:
+				local_x += screen_width
+
+		var landing_margin: float = 24.0
+		if absf(local_x) <= candidate_half_width + landing_margin:
 			if platform_dy < best_dy:
 				best_dy = platform_dy
 				best = platform
 
-	return best == self
+	return best
 
 
 func _start_breaking() -> void:

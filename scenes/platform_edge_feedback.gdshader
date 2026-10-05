@@ -13,117 +13,38 @@ void vertex() {
 
 void fragment() {
 	float half_width = platform_width * 0.5;
+	float x = clamp((edge_local_x + half_width) / platform_width, 0.0, 1.0);
+	float target = clamp(approach_target_x, 0.0, 1.0);
+	float charge = clamp(approach_charge, 0.0, 1.0);
 
-	float x = clamp(
-		(edge_local_x + half_width) / platform_width,
-		0.0,
-		1.0
-	);
-
-	float target = clamp(
-		approach_target_x,
-		0.0,
-		1.0
-	);
-
-	float charge = clamp(
-		approach_charge,
-		0.0,
-		1.0
-	);
-
-	float left_front = mix(
-		0.0,
-		target,
-		charge
-	);
-
-	float right_front = mix(
-		1.0,
-		target,
-		charge
-	);
-
-	// Filled energy regions moving inward from both ends.
-	float left_region = 1.0 - smoothstep(
-		left_front - 0.008,
-		left_front + 0.008,
-		x
-	);
-
-	float right_region = smoothstep(
-		right_front - 0.008,
-		right_front + 0.008,
-		x
-	);
-
-	left_region *= charge;
-	right_region *= charge;
-
-	float active_region = clamp(
-		left_region + right_region,
-		0.0,
-		1.0
-	);
-
-	// Bright moving fronts.
-	float left_front_glow = 1.0 - smoothstep(
-		0.0,
-		0.030,
-		abs(x - left_front)
-	);
-
-	float right_front_glow = 1.0 - smoothstep(
-		0.0,
-		0.030,
-		abs(x - right_front)
-	);
-
-	float front_glow = max(
-		left_front_glow,
-		right_front_glow
-	) * charge;
-
-	// Slightly stronger glow when the two sides are almost connected.
-	float convergence = smoothstep(
-		0.72,
-		1.0,
-		charge
-	);
-
-	float confirm = clamp(
-		landing_confirm,
-		0.0,
-		1.0
-	);
-
-	float confirm_flash = confirm * confirm;
-
-	float active = clamp(
-		active_region * 0.82 +
-		front_glow * 0.28 +
-		convergence * front_glow * 0.35,
-		0.0,
-		1.0
-	);
-
+	// The passive platform stays visibly neon, but the active state has
+	// enough contrast to read as a deliberate "wake up" response.
 	vec3 base_color = COLOR.rgb;
+	vec3 active_color = vec3(0.35, 1.9, 2.7);
+	vec3 core_color = vec3(0.72, 3.2, 4.0);
 
-	// Same neon language, but with a brighter energized state.
-	vec3 energized_color = base_color * 1.55 +
-		vec3(0.0, 0.45, 0.60);
+	// Two fronts travel inward from the ends toward the predicted landing point.
+	float left_front = mix(0.0, target, charge);
+	float right_front = mix(1.0, target, charge);
 
-	vec3 result = mix(
-		base_color,
-		energized_color,
-		active
-	);
+	float left_halo = (1.0 - smoothstep(0.0, 0.055, abs(x - left_front))) * charge;
+	float right_halo = (1.0 - smoothstep(0.0, 0.055, abs(x - right_front))) * charge;
+	float halo = max(left_halo, right_halo);
 
-	// Tiny final lift at full connection.
-	result += vec3(0.0, 0.18, 0.24) * convergence * active;
+	float left_core = (1.0 - smoothstep(0.0, 0.014, abs(x - left_front))) * charge;
+	float right_core = (1.0 - smoothstep(0.0, 0.014, abs(x - right_front))) * charge;
+	float core = max(left_core, right_core);
 
-	// Short cyan confirmation peak when the two sides connect.
-	result += vec3(0.0, 0.75, 0.95) * confirm_flash;
+	vec3 result = mix(base_color, active_color, halo * 0.82);
+	result = mix(result, core_color, core);
+
+	// A little extra intensity as the two fronts approach their meeting point.
+	float convergence = smoothstep(0.78, 1.0, charge);
+	result += core_color * convergence * 0.18 * charge;
+
+	// Brief confirmation peak on landing.
+	float confirm = clamp(landing_confirm, 0.0, 1.0);
+	result += vec3(0.85, 3.6, 4.5) * confirm * confirm;
 
 	COLOR.rgb = result;
 }
