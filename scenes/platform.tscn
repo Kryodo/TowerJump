@@ -3,79 +3,7 @@
 [ext_resource type="Script" uid="uid://bqmyxoc1efg7n" path="res://scripts/platform.gd" id="1_platform"]
 [ext_resource type="Shader" uid="uid://2nd00bmk0t0w" path="res://scenes/platform.gdshader" id="2_nlgqw"]
 [ext_resource type="Shader" uid="uid://bketcyr37ts8e" path="res://scenes/platform_landing_surface.gdshader" id="3_507ja"]
-[ext_resource type="Texture2D" uid="uid://c6cwabgmdnljw" path="res://Assets/landing_impact_vfx_sheet.png" id="4_vfx"]
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_507ja"]
-shader = ExtResource("2_nlgqw")
-shader_parameter/platform_height = 20.0
-shader_parameter/reflection_height = 2.0
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_n1ckp"]
-shader = ExtResource("3_507ja")
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_vfx0"]
-atlas = ExtResource("4_vfx")
-region = Rect2(0, 0, 366, 352)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_vfx1"]
-atlas = ExtResource("4_vfx")
-region = Rect2(366, 0, 366, 352)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_vfx2"]
-atlas = ExtResource("4_vfx")
-region = Rect2(732, 0, 366, 352)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_vfx3"]
-atlas = ExtResource("4_vfx")
-region = Rect2(1098, 0, 366, 352)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_vfx4"]
-atlas = ExtResource("4_vfx")
-region = Rect2(1464, 0, 366, 352)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_vfx5"]
-atlas = ExtResource("4_vfx")
-region = Rect2(1830, 0, 366, 352)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_vfx6"]
-atlas = ExtResource("4_vfx")
-region = Rect2(2196, 0, 366, 352)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_vfx7"]
-atlas = ExtResource("4_vfx")
-region = Rect2(2562, 0, 366, 352)
-
-[sub_resource type="SpriteFrames" id="SpriteFrames_vfx"]
-animations = [{
-"frames": [{
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_vfx0")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_vfx1")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_vfx2")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_vfx3")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_vfx4")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_vfx5")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_vfx6")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_vfx7")
-}],
-"loop": 0,
-"name": &"impact",
-"speed": 20.0
-}]
+[ext_resource type="Shader" path="res://scenes/platform_edge_feedback.gdshader" id="4_edge_feedback"]
 
 [node name="Platform" type="StaticBody2D" unique_id=1162546100]
 script = ExtResource("1_platform")
@@ -86,13 +14,7 @@ script = ExtResource("1_platform")
 material = SubResource("ShaderMaterial_507ja")
 
 [node name="NeonEdge" type="Polygon2D" parent="." unique_id=697089681]
+material = SubResource("ShaderMaterial_edge_feedback")
 
 [node name="LandingEnergy" type="Polygon2D" parent="." unique_id=925189576]
 material = SubResource("ShaderMaterial_n1ckp")
-
-[node name="LandingVFX" type="AnimatedSprite2D" parent="." unique_id=486458464]
-z_index = 10
-position = Vector2(0, -62)
-scale = Vector2(0.375, 0.375)
-sprite_frames = SubResource("SpriteFrames_vfx")
-animation = &"impact"
