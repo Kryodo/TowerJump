@@ -5,6 +5,7 @@ varying float edge_local_x;
 instance uniform float platform_width = 220.0;
 instance uniform float approach_charge = 0.0;
 instance uniform float approach_target_x = 0.5;
+instance uniform float landing_confirm = 0.0;
 
 void vertex() {
 	edge_local_x = VERTEX.x;
