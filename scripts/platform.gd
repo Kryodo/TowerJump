@@ -46,7 +46,8 @@ var _broken: bool = false
 # Visual target acquisition state. This is deliberately separate from
 # physical landing prediction so the neon sequence can begin during ascent.
 var _approach_target: Node2D = null
-var _approach_elapsed: float = 0.0
+var _approach_progress: float = 0.0
+var _approach_speed_rate: float = 0.0
 var _approach_target_x: float = 0.5
 
 @onready var _collision_shape: CollisionShape2D = $CollisionShape2D
@@ -142,7 +143,8 @@ func spawn_as(
 	_is_breaking = false
 	_broken = false
 	_approach_target = null
-	_approach_elapsed = 0.0
+	_approach_progress = 0.0
+	_approach_speed_rate = 0.0
 	_approach_target_x = 0.5
 
 	_neon_edge.set_instance_shader_parameter("approach_charge", 0.0)
@@ -161,6 +163,8 @@ func spawn_as(
 
 func on_ball_landed(landing_world_x: float) -> float:
 	_play_landing_pulse(landing_world_x)
+	_approach_progress = 1.0
+	_approach_speed_rate = 0.0
 	_neon_edge.set_instance_shader_parameter("approach_charge", 1.0)
 	_neon_edge.set_instance_shader_parameter("activated", 1.0)
 	_neon_edge.set_instance_shader_parameter("landing_confirm", 1.0)
@@ -274,25 +278,30 @@ func _update_approach_target(predicted_target: Node2D, prediction: Dictionary, d
 
 	if predicted_target != _approach_target:
 		_approach_target = predicted_target
-		_approach_elapsed = 0.0
+		_approach_progress = 0.0
+		_approach_speed_rate = 0.0
 
-	# The sequence starts from target acquisition, but its playback speed
-	# adapts to landing urgency. Early targets get a calm readable build;
-	# late/close landings accelerate the remaining anticipation so the visual
-	# sequence can catch up without turning time-to-land into the progress bar.
 	var time_to_land: float = INF
 	if not prediction.is_empty():
 		time_to_land = float(prediction.get("time_to_land", INF))
-	_approach_elapsed += delta * _approach_speed_multiplier(time_to_land)
+
+	# The sequence is now a continuous timeline with a real landing deadline.
+	# We continuously solve for the playback rate required to arrive at 100%
+	# at approximately the same moment as physical contact.
+	_update_approach_progress(delta, time_to_land)
 
 
 func _reset_approach_state() -> void:
 	_approach_target = null
-	_approach_elapsed = 0.0
+	_approach_progress = 0.0
+	_approach_speed_rate = 0.0
 	_approach_target_x = 0.5
 
 
-func _approach_charge() -> float:
+func _update_approach_progress(delta: float, time_to_land: float) -> void:
+	if not is_finite(time_to_land) or time_to_land <= 0.0:
+		return
+
 	var effective_width: float = width * width_scale
 	var width_factor: float = clampf(
 		inverse_lerp(100.0, 320.0, effective_width),
@@ -300,39 +309,51 @@ func _approach_charge() -> float:
 		1.0
 	)
 
-	# Smaller platforms receive a slightly longer, more readable anticipation.
-	# This is the base playback length; landing urgency can accelerate it.
-	var sequence_duration: float = lerpf(1.35, 0.90, width_factor)
-	var raw_progress := clampf(_approach_elapsed / sequence_duration, 0.0, 1.0)
+	# Width controls the preferred visual tempo, but the actual landing
+	# deadline always wins. Smaller platforms get a slightly calmer preferred
+	# tempo; the deadline solver can accelerate it when contact is close.
+	var preferred_duration: float = lerpf(1.35, 0.90, width_factor)
+	var preferred_rate: float = 1.0 / preferred_duration
 
-	# 95% is the airborne ceiling. The final 5% is reserved for the actual
-	# landing so the platform never appears fully connected before contact.
-	var visual_progress := minf(raw_progress, 0.95)
+	var remaining_progress: float = maxf(1.0 - _approach_progress, 0.0)
+	var remaining_time: float = maxf(time_to_land, 0.05)
+	var required_rate: float = remaining_progress / remaining_time
 
+	# Catch-up is deliberately capped. If the player only gives us a very
+	# short window, the sequence is allowed to be behind at contact rather
+	# than visibly completing before the ball lands.
+	var max_catchup_rate: float = preferred_rate * 3.0
+	var desired_rate: float = minf(required_rate, max_catchup_rate)
+
+	# Smooth rate changes keep steering corrections from making the neon
+	# sequence restart, reverse, or visibly jerk.
+	var rate_response: float = preferred_rate * 8.0
+	_approach_speed_rate = move_toward(
+		_approach_speed_rate,
+		desired_rate,
+		rate_response * delta
+	)
+
+	_approach_progress = minf(
+		_approach_progress + _approach_speed_rate * delta,
+		0.999
+	)
+
+
+func _approach_charge() -> float:
 	# Continuous visual milestones. These are shaping points, not discrete
-	# states: 0 -> 20 -> 50 -> 70 -> 80 -> 95 -> HOLD.
-	if visual_progress < 0.20:
-		return 0.20 * smoothstep(0.0, 1.0, visual_progress / 0.20)
-	if visual_progress < 0.50:
-		return 0.20 + 0.30 * smoothstep(0.0, 1.0, (visual_progress - 0.20) / 0.30)
-	if visual_progress < 0.70:
-		return 0.50 + 0.20 * smoothstep(0.0, 1.0, (visual_progress - 0.50) / 0.20)
-	if visual_progress < 0.80:
-		return 0.70 + 0.10 * smoothstep(0.0, 1.0, (visual_progress - 0.70) / 0.10)
-	if visual_progress < 0.95:
-		return 0.80 + 0.15 * smoothstep(0.0, 1.0, (visual_progress - 0.80) / 0.15)
-	return 0.95
+	# states. The underlying progress remains a single smooth 0..1 timeline.
+	var progress: float = clampf(_approach_progress, 0.0, 1.0)
 
-
-func _approach_speed_multiplier(time_to_land: float) -> float:
-	if not is_finite(time_to_land) or time_to_land >= 0.90:
-		return 1.0
-
-	# Keep the early sequence calm, then progressively compress the remaining
-	# anticipation as contact gets close. The multiplier is intentionally
-	# strongest near landing so a late target can still reach the 95% hold.
-	var urgency := 1.0 - smoothstep(0.15, 0.90, time_to_land)
-	return lerpf(1.0, 6.0, urgency)
+	if progress < 0.20:
+		return 0.20 * smoothstep(0.0, 1.0, progress / 0.20)
+	if progress < 0.50:
+		return 0.20 + 0.30 * smoothstep(0.0, 1.0, (progress - 0.20) / 0.30)
+	if progress < 0.70:
+		return 0.50 + 0.20 * smoothstep(0.0, 1.0, (progress - 0.50) / 0.20)
+	if progress < 0.80:
+		return 0.70 + 0.10 * smoothstep(0.0, 1.0, (progress - 0.70) / 0.10)
+return 0.80 + 0.20 * smoothstep(0.0, 1.0, (progress - 0.80) / 0.20)
 
 
 func _approach_target_x_world(ball: CharacterBody2D) -> float:
