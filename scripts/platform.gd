@@ -31,10 +31,16 @@ var width_scale: float = 1.0
 const NEON_COLOR := Color(0.0, 0.65, 0.90, 1.0)
 const PLATFORM_BODY_COLOR := Color("#0B111B")
 
-
 const BEVEL := 4.0
 const EDGE_HEIGHT := 8.0
 const EDGE_INSET := 1.0
+
+# Visual target state shared between pooled platform instances through the ball.
+# This keeps tiny prediction changes from making different platforms fight over
+# the same neon sequence.
+const LANDING_FEEDBACK_TARGET_META := "_towerjump_landing_feedback_target"
+const TARGET_SWITCH_DY_MARGIN := 36.0
+const RETRACT_RATE_MULTIPLIER := 0.90
 
 var platform_type: PlatformType = PlatformType.NORMAL
 
@@ -57,8 +63,6 @@ var _approach_target_x: float = 0.5
 func _ready() -> void:
 	add_to_group("platforms")
 	_collision_shape.one_way_collision = true
-
-
 
 	_apply_geometry()
 
@@ -115,8 +119,6 @@ func _apply_geometry() -> void:
 		"platform_width",
 		width * width_scale
 	)
-	_neon_edge.set_instance_shader_parameter("platform_width", width * width_scale)
-
 
 func _physics_process(delta: float) -> void:
 	_update_landing_target(delta)
@@ -156,8 +158,6 @@ func spawn_as(
 
 	_collision_shape.disabled = false
 	visible = true
-
-
 
 	_apply_geometry()
 
@@ -239,7 +239,7 @@ func _update_landing_target(delta: float) -> void:
 		_reset_approach_state()
 		return
 
-	var prediction := _get_best_landing_prediction(ball)
+	var prediction := _get_stable_landing_prediction(ball)
 	var predicted_target: Node2D = null
 	if not prediction.is_empty():
 		predicted_target = prediction["platform"] as Node2D
@@ -247,11 +247,148 @@ func _update_landing_target(delta: float) -> void:
 	_update_approach_target(predicted_target, prediction, delta)
 
 	if _approach_target != self:
-		_neon_edge.set_instance_shader_parameter("approach_charge", 0.0)
-		_neon_edge.set_instance_shader_parameter("approach_target_x", 0.5)
+		# The old target is allowed to visually retract in _update_approach_target().
+		# Only clear the shader once the reversible timeline has returned to zero.
+		if _approach_progress <= 0.0001:
+			_neon_edge.set_instance_shader_parameter("approach_charge", 0.0)
+			_neon_edge.set_instance_shader_parameter("approach_target_x", 0.5)
+		else:
+			_neon_edge.set_instance_shader_parameter(
+				"approach_charge",
+				_approach_charge()
+			)
+			_neon_edge.set_instance_shader_parameter(
+				"approach_target_x",
+				_approach_target_x
+			)
 		return
 
-	var predicted_x: float = _approach_target_x_world(ball)
+	if predicted_target == self and not prediction.is_empty():
+		_set_approach_target_x(float(prediction["predicted_x"]))
+
+	_neon_edge.set_instance_shader_parameter(
+		"approach_charge",
+		_approach_charge()
+	)
+	_neon_edge.set_instance_shader_parameter(
+		"approach_target_x",
+		_approach_target_x
+	)
+
+func _update_approach_target(
+	predicted_target: Node2D,
+	prediction: Dictionary,
+	delta: float
+) -> void:
+	if predicted_target == self:
+		# Re-acquiring the same platform never resets the timeline. This is the
+		# key difference from the old restart-on-target-loss behavior.
+		if _approach_target != self:
+			_approach_target = self
+			_approach_speed_rate = 0.0
+
+		var time_to_land: float = INF
+		if not prediction.is_empty():
+			time_to_land = float(prediction.get("time_to_land", INF))
+
+		_update_approach_progress(delta, time_to_land, true)
+		return
+
+	# If we were the previous target but the predicted landing has moved away,
+	# smoothly run the same timeline backwards. Small timing shifts do not get
+	# here unless the platform actually falls out of the stable target.
+	if _approach_target == self:
+		_update_approach_progress(delta, 0.0, false)
+
+		if _approach_progress <= 0.0001:
+			_approach_progress = 0.0
+			_approach_speed_rate = 0.0
+			_approach_target = null
+
+func _reset_approach_state() -> void:
+	_approach_target = null
+	_approach_progress = 0.0
+	_approach_speed_rate = 0.0
+	_approach_target_x = 0.5
+
+func _update_approach_progress(
+	delta: float,
+	time_to_land: float,
+	target_confirmed: bool
+) -> void:
+	var effective_width: float = width * width_scale
+	var width_factor: float = clampf(
+		inverse_lerp(100.0, 320.0, effective_width),
+		0.0,
+		1.0
+	)
+
+	# Width controls the preferred visual tempo, but the actual landing
+	# deadline still determines the forward playback rate.
+	var preferred_duration: float = lerpf(1.35, 0.90, width_factor)
+	var preferred_rate: float = 1.0 / preferred_duration
+
+	if not target_confirmed:
+		# Retraction is deliberately calmer than forward charging. It is a
+		# visual "backing away", not a hard reset.
+		var retract_rate: float = preferred_rate * RETRACT_RATE_MULTIPLIER
+		var retract_response: float = preferred_rate * 8.0
+
+		_approach_speed_rate = move_toward(
+			_approach_speed_rate,
+			-retract_rate,
+			retract_response * delta
+		)
+		_approach_progress = maxf(
+			_approach_progress + _approach_speed_rate * delta,
+			0.0
+		)
+		return
+
+	if not is_finite(time_to_land) or time_to_land <= 0.0:
+		return
+
+	var remaining_progress: float = maxf(1.0 - _approach_progress, 0.0)
+	var remaining_time: float = maxf(time_to_land, 0.05)
+	var required_rate: float = remaining_progress / remaining_time
+
+	# Catch-up is deliberately capped. If the player only gives us a very
+	# short window, the sequence is allowed to be behind at contact rather
+	# than visibly completing before the ball lands.
+	var max_catchup_rate: float = preferred_rate * 3.0
+	var desired_rate: float = minf(required_rate, max_catchup_rate)
+
+	# Timing changes only alter the positive playback speed. They never create
+	# negative progress, so a small time-to-land shift cannot visually rewind
+	# a still-valid target.
+	var rate_response: float = preferred_rate * 8.0
+	_approach_speed_rate = move_toward(
+		_approach_speed_rate,
+		desired_rate,
+		rate_response * delta
+	)
+
+	_approach_progress = minf(
+		_approach_progress + _approach_speed_rate * delta,
+		0.999
+	)
+
+func _approach_charge() -> float:
+	# Continuous visual milestones. These are shaping points, not discrete
+	# states. The underlying progress remains a single smooth 0..1 timeline.
+	var progress: float = clampf(_approach_progress, 0.0, 1.0)
+
+	if progress < 0.20:
+		return 0.20 * smoothstep(0.0, 1.0, progress / 0.20)
+	if progress < 0.50:
+		return 0.20 + 0.30 * smoothstep(0.0, 1.0, (progress - 0.20) / 0.30)
+	if progress < 0.70:
+		return 0.50 + 0.20 * smoothstep(0.0, 1.0, (progress - 0.50) / 0.20)
+	if progress < 0.80:
+		return 0.70 + 0.10 * smoothstep(0.0, 1.0, (progress - 0.70) / 0.10)
+	return 0.80 + 0.20 * smoothstep(0.0, 1.0, (progress - 0.80) / 0.20)
+
+func _set_approach_target_x(predicted_x: float) -> void:
 	var local_x: float = predicted_x - global_position.x
 	var screen_width: float = float(get_viewport_rect().size.x)
 
@@ -267,103 +404,6 @@ func _update_landing_target(delta: float) -> void:
 		1.0 - _visual_target_margin()
 	)
 
-	_neon_edge.set_instance_shader_parameter("approach_charge", _approach_charge())
-	_neon_edge.set_instance_shader_parameter("approach_target_x", _approach_target_x)
-
-
-func _update_approach_target(predicted_target: Node2D, prediction: Dictionary, delta: float) -> void:
-	if predicted_target == null:
-		_reset_approach_state()
-		return
-
-	if predicted_target != _approach_target:
-		_approach_target = predicted_target
-		_approach_progress = 0.0
-		_approach_speed_rate = 0.0
-
-	var time_to_land: float = INF
-	if not prediction.is_empty():
-		time_to_land = float(prediction.get("time_to_land", INF))
-
-	# The sequence is now a continuous timeline with a real landing deadline.
-	# We continuously solve for the playback rate required to arrive at 100%
-	# at approximately the same moment as physical contact.
-	_update_approach_progress(delta, time_to_land)
-
-
-func _reset_approach_state() -> void:
-	_approach_target = null
-	_approach_progress = 0.0
-	_approach_speed_rate = 0.0
-	_approach_target_x = 0.5
-
-
-func _update_approach_progress(delta: float, time_to_land: float) -> void:
-	if not is_finite(time_to_land) or time_to_land <= 0.0:
-		return
-
-	var effective_width: float = width * width_scale
-	var width_factor: float = clampf(
-		inverse_lerp(100.0, 320.0, effective_width),
-		0.0,
-		1.0
-	)
-
-	# Width controls the preferred visual tempo, but the actual landing
-	# deadline always wins. Smaller platforms get a slightly calmer preferred
-	# tempo; the deadline solver can accelerate it when contact is close.
-	var preferred_duration: float = lerpf(1.35, 0.90, width_factor)
-	var preferred_rate: float = 1.0 / preferred_duration
-
-	var remaining_progress: float = maxf(1.0 - _approach_progress, 0.0)
-	var remaining_time: float = maxf(time_to_land, 0.05)
-	var required_rate: float = remaining_progress / remaining_time
-
-	# Catch-up is deliberately capped. If the player only gives us a very
-	# short window, the sequence is allowed to be behind at contact rather
-	# than visibly completing before the ball lands.
-	var max_catchup_rate: float = preferred_rate * 3.0
-	var desired_rate: float = minf(required_rate, max_catchup_rate)
-
-	# Smooth rate changes keep steering corrections from making the neon
-	# sequence restart, reverse, or visibly jerk.
-	var rate_response: float = preferred_rate * 8.0
-	_approach_speed_rate = move_toward(
-		_approach_speed_rate,
-		desired_rate,
-		rate_response * delta
-	)
-
-	_approach_progress = minf(
-		_approach_progress + _approach_speed_rate * delta,
-		0.999
-	)
-
-
-func _approach_charge() -> float:
-	# Continuous visual milestones. These are shaping points, not discrete
-	# states. The underlying progress remains a single smooth 0..1 timeline.
-	var progress: float = clampf(_approach_progress, 0.0, 1.0)
-
-	if progress < 0.20:
-		return 0.20 * smoothstep(0.0, 1.0, progress / 0.20)
-	if progress < 0.50:
-		return 0.20 + 0.30 * smoothstep(0.0, 1.0, (progress - 0.20) / 0.30)
-	if progress < 0.70:
-		return 0.50 + 0.20 * smoothstep(0.0, 1.0, (progress - 0.50) / 0.20)
-	if progress < 0.80:
-		return 0.70 + 0.10 * smoothstep(0.0, 1.0, (progress - 0.70) / 0.10)
-return 0.80 + 0.20 * smoothstep(0.0, 1.0, (progress - 0.80) / 0.20)
-
-
-func _approach_target_x_world(ball: CharacterBody2D) -> float:
-	var prediction := _get_platform_prediction(ball, self)
-	if prediction.is_empty():
-		return global_position.x
-
-	return prediction["predicted_x"]
-
-
 func _visual_target_margin() -> float:
 	var effective_width: float = width * width_scale
 	var width_factor: float = clampf(
@@ -373,8 +413,53 @@ func _visual_target_margin() -> float:
 	)
 	return lerpf(0.08, 0.18, width_factor)
 
+func _get_stable_landing_prediction(ball: CharacterBody2D) -> Dictionary:
+	var best_prediction := _get_best_landing_prediction(ball)
+	var stable_target := ball.get_meta(
+		LANDING_FEEDBACK_TARGET_META,
+		null
+	) as Node2D
 
-func _get_platform_prediction(ball: CharacterBody2D, platform: Node2D) -> Dictionary:
+	if stable_target != null and not is_instance_valid(stable_target):
+		stable_target = null
+
+	if stable_target != null and stable_target.visible:
+		var current_prediction := _get_platform_prediction(
+			ball,
+			stable_target
+		)
+
+		if not current_prediction.is_empty():
+			if best_prediction.is_empty():
+				return current_prediction
+
+			var best_target := best_prediction["platform"] as Node2D
+			if best_target == stable_target:
+				return current_prediction
+
+			var current_dy: float = stable_target.global_position.y - ball.global_position.y
+			var best_dy: float = best_target.global_position.y - ball.global_position.y
+
+			# Keep the existing target unless another platform is clearly
+			# better. This hysteresis stops tiny prediction changes from
+			# swapping the neon target and restarting the visual story.
+			if best_dy >= current_dy - TARGET_SWITCH_DY_MARGIN:
+				return current_prediction
+
+	if not best_prediction.is_empty():
+		ball.set_meta(
+			LANDING_FEEDBACK_TARGET_META,
+			best_prediction["platform"]
+		)
+	else:
+		ball.set_meta(LANDING_FEEDBACK_TARGET_META, null)
+
+	return best_prediction
+
+func _get_platform_prediction(
+	ball: CharacterBody2D,
+	platform: Node2D
+) -> Dictionary:
 	var g: float = float(ball.gravity)
 	var vy: float = float(ball.velocity.y)
 	var platform_dy: float = platform.global_position.y - ball.global_position.y
@@ -420,7 +505,6 @@ func _get_platform_prediction(ball: CharacterBody2D, platform: Node2D) -> Dictio
 		"local_x": local_x,
 	}
 
-
 func _get_best_landing_prediction(ball: CharacterBody2D) -> Dictionary:
 	var candidates: Array[Node] = get_tree().get_nodes_in_group("platforms")
 	var best: Node2D = null
@@ -463,7 +547,6 @@ func _get_best_landing_prediction(ball: CharacterBody2D) -> Dictionary:
 		return {}
 
 	return best_prediction
-
 
 func _start_breaking() -> void:
 	if _is_breaking or _broken:
