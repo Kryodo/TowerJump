@@ -131,6 +131,9 @@ func spawn_as(
 	_is_breaking = false
 	_broken = false
 
+	_neon_edge.set_instance_shader_parameter("activated", 0.0)
+	_neon_edge.set_instance_shader_parameter("landing_confirm", 0.0)
+
 	modulate = Color.WHITE
 
 	_collision_shape.disabled = false
@@ -142,6 +145,7 @@ func spawn_as(
 
 func on_ball_landed(landing_world_x: float) -> float:
 	_play_landing_pulse(landing_world_x)
+	_neon_edge.set_instance_shader_parameter("activated", 1.0)
 	_neon_edge.set_instance_shader_parameter("landing_confirm", 1.0)
 
 	if platform_type == PlatformType.BREAKABLE:
@@ -175,6 +179,17 @@ func _play_landing_pulse(_landing_world_x: float) -> void:
 		0.18
 	).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
+	tween.tween_method(
+		func(value: float) -> void:
+			_neon_edge.set_instance_shader_parameter(
+				"landing_confirm",
+				value
+			),
+		1.0,
+		0.0,
+		0.18
+	).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
 	tween.set_parallel(false)
 
 	tween.tween_method(
@@ -194,10 +209,7 @@ func _play_landing_pulse(_landing_world_x: float) -> void:
 				"landing_pulse",
 				0.0
 			)
-			_neon_edge.set_instance_shader_parameter(
-				"landing_confirm",
-				0.0
-			)
+			_neon_edge.set_instance_shader_parameter("landing_confirm", 0.0)
 	)
 
 func _update_landing_target() -> void:
