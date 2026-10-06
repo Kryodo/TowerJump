@@ -145,6 +145,8 @@ func spawn_as(
 	_approach_elapsed = 0.0
 	_approach_target_x = 0.5
 
+	_neon_edge.set_instance_shader_parameter("approach_charge", 0.0)
+	_neon_edge.set_instance_shader_parameter("approach_target_x", 0.5)
 	_neon_edge.set_instance_shader_parameter("activated", 0.0)
 	_neon_edge.set_instance_shader_parameter("landing_confirm", 0.0)
 
