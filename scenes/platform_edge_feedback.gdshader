@@ -19,9 +19,11 @@ void fragment() {
 	float charge = clamp(approach_charge, 0.0, 1.0);
 	float active = clamp(activated, 0.0, 1.0);
 
-	// The platform stays visibly neon even when idle. The neutral state is
-	// intentionally pale so the HDR cyan activation reads immediately.
-	vec3 neutral_color = vec3(0.72, 1.35, 1.55);
+	// Deep indigo keeps the platform visibly "alive" while creating
+	// enough hue/luminance separation from the HDR cyan charge to remain
+	// readable peripherally once glow/bloom is applied.
+	vec3 neutral_color = vec3(0.22, 0.08, 0.65);
+
 	vec3 active_color = vec3(0.10, 2.15, 3.20);
 	vec3 active_core = vec3(0.45, 3.15, 4.20);
 	vec3 confirm_color = vec3(1.35, 3.90, 4.60);
