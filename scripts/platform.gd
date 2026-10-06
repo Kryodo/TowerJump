@@ -153,7 +153,7 @@ func on_ball_landed(landing_world_x: float) -> float:
 
 	return 1.0
 
-func _play_landing_pulse(landing_world_x: float) -> void:
+func _play_landing_pulse(_landing_world_x: float) -> void:
 	_neon_edge.set_instance_shader_parameter("landing_confirm", 1.0)
 
 	_visual.set_instance_shader_parameter(
@@ -250,9 +250,6 @@ func _update_landing_target() -> void:
 					)
 					charge = 1.0 - clampf(dy / approach_range, 0.0, 1.0)
 					charge = smoothstep(0.0, 1.0, charge)
-
-	if charge <= 0.001:
-		_landing_energy.set_instance_shader_parameter("landing_energy", 0.0)
 
 	_neon_edge.set_instance_shader_parameter("approach_charge", charge)
 	_neon_edge.set_instance_shader_parameter("approach_target_x", target_ratio)
