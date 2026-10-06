@@ -104,6 +104,11 @@ func _apply_geometry() -> void:
 	])
 
 	_neon_edge.color = NEON_COLOR
+	_neon_edge.set_instance_shader_parameter(
+		"platform_width",
+		width * width_scale
+	)
+	_neon_edge.set_instance_shader_parameter("platform_width", width * width_scale)
 
 
 func _physics_process(delta: float) -> void:
@@ -217,76 +222,115 @@ func _update_landing_target() -> void:
 	if ball == null:
 		return
 
-	var target := _find_best_landing_target(ball)
+	var prediction := _get_best_landing_prediction(ball)
 	var charge := 0.0
 	var target_ratio := 0.5
 
-	if target == self and ball.velocity.y > 0.0:
-		var dy: float = global_position.y - ball.global_position.y
-		var approach_range: float = 360.0
+	if prediction.is_empty():
+		_neon_edge.set_instance_shader_parameter("approach_charge", 0.0)
+		_neon_edge.set_instance_shader_parameter("approach_target_x", target_ratio)
+		return
 
-		if dy > 0.0 and dy < approach_range:
-			var g: float = float(ball.gravity)
-			var vy: float = float(ball.velocity.y)
-			var discriminant: float = vy * vy + 2.0 * g * dy
+	var target: Node2D = prediction["platform"] as Node2D
+	if target != self:
+		_neon_edge.set_instance_shader_parameter("approach_charge", 0.0)
+		_neon_edge.set_instance_shader_parameter("approach_target_x", target_ratio)
+		return
 
-			if discriminant >= 0.0:
-				var t: float = (-vy + sqrt(discriminant)) / g
-				var predicted_x: float = ball.global_position.x + ball.velocity.x * t
+	var time_to_land: float = prediction["time_to_land"]
+	var predicted_x: float = prediction["predicted_x"]
+	var screen_width: float = float(get_viewport_rect().size.x)
+	var local_x: float = predicted_x - global_position.x
 
-				# Account for screen wrap when predicting the landing position.
-				var screen_width: float = float(get_viewport_rect().size.x)
-				if screen_width > 0.0:
-					predicted_x = fmod(predicted_x, screen_width)
-					if predicted_x < 0.0:
-						predicted_x += screen_width
+	if screen_width > 0.0:
+		if local_x > screen_width * 0.5:
+			local_x -= screen_width
+		elif local_x < -screen_width * 0.5:
+			local_x += screen_width
 
-				var local_x: float = predicted_x - global_position.x
-				var landing_margin: float = 18.0
-				var platform_half_width: float = half_width()
+	# Keep the real predicted landing point, but constrain only the visual
+	# target so the charge can converge cleanly without snapping to center.
+	var target_min := _visual_target_margin()
+	var target_max := 1.0 - target_min
+	target_ratio = clampf(
+		(local_x + half_width()) / (width * width_scale),
+		target_min,
+		target_max
+	)
 
-				# Also test the wrapped horizontal distance, so targets near the
-				# left/right screen edge behave correctly.
-				var wrapped_local_x: float = local_x
-				if screen_width > 0.0:
-					if wrapped_local_x > screen_width * 0.5:
-						wrapped_local_x -= screen_width
-					elif wrapped_local_x < -screen_width * 0.5:
-						wrapped_local_x += screen_width
+	# Smaller platforms get a longer perceived charge window. The window is
+	# still driven entirely by the predicted time-to-land, not by distance.
+	var effective_width: float = width * width_scale
+	var width_factor: float = clampf(
+		inverse_lerp(100.0, 320.0, effective_width),
+		0.0,
+		1.0
+	)
+	var charge_window: float = lerpf(1.35, 0.80, width_factor)
+	var raw_charge: float = 1.0 - clampf(time_to_land / charge_window, 0.0, 1.0)
 
-				if absf(wrapped_local_x) <= platform_half_width + landing_margin:
-					target_ratio = clampf(
-						(wrapped_local_x + platform_half_width) / (width * width_scale),
-						0.0,
-						1.0
-					)
-					charge = 1.0 - clampf(dy / approach_range, 0.0, 1.0)
-					charge = smoothstep(0.0, 1.0, charge)
+	# Continuous milestone-shaped progression:
+	# 0 -> 20 -> 50 -> 70 -> 80 -> 95 -> 100.
+	# The milestones are only shaping points; there are no discrete stages.
+	charge = _shape_approach_charge(raw_charge)
+
+	# Never visually claim a completed connection before the actual landing.
+	charge = minf(charge, 0.995)
 
 	_neon_edge.set_instance_shader_parameter("approach_charge", charge)
 	_neon_edge.set_instance_shader_parameter("approach_target_x", target_ratio)
 
 
-func _find_best_landing_target(ball: CharacterBody2D) -> Node2D:
+func _shape_approach_charge(value: float) -> float:
+	var x := clampf(value, 0.0, 1.0)
+
+	if x < 0.20:
+		return 0.20 * smoothstep(0.0, 1.0, x / 0.20)
+	if x < 0.50:
+		return 0.20 + 0.30 * smoothstep(0.0, 1.0, (x - 0.20) / 0.30)
+	if x < 0.70:
+		return 0.50 + 0.20 * smoothstep(0.0, 1.0, (x - 0.50) / 0.20)
+	if x < 0.80:
+		return 0.70 + 0.10 * smoothstep(0.0, 1.0, (x - 0.70) / 0.10)
+	if x < 0.95:
+		return 0.80 + 0.15 * smoothstep(0.0, 1.0, (x - 0.80) / 0.15)
+	return 0.95 + 0.05 * smoothstep(0.0, 1.0, (x - 0.95) / 0.05)
+
+
+func _visual_target_margin() -> float:
+	var effective_width: float = width * width_scale
+	var width_factor: float = clampf(
+		inverse_lerp(100.0, 320.0, effective_width),
+		0.0,
+		1.0
+	)
+	# Small platforms preserve almost the full predicted landing range.
+	# Wider platforms get a slightly safer interior target.
+	return lerpf(0.08, 0.18, width_factor)
+
+
+func _get_best_landing_prediction(ball: CharacterBody2D) -> Dictionary:
 	if ball.velocity.y <= 0.0:
-		return null
+		return {}
 
 	var candidates: Array[Node] = get_tree().get_nodes_in_group("platforms")
 	var best: Node2D = null
 	var best_dy: float = INF
+	var best_time: float = 0.0
+	var best_x: float = 0.0
 	var g: float = float(ball.gravity)
 	var vy: float = float(ball.velocity.y)
 	var screen_width: float = float(get_viewport_rect().size.x)
 
 	if g <= 0.0:
-		return null
+		return {}
 
 	for candidate in candidates:
 		if not candidate is Node2D:
 			continue
 
 		var platform := candidate as Node2D
-		if not platform.visible:
+		if not platform.visible or not platform.has_method("half_width"):
 			continue
 
 		var platform_dy: float = platform.global_position.y - ball.global_position.y
@@ -297,11 +341,11 @@ func _find_best_landing_target(ball: CharacterBody2D) -> Node2D:
 		if discriminant < 0.0:
 			continue
 
-		var t: float = (-vy + sqrt(discriminant)) / g
-		if t <= 0.0:
+		var time_to_land: float = (-vy + sqrt(discriminant)) / g
+		if time_to_land <= 0.0:
 			continue
 
-		var predicted_x: float = ball.global_position.x + ball.velocity.x * t
+		var predicted_x: float = ball.global_position.x + ball.velocity.x * time_to_land
 		if screen_width > 0.0:
 			predicted_x = fmod(predicted_x, screen_width)
 			if predicted_x < 0.0:
@@ -321,8 +365,24 @@ func _find_best_landing_target(ball: CharacterBody2D) -> Node2D:
 			if platform_dy < best_dy:
 				best_dy = platform_dy
 				best = platform
+				best_time = time_to_land
+				best_x = predicted_x
 
-	return best
+	if best == null:
+		return {}
+
+	return {
+		"platform": best,
+		"time_to_land": best_time,
+		"predicted_x": best_x,
+	}
+
+
+func _find_best_landing_target(ball: CharacterBody2D) -> Node2D:
+	var prediction := _get_best_landing_prediction(ball)
+	if prediction.is_empty():
+		return null
+	return prediction["platform"] as Node2D
 
 
 func _start_breaking() -> void:
