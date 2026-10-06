@@ -22,7 +22,7 @@ void fragment() {
 	// Deep indigo keeps the platform visibly "alive" while creating
 	// enough hue/luminance separation from the HDR cyan charge to remain
 	// readable peripherally once glow/bloom is applied.
-	vec3 neutral_color = vec3(0.22, 0.08, 0.65);
+	vec3 neutral_color = vec3(0.50, 0.19, 0.98);
 
 	vec3 active_color = vec3(0.10, 2.15, 3.20);
 	vec3 active_core = vec3(0.45, 3.15, 4.20);
