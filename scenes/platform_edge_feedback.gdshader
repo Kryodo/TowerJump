@@ -19,7 +19,7 @@ void fragment() {
 \tfloat charge = clamp(approach_charge, 0.0, 1.0);
 \tfloat active = clamp(activated, 0.0, 1.0);
 
-\tvec3 neutral_color = vec3(0.50, 0.19, 0.98);
+\tvec3 neutral_color = vec3(0.22, 0.08, 0.65);
 \tvec3 active_color = vec3(0.10, 2.15, 3.20);
 \tvec3 confirm_color = vec3(1.35, 3.90, 4.60);
 
