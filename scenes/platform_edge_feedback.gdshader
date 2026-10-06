@@ -15,7 +15,10 @@ void vertex() {
 void fragment() {
 	float half_width = platform_width * 0.5;
 	float x = clamp((edge_local_x + half_width) / platform_width, 0.0, 1.0);
-	float target = clamp(approach_target_x, 0.18, 0.82);
+	// The script supplies a width-aware, safely constrained prediction.
+	// Do not re-center it here: the visual target must remain the actual
+	// predicted landing point (Option B).
+	float target = clamp(approach_target_x, 0.02, 0.98);
 	float charge = clamp(approach_charge, 0.0, 1.0);
 	float active = clamp(activated, 0.0, 1.0);
 
