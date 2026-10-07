@@ -35,26 +35,13 @@ const BEVEL := 4.0
 const EDGE_HEIGHT := 8.0
 const EDGE_INSET := 1.0
 
-# Visual target state shared between pooled platform instances through the ball.
-# This keeps tiny prediction changes from making different platforms fight over
-# the same neon sequence.
-const LANDING_FEEDBACK_TARGET_META := "_towerjump_landing_feedback_target"
-const TARGET_SWITCH_DY_MARGIN := 36.0
-const RETRACT_RATE_MULTIPLIER := 0.90
+const LandingApproachState := preload(
+	"res://scripts/landing/landing_approach_state.gd"
+)
 
-# The predictor mirrors the ball's real horizontal acceleration/deceleration
-# model for the current held direction. It is deterministic rather than a
-# broad "reachable area", so idle jumps keep the old precise behavior.
-const APPROACH_TARGET_SMOOTH_RATE := 10.0
-const APPROACH_TARGET_SMOOTH_RATE_NEAR_LANDING := 5.0
-const APPROACH_TARGET_NEAR_LANDING_TIME := 0.50
-const ACTIVE_TARGET_MARGIN_BONUS := 12.0
-const ACTIVE_TARGET_MIN_STEERING_SPEED := 100.0
-
-# Give the timeline a small visual buffer near contact so the required rate
-# does not explode during the last few frames and produce a visible snap.
-const APPROACH_TIME_BUFFER_MAX := 0.14
-const MAX_CATCHUP_MULTIPLIER := 2.25
+# Physical landing is surfaced as an event so the centralized landing system
+# can fan the same event out to future ball/effect/score/combo/camera/audio layers.
+signal landing_occurred(landing_world_x: float)
 
 var platform_type: PlatformType = PlatformType.NORMAL
 
@@ -63,12 +50,9 @@ var _move_phase: float = 0.0
 var _is_breaking: bool = false
 var _broken: bool = false
 
-# Visual target acquisition state. This is deliberately separate from
-# physical landing prediction so the neon sequence can begin during ascent.
-var _approach_target: Node2D = null
-var _approach_progress: float = 0.0
-var _approach_speed_rate: float = 0.0
-var _approach_target_x: float = 0.5
+# Platform-local visual state is kept in a dedicated helper. The controller
+# owns targeting/prediction; the platform only exposes a visual adapter.
+var _landing_approach: LandingApproachState = LandingApproachState.new()
 
 @onready var _collision_shape: CollisionShape2D = $CollisionShape2D
 @onready var _visual: Polygon2D = $Visual
@@ -135,8 +119,6 @@ func _apply_geometry() -> void:
 	)
 
 func _physics_process(delta: float) -> void:
-	_update_landing_target(delta)
-
 	if platform_type == PlatformType.MOVING and not _is_breaking and not _broken:
 		_move_phase += move_speed * delta
 		position.x = _base_position.x + sin(_move_phase) * move_radius
@@ -158,15 +140,8 @@ func spawn_as(
 
 	_is_breaking = false
 	_broken = false
-	_approach_target = null
-	_approach_progress = 0.0
-	_approach_speed_rate = 0.0
-	_approach_target_x = 0.5
-
-	_neon_edge.set_instance_shader_parameter("approach_charge", 0.0)
-	_neon_edge.set_instance_shader_parameter("approach_target_x", 0.5)
-	_neon_edge.set_instance_shader_parameter("activated", 0.0)
-	_neon_edge.set_instance_shader_parameter("landing_confirm", 0.0)
+	_landing_approach.reset()
+	reset_landing_feedback_visual()
 
 	modulate = Color.WHITE
 
@@ -176,9 +151,12 @@ func spawn_as(
 	_apply_geometry()
 
 func on_ball_landed(landing_world_x: float) -> float:
+	# Emit before completing the local approach state so the central controller
+	# can capture the actual pre-landing approach progress in LandingEvent.
+	landing_occurred.emit(landing_world_x)
+
 	_play_landing_pulse(landing_world_x)
-	_approach_progress = 1.0
-	_approach_speed_rate = 0.0
+	_landing_approach.complete()
 	_neon_edge.set_instance_shader_parameter("approach_charge", 1.0)
 	_neon_edge.set_instance_shader_parameter("activated", 1.0)
 	_neon_edge.set_instance_shader_parameter("landing_confirm", 1.0)
@@ -246,479 +224,6 @@ func _play_landing_pulse(_landing_world_x: float) -> void:
 			)
 			_neon_edge.set_instance_shader_parameter("landing_confirm", 0.0)
 	)
-
-func _update_landing_target(delta: float) -> void:
-	var ball := get_tree().get_first_node_in_group("player_ball") as CharacterBody2D
-	if ball == null:
-		_reset_approach_state()
-		return
-
-	var prediction := _get_stable_landing_prediction(ball)
-	var predicted_target: Node2D = null
-	if not prediction.is_empty():
-		predicted_target = prediction["platform"] as Node2D
-
-	_update_approach_target(predicted_target, prediction, delta)
-
-	if _approach_target != self:
-		# The old target is allowed to visually retract in _update_approach_target().
-		# Only clear the shader once the reversible timeline has returned to zero.
-		if _approach_progress <= 0.0001:
-			_neon_edge.set_instance_shader_parameter("approach_charge", 0.0)
-			_neon_edge.set_instance_shader_parameter("approach_target_x", 0.5)
-		else:
-			_neon_edge.set_instance_shader_parameter(
-				"approach_charge",
-				_approach_charge()
-			)
-			_neon_edge.set_instance_shader_parameter(
-				"approach_target_x",
-				_approach_target_x
-			)
-		return
-
-	if predicted_target == self and not prediction.is_empty():
-		_set_approach_target_x(
-			float(prediction.get("predicted_x", 0.0)),
-			float(prediction.get("edge_factor", 0.0)),
-			float(prediction.get("time_to_land", INF)),
-			delta
-		)
-
-	_neon_edge.set_instance_shader_parameter(
-		"approach_charge",
-		_approach_charge()
-	)
-	_neon_edge.set_instance_shader_parameter(
-		"approach_target_x",
-		_approach_target_x
-	)
-
-func _update_approach_target(
-	predicted_target: Node2D,
-	prediction: Dictionary,
-	delta: float
-) -> void:
-	if predicted_target == self:
-		# Re-acquiring the same platform never resets the timeline. This is the
-		# key difference from the old restart-on-target-loss behavior.
-		if _approach_target != self:
-			_approach_target = self
-			_approach_speed_rate = 0.0
-
-		var time_to_land: float = INF
-		if not prediction.is_empty():
-			time_to_land = float(prediction.get("time_to_land", INF))
-
-		_update_approach_progress(delta, time_to_land, true)
-		return
-
-	# If we were the previous target but the predicted landing has moved away,
-	# smoothly run the same timeline backwards. Small timing shifts do not get
-	# here unless the platform actually falls out of the stable target.
-	if _approach_target == self:
-		_update_approach_progress(delta, 0.0, false)
-
-		if _approach_progress <= 0.0001:
-			_approach_progress = 0.0
-			_approach_speed_rate = 0.0
-			_approach_target = null
-
-func _reset_approach_state() -> void:
-	_approach_target = null
-	_approach_progress = 0.0
-	_approach_speed_rate = 0.0
-	_approach_target_x = 0.5
-
-func _update_approach_progress(
-	delta: float,
-	time_to_land: float,
-	target_confirmed: bool
-) -> void:
-	var effective_width: float = width * width_scale
-	var width_factor: float = clampf(
-		inverse_lerp(100.0, 320.0, effective_width),
-		0.0,
-		1.0
-	)
-
-	# Width controls the preferred visual tempo, but the actual landing
-	# deadline still determines the forward playback rate.
-	var preferred_duration: float = lerpf(1.35, 0.90, width_factor)
-	var preferred_rate: float = 1.0 / preferred_duration
-
-	if not target_confirmed:
-		# Retraction is deliberately calmer than forward charging. It is a
-		# visual "backing away", not a hard reset.
-		var retract_rate: float = preferred_rate * RETRACT_RATE_MULTIPLIER
-		var retract_response: float = preferred_rate * 8.0
-
-		_approach_speed_rate = move_toward(
-			_approach_speed_rate,
-			-retract_rate,
-			retract_response * delta
-		)
-		_approach_progress = maxf(
-			_approach_progress + _approach_speed_rate * delta,
-			0.0
-		)
-		return
-
-	if not is_finite(time_to_land) or time_to_land <= 0.0:
-		return
-
-	var remaining_progress: float = maxf(1.0 - _approach_progress, 0.0)
-	var time_buffer: float = lerpf(
-		0.04,
-		APPROACH_TIME_BUFFER_MAX,
-		1.0 - width_factor
-	)
-	var remaining_time: float = maxf(time_to_land + time_buffer, 0.08)
-	var required_rate: float = remaining_progress / remaining_time
-
-	# Catch-up is deliberately capped. The extra timing buffer prevents the
-	# last few frames from turning a smooth approach into a visible 60 -> 100
-	# acceleration burst. Actual landing still sets the final 100%.
-	var max_catchup_rate: float = preferred_rate * MAX_CATCHUP_MULTIPLIER
-	var desired_rate: float = minf(required_rate, max_catchup_rate)
-
-	# Timing changes only alter the positive playback speed. They never create
-	# negative progress, so a small time-to-land shift cannot visually rewind
-	# a still-valid target.
-	var rate_response: float = preferred_rate * 8.0
-	_approach_speed_rate = move_toward(
-		_approach_speed_rate,
-		desired_rate,
-		rate_response * delta
-	)
-
-	_approach_progress = minf(
-		_approach_progress + _approach_speed_rate * delta,
-		0.999
-	)
-
-func _approach_charge() -> float:
-	# Continuous visual milestones. These are shaping points, not discrete
-	# states. The underlying progress remains a single smooth 0..1 timeline.
-	var progress: float = clampf(_approach_progress, 0.0, 1.0)
-
-	if progress < 0.20:
-		return 0.20 * smoothstep(0.0, 1.0, progress / 0.20)
-	if progress < 0.50:
-		return 0.20 + 0.30 * smoothstep(0.0, 1.0, (progress - 0.20) / 0.30)
-	if progress < 0.70:
-		return 0.50 + 0.20 * smoothstep(0.0, 1.0, (progress - 0.50) / 0.20)
-	if progress < 0.80:
-		return 0.70 + 0.10 * smoothstep(0.0, 1.0, (progress - 0.70) / 0.10)
-	return 0.80 + 0.20 * smoothstep(0.0, 1.0, (progress - 0.80) / 0.20)
-
-func _set_approach_target_x(
-	predicted_x: float,
-	edge_factor: float,
-	time_to_land: float,
-	delta: float
-) -> void:
-	var local_x: float = predicted_x - global_position.x
-	var screen_width: float = float(get_viewport_rect().size.x)
-
-	if screen_width > 0.0:
-		if local_x > screen_width * 0.5:
-			local_x -= screen_width
-		elif local_x < -screen_width * 0.5:
-			local_x += screen_width
-
-	var base_margin := _visual_target_margin()
-	# Only predictions that are already valid landing candidates reach this
-	# point. Near a real edge, reduce the visual clamp so an edge landing does
-	# not get forced toward the platform interior.
-	var visual_margin := lerpf(
-		base_margin,
-		0.04,
-		clampf(edge_factor, 0.0, 1.0)
-	)
-
-	var desired_target_x := clampf(
-		(local_x + half_width()) / (width * width_scale),
-		visual_margin,
-		1.0 - visual_margin
-	)
-
-	# Smooth target motion instead of making it chase each prediction
-	# frame directly. Close to landing we deliberately soften the response:
-	# the indicator should quickly move toward the new point, but never look
-	# like it teleported between steering states.
-	var near_landing_factor := 0.0
-	if is_finite(time_to_land):
-		near_landing_factor = clampf(
-			inverse_lerp(
-				APPROACH_TARGET_NEAR_LANDING_TIME,
-				0.10,
-				time_to_land
-			),
-			0.0,
-			1.0
-		)
-
-	var smooth_rate := lerpf(
-			APPROACH_TARGET_SMOOTH_RATE,
-			APPROACH_TARGET_SMOOTH_RATE_NEAR_LANDING,
-			near_landing_factor
-		)
-	var response := 1.0 - exp(-smooth_rate * delta)
-	_approach_target_x = lerpf(
-		_approach_target_x,
-		desired_target_x,
-		response
-	)
-
-func _visual_target_margin() -> float:
-	var effective_width: float = width * width_scale
-	var width_factor: float = clampf(
-		inverse_lerp(100.0, 320.0, effective_width),
-		0.0,
-		1.0
-	)
-	return lerpf(0.08, 0.18, width_factor)
-
-func _get_stable_landing_prediction(ball: CharacterBody2D) -> Dictionary:
-	var best_prediction := _get_best_landing_prediction(ball)
-	var stable_target := ball.get_meta(
-		LANDING_FEEDBACK_TARGET_META,
-		null
-	) as Node2D
-
-	if stable_target != null and not is_instance_valid(stable_target):
-		stable_target = null
-
-	if stable_target != null and stable_target.visible:
-		var active_margin_bonus := 0.0
-		if (
-			absf(float(ball.velocity.x)) >= ACTIVE_TARGET_MIN_STEERING_SPEED
-			and absf(float(ball.get("input_direction"))) > 0.01
-		):
-			active_margin_bonus = ACTIVE_TARGET_MARGIN_BONUS
-
-		var current_prediction := _get_platform_prediction(
-			ball,
-			stable_target,
-			active_margin_bonus
-		)
-
-		if not current_prediction.is_empty():
-			if best_prediction.is_empty():
-				return current_prediction
-
-			var best_target := best_prediction["platform"] as Node2D
-			if best_target == stable_target:
-				return current_prediction
-
-			var current_dy: float = stable_target.global_position.y - ball.global_position.y
-			var best_dy: float = best_target.global_position.y - ball.global_position.y
-
-			# Keep the existing target unless another platform is clearly
-			# better. This hysteresis stops tiny prediction changes from
-			# swapping the neon target and restarting the visual story.
-			if best_dy >= current_dy - TARGET_SWITCH_DY_MARGIN:
-				return current_prediction
-
-	if not best_prediction.is_empty():
-		ball.set_meta(
-			LANDING_FEEDBACK_TARGET_META,
-			best_prediction["platform"]
-		)
-	else:
-		ball.set_meta(LANDING_FEEDBACK_TARGET_META, null)
-
-	return best_prediction
-
-func _get_platform_prediction(
-	ball: CharacterBody2D,
-	platform: Node2D,
-	extra_landing_margin: float = 0.0
-) -> Dictionary:
-	var g: float = float(ball.gravity)
-	var vy: float = float(ball.velocity.y)
-	var platform_dy: float = platform.global_position.y - ball.global_position.y
-	var screen_width: float = float(get_viewport_rect().size.x)
-
-	if g <= 0.0 or platform_dy <= 0.0:
-		return {}
-
-	# Keep the proven ballistic crossing-time calculation as the primary
-	# prediction. It remains the gate for normal/idle jumps.
-	var discriminant: float = vy * vy + 2.0 * g * platform_dy
-	if discriminant < 0.0:
-		return {}
-
-	var time_to_land: float = (-vy + sqrt(discriminant)) / g
-	if time_to_land <= 0.0:
-		return {}
-
-	# Predict horizontal movement using the same control model as ball.gd:
-	# acceleration while a direction is held, deceleration when released.
-	# This fixes the main edge/long-steering blind spot of the old constant-
-	# velocity extrapolation without introducing a broad reachability envelope.
-	var predicted_displacement := _predict_horizontal_displacement(
-		ball,
-		time_to_land
-	)
-	var predicted_x_unwrapped: float = (
-		ball.global_position.x + predicted_displacement
-	)
-	var predicted_x: float = _wrap_x(predicted_x_unwrapped, screen_width)
-
-	var platform_half_width: float = float(platform.call("half_width"))
-	# For visual targeting, the ball's radius is the actual extra horizontal
-	# contact allowance. Do not add a large heuristic margin that could make
-	# nearby platforms look targetable when the player is not really landing.
-	var landing_margin: float = float(ball.radius) + maxf(
-		extra_landing_margin,
-		0.0
-	)
-	var accepted_half_width: float = platform_half_width + landing_margin
-
-	var local_x: float = _shortest_local_x(
-		predicted_x,
-		platform.global_position.x,
-		screen_width
-	)
-
-	if absf(local_x) > accepted_half_width:
-		return {}
-
-	var edge_factor := 0.0
-	if platform_half_width > 0.0:
-		edge_factor = clampf(
-			inverse_lerp(
-				platform_half_width * 0.20,
-				platform_half_width,
-				absf(local_x)
-			),
-			0.0,
-			1.0
-		)
-
-	return {
-		"platform": platform,
-		"time_to_land": time_to_land,
-		"predicted_x": predicted_x,
-		"local_x": local_x,
-		"edge_factor": edge_factor,
-	}
-
-func _predict_horizontal_displacement(
-	ball: CharacterBody2D,
-	duration: float
-) -> float:
-	if duration <= 0.0:
-		return 0.0
-
-	var initial_velocity: float = float(ball.velocity.x)
-	var steering_input: float = clampf(
-		float(ball.get("input_direction")),
-		-1.0,
-		1.0
-	)
-	var max_speed: float = float(ball.max_horizontal_speed)
-
-	if max_speed <= 0.0:
-		return initial_velocity * duration
-
-	var target_speed: float
-	var acceleration_rate: float
-
-	if absf(steering_input) > 0.01:
-		target_speed = steering_input * max_speed
-		acceleration_rate = float(ball.horizontal_acceleration)
-	else:
-		target_speed = 0.0
-		acceleration_rate = float(ball.horizontal_deceleration)
-
-	if acceleration_rate <= 0.0:
-		return target_speed * duration
-
-	var delta_v := target_speed - initial_velocity
-	if absf(delta_v) <= 0.0001:
-		return target_speed * duration
-
-	var time_to_target := absf(delta_v) / acceleration_rate
-
-	if time_to_target >= duration:
-		return (
-			initial_velocity * duration
-			+ 0.5 * signf(delta_v) * acceleration_rate * duration * duration
-		)
-
-	var first_phase := (
-		initial_velocity * time_to_target
-		+ 0.5 * signf(delta_v) * acceleration_rate * time_to_target * time_to_target
-	)
-	return first_phase + target_speed * (duration - time_to_target)
-
-func _wrap_x(x: float, screen_width: float) -> float:
-	if screen_width <= 0.0:
-		return x
-
-	var wrapped := fmod(x, screen_width)
-	if wrapped < 0.0:
-		wrapped += screen_width
-	return wrapped
-
-func _shortest_local_x(
-	world_x: float,
-	platform_x: float,
-	screen_width: float
-) -> float:
-	var local_x := world_x - platform_x
-	if screen_width > 0.0:
-		if local_x > screen_width * 0.5:
-			local_x -= screen_width
-		elif local_x < -screen_width * 0.5:
-			local_x += screen_width
-	return local_x
-
-func _get_best_landing_prediction(ball: CharacterBody2D) -> Dictionary:
-	var candidates: Array[Node] = get_tree().get_nodes_in_group("platforms")
-	var best: Node2D = null
-	var best_dy: float = INF
-	var best_time: float = INF
-	var g: float = float(ball.gravity)
-
-	if g <= 0.0:
-		return {}
-
-	for candidate in candidates:
-		if not candidate is Node2D:
-			continue
-
-		var platform := candidate as Node2D
-		if not platform.visible or not platform.has_method("half_width"):
-			continue
-
-		var prediction := _get_platform_prediction(ball, platform)
-		if prediction.is_empty():
-			continue
-
-		var platform_dy: float = platform.global_position.y - ball.global_position.y
-		var time_to_land: float = prediction["time_to_land"]
-
-		# Prefer the nearest physically reachable platform above the ball.
-		# Time is only a tie-breaker, keeping target selection stable.
-		if platform_dy < best_dy - 0.5 or (
-			absf(platform_dy - best_dy) <= 0.5 and time_to_land < best_time
-		):
-			best_dy = platform_dy
-			best_time = time_to_land
-			best = platform
-
-	if best == null:
-		return {}
-
-	var best_prediction := _get_platform_prediction(ball, best)
-	if best_prediction.is_empty():
-		return {}
-
-	return best_prediction
 
 func _start_breaking() -> void:
 	if _is_breaking or _broken:
