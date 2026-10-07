@@ -225,6 +225,75 @@ func _play_landing_pulse(_landing_world_x: float) -> void:
 			_neon_edge.set_instance_shader_parameter("landing_confirm", 0.0)
 	)
 
+func set_landing_approach_feedback(
+	time_to_land: float,
+	predicted_x: float,
+	edge_factor: float,
+	delta: float
+) -> void:
+	_landing_approach.update_forward(
+		delta,
+		time_to_land,
+		width * width_scale,
+		predicted_x,
+		edge_factor,
+		global_position.x,
+		float(get_viewport_rect().size.x)
+	)
+	_neon_edge.set_instance_shader_parameter(
+		"approach_charge",
+		_landing_approach.charge()
+	)
+	_neon_edge.set_instance_shader_parameter(
+		"approach_target_x",
+		_landing_approach.target_x
+	)
+
+func retract_landing_approach_feedback(delta: float) -> void:
+	_landing_approach.update_retract(
+		delta,
+		width * width_scale
+	)
+	_neon_edge.set_instance_shader_parameter(
+		"approach_charge",
+		_landing_approach.charge()
+	)
+	_neon_edge.set_instance_shader_parameter(
+		"approach_target_x",
+		_landing_approach.target_x
+	)
+
+func complete_landing_approach_feedback() -> void:
+	_landing_approach.complete()
+	_neon_edge.set_instance_shader_parameter(
+		"approach_charge",
+		1.0
+	)
+	_neon_edge.set_instance_shader_parameter(
+		"approach_target_x",
+		_landing_approach.target_x
+	)
+	_neon_edge.set_instance_shader_parameter(
+		"activated",
+		1.0
+	)
+
+func is_landing_approach_feedback_empty() -> bool:
+	return _landing_approach.progress <= 0.0001
+
+func get_landing_approach_progress() -> float:
+	return _landing_approach.progress
+
+func get_landing_approach_target_x() -> float:
+	return _landing_approach.target_x
+
+func reset_landing_feedback_visual() -> void:
+	_landing_approach.reset()
+	_neon_edge.set_instance_shader_parameter("approach_charge", 0.0)
+	_neon_edge.set_instance_shader_parameter("approach_target_x", 0.5)
+	_neon_edge.set_instance_shader_parameter("activated", 0.0)
+	_neon_edge.set_instance_shader_parameter("landing_confirm", 0.0)
+
 func _start_breaking() -> void:
 	if _is_breaking or _broken:
 		return
