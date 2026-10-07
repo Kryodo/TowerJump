@@ -333,9 +333,7 @@ func _shortest_local_x(
 
 	return local_x
 
-func _get_best_landing_prediction(
-	ball: CharacterBody2D = _ball
-) -> Dictionary:
+func _get_best_landing_prediction() -> Dictionary:
 	var candidates: Array[Node] = get_tree().get_nodes_in_group(
 		platforms_group
 	)
