@@ -35,7 +35,7 @@ const BEVEL := 4.0
 const EDGE_HEIGHT := 8.0
 const EDGE_INSET := 1.0
 
-const LandingApproachState := preload(
+const LandingApproachStateScript := preload(
 	"res://scripts/landing/landing_approach_state.gd"
 )
 
