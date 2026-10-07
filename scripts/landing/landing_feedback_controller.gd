@@ -132,10 +132,12 @@ func _update_retracting_targets(delta: float) -> void:
 
 func _get_stable_landing_prediction() -> Dictionary:
 	var best_prediction := _get_best_landing_prediction()
-	var stable_target := _ball.get_meta(
-		LANDING_FEEDBACK_TARGET_META,
-		null
-	) as Node2D
+	var stable_target: Node2D = null
+
+	if _ball.has_meta(LANDING_FEEDBACK_TARGET_META):
+		stable_target = _ball.get_meta(
+			LANDING_FEEDBACK_TARGET_META
+		) as Node2D
 
 	if stable_target != null and not is_instance_valid(stable_target):
 		stable_target = null
