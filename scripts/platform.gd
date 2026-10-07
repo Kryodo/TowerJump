@@ -39,8 +39,21 @@ const EDGE_INSET := 1.0
 # This keeps tiny prediction changes from making different platforms fight over
 # the same neon sequence.
 const LANDING_FEEDBACK_TARGET_META := "_towerjump_landing_feedback_target"
+const TARGET_SWITCH_CANDIDATE_META := "_towerjump_landing_feedback_switch_candidate"
+const TARGET_SWITCH_CANDIDATE_SINCE_META := "_towerjump_landing_feedback_switch_candidate_since"
+const TARGET_LOSS_SINCE_META := "_towerjump_landing_feedback_target_loss_since"
+
 const TARGET_SWITCH_DY_MARGIN := 36.0
+const TARGET_SWITCH_CONFIRM_TIME := 0.09
+const TARGET_LOSS_GRACE_TIME := 0.18
 const RETRACT_RATE_MULTIPLIER := 0.90
+
+# Prediction is visual guidance only. The ball's real collision geometry remains
+# the gameplay source of truth in ball.gd.
+const PREDICTION_EXTRA_MARGIN_MIN := 6.0
+const PREDICTION_EXTRA_MARGIN_MAX := 18.0
+const EDGE_VISUAL_MARGIN := 0.035
+const MAX_PRELANDING_PROGRESS := 0.995
 
 var platform_type: PlatformType = PlatformType.NORMAL
 
@@ -264,7 +277,10 @@ func _update_landing_target(delta: float) -> void:
 		return
 
 	if predicted_target == self and not prediction.is_empty():
-		_set_approach_target_x(float(prediction["predicted_x"]))
+		_set_approach_target_x(
+			float(prediction["guidance_x"]),
+			float(prediction.get("edge_factor", 0.0))
+		)
 
 	_neon_edge.set_instance_shader_parameter(
 		"approach_charge",
@@ -281,8 +297,9 @@ func _update_approach_target(
 	delta: float
 ) -> void:
 	if predicted_target == self:
-		# Re-acquiring the same platform never resets the timeline. This is the
-		# key difference from the old restart-on-target-loss behavior.
+		# Re-acquiring the same platform never resets the timeline. A very short
+		# reachability grace period also prevents a single noisy prediction frame
+		# from making the neon sequence panic-retract.
 		if _approach_target != self:
 			_approach_target = self
 			_approach_speed_rate = 0.0
@@ -370,7 +387,7 @@ func _update_approach_progress(
 
 	_approach_progress = minf(
 		_approach_progress + _approach_speed_rate * delta,
-		0.999
+		MAX_PRELANDING_PROGRESS
 	)
 
 func _approach_charge() -> float:
@@ -388,8 +405,8 @@ func _approach_charge() -> float:
 		return 0.70 + 0.10 * smoothstep(0.0, 1.0, (progress - 0.70) / 0.10)
 	return 0.80 + 0.20 * smoothstep(0.0, 1.0, (progress - 0.80) / 0.20)
 
-func _set_approach_target_x(predicted_x: float) -> void:
-	var local_x: float = predicted_x - global_position.x
+func _set_approach_target_x(guidance_x: float, edge_factor: float = 0.0) -> void:
+	var local_x: float = guidance_x - global_position.x
 	var screen_width: float = float(get_viewport_rect().size.x)
 
 	if screen_width > 0.0:
@@ -398,10 +415,15 @@ func _set_approach_target_x(predicted_x: float) -> void:
 		elif local_x < -screen_width * 0.5:
 			local_x += screen_width
 
+	var base_margin := _visual_target_margin()
+	# Edge predictions are allowed to visually approach the actual corridor
+	# instead of being hard-clamped into the same interior zone as a centered hit.
+	var visual_margin := lerpf(base_margin, EDGE_VISUAL_MARGIN, clampf(edge_factor, 0.0, 1.0))
+
 	_approach_target_x = clampf(
 		(local_x + half_width()) / (width * width_scale),
-		_visual_target_margin(),
-		1.0 - _visual_target_margin()
+		visual_margin,
+		1.0 - visual_margin
 	)
 
 func _visual_target_margin() -> float:
@@ -430,27 +452,83 @@ func _get_stable_landing_prediction(ball: CharacterBody2D) -> Dictionary:
 		)
 
 		if not current_prediction.is_empty():
+			ball.set_meta(TARGET_LOSS_SINCE_META, 0)
 			if best_prediction.is_empty():
 				return current_prediction
 
 			var best_target := best_prediction["platform"] as Node2D
 			if best_target == stable_target:
+				ball.set_meta(TARGET_SWITCH_CANDIDATE_META, null)
+				ball.set_meta(TARGET_SWITCH_CANDIDATE_SINCE_META, 0)
 				return current_prediction
 
 			var current_dy: float = stable_target.global_position.y - ball.global_position.y
 			var best_dy: float = best_target.global_position.y - ball.global_position.y
 
-			# Keep the existing target unless another platform is clearly
-			# better. This hysteresis stops tiny prediction changes from
-			# swapping the neon target and restarting the visual story.
-			if best_dy >= current_dy - TARGET_SWITCH_DY_MARGIN:
+			# Keep the existing target unless another platform is clearly better.
+		# A real-time confirmation delay prevents rapid target swaps during
+			# aggressive left/right steering.
+			if best_dy < current_dy - TARGET_SWITCH_DY_MARGIN:
+				var candidate := ball.get_meta(
+					TARGET_SWITCH_CANDIDATE_META,
+					null
+				) as Node2D
+				if candidate != best_target:
+					ball.set_meta(TARGET_SWITCH_CANDIDATE_META, best_target)
+					ball.set_meta(
+						TARGET_SWITCH_CANDIDATE_SINCE_META,
+						Time.get_ticks_msec()
+					)
+					return current_prediction
+
+				var since_ms: int = int(ball.get_meta(
+					TARGET_SWITCH_CANDIDATE_SINCE_META,
+					0
+				))
+				if since_ms > 0:
+					var elapsed: float = (Time.get_ticks_msec() - since_ms) / 1000.0
+					if elapsed >= TARGET_SWITCH_CONFIRM_TIME:
+						ball.set_meta(
+							LANDING_FEEDBACK_TARGET_META,
+							best_target
+						)
+						ball.set_meta(TARGET_SWITCH_CANDIDATE_META, null)
+						ball.set_meta(TARGET_SWITCH_CANDIDATE_SINCE_META, 0)
+						return best_prediction
+
 				return current_prediction
+
+			ball.set_meta(TARGET_SWITCH_CANDIDATE_META, null)
+			ball.set_meta(TARGET_SWITCH_CANDIDATE_SINCE_META, 0)
+			return current_prediction
+
+		# The current target briefly fell outside the prediction/reachability
+		# corridor. Hold the target for a tiny grace window instead of instantly
+		# resetting it. This is especially useful on narrow edge landings.
+		var loss_since_ms: int = int(ball.get_meta(TARGET_LOSS_SINCE_META, 0))
+		if loss_since_ms <= 0:
+			ball.set_meta(TARGET_LOSS_SINCE_META, Time.get_ticks_msec())
+			loss_since_ms = int(ball.get_meta(TARGET_LOSS_SINCE_META, 0))
+
+		var loss_elapsed: float = (Time.get_ticks_msec() - loss_since_ms) / 1000.0
+		if loss_elapsed <= TARGET_LOSS_GRACE_TIME:
+			var held_prediction := _get_vertical_platform_prediction(
+				ball,
+				stable_target
+			)
+			if not held_prediction.is_empty():
+				held_prediction["soft_lock"] = true
+				return held_prediction
+
+	ball.set_meta(TARGET_LOSS_SINCE_META, 0)
 
 	if not best_prediction.is_empty():
 		ball.set_meta(
 			LANDING_FEEDBACK_TARGET_META,
 			best_prediction["platform"]
 		)
+		ball.set_meta(TARGET_SWITCH_CANDIDATE_META, null)
+		ball.set_meta(TARGET_SWITCH_CANDIDATE_SINCE_META, 0)
 	else:
 		ball.set_meta(LANDING_FEEDBACK_TARGET_META, null)
 
@@ -460,10 +538,112 @@ func _get_platform_prediction(
 	ball: CharacterBody2D,
 	platform: Node2D
 ) -> Dictionary:
+	var vertical_prediction := _get_vertical_platform_prediction(ball, platform)
+	if vertical_prediction.is_empty():
+		return {}
+
+	var time_to_land: float = float(vertical_prediction["time_to_land"])
+	var screen_width: float = float(get_viewport_rect().size.x)
+	var platform_half_width: float = float(platform.call("half_width"))
+
+	# The physical ball radius is part of the visual landing corridor. This
+	# does NOT change the collision shape or gameplay; it only stops the
+	# prediction from treating valid edge contact as a dead zone.
+	var narrow_factor: float = 1.0 - clampf(
+		inverse_lerp(100.0, 320.0, platform_half_width * 2.0),
+		0.0,
+		1.0
+	)
+	var steering_factor: float = 0.0
+	if float(ball.max_horizontal_speed) > 0.0:
+		steering_factor = clampf(
+			absf(float(ball.velocity.x)) / float(ball.max_horizontal_speed),
+			0.0,
+			1.0
+		)
+
+	var challenge_factor: float = maxf(narrow_factor, steering_factor)
+	var landing_margin: float = float(ball.radius) + lerpf(
+		PREDICTION_EXTRA_MARGIN_MIN,
+		PREDICTION_EXTRA_MARGIN_MAX,
+		challenge_factor
+	)
+
+	var predicted_x_unwrapped: float = float(vertical_prediction["predicted_x_unwrapped"])
+	var predicted_x: float = _wrap_x(predicted_x_unwrapped, screen_width)
+
+	var reachability := _get_horizontal_reachability(
+		ball,
+		time_to_land
+	)
+
+	# Accept either the current ballistic prediction OR any horizontally
+	# reachable overlap with the platform corridor. This gives aggressive
+	# cross-screen steering enough time to acquire the platform before the
+	# single-point prediction has caught up.
+	var overlap := _find_reachable_platform_overlap(
+		predicted_x_unwrapped,
+		float(reachability["min_x"]),
+		float(reachability["max_x"]),
+		platform.global_position.x,
+		platform_half_width + landing_margin,
+		screen_width
+	)
+
+	if not overlap["valid"]:
+		return {}
+
+	var guidance_unwrapped: float = float(overlap["guidance_x"])
+	var guidance_x: float = _wrap_x(guidance_unwrapped, screen_width)
+
+	var local_x: float = _shortest_local_x(
+		guidance_x,
+		platform.global_position.x,
+		screen_width
+	)
+
+	var edge_factor := 0.0
+	if platform_half_width > 0.0:
+		edge_factor = clampf(
+			inverse_lerp(
+				platform_half_width * 0.20,
+				platform_half_width,
+				absf(local_x)
+			),
+			0.0,
+			1.0
+		)
+
+	var guidance_delta: float = absf(guidance_unwrapped - predicted_x_unwrapped)
+	var steering_guidance_factor := 0.0
+	if screen_width > 0.0:
+		steering_guidance_factor = clampf(
+			guidance_delta / (screen_width * 0.5),
+			0.0,
+			1.0
+		)
+
+	return {
+		"platform": platform,
+		"time_to_land": time_to_land,
+		"predicted_x": predicted_x,
+		"predicted_x_unwrapped": predicted_x_unwrapped,
+		"guidance_x": guidance_x,
+		"guidance_x_unwrapped": guidance_unwrapped,
+		"local_x": local_x,
+		"edge_factor": edge_factor,
+		"steering_factor": maxf(steering_factor, steering_guidance_factor),
+		"reachable_min_x": reachability["min_x"],
+		"reachable_max_x": reachability["max_x"],
+	}
+
+func _get_vertical_platform_prediction(
+	ball: CharacterBody2D,
+	platform: Node2D
+) -> Dictionary:
 	var g: float = float(ball.gravity)
 	var vy: float = float(ball.velocity.y)
 	var platform_dy: float = platform.global_position.y - ball.global_position.y
-	var screen_width: float = float(get_viewport_rect().size.x)
 
 	if g <= 0.0 or platform_dy <= 0.0:
 		return {}
@@ -479,30 +659,147 @@ func _get_platform_prediction(
 	if time_to_land <= 0.0:
 		return {}
 
-	var predicted_x: float = ball.global_position.x + ball.velocity.x * time_to_land
-	if screen_width > 0.0:
-		predicted_x = fmod(predicted_x, screen_width)
-		if predicted_x < 0.0:
-			predicted_x += screen_width
+	return {
+		"time_to_land": time_to_land,
+		"predicted_x_unwrapped": ball.global_position.x + ball.velocity.x * time_to_land,
+	}
 
-	var local_x: float = predicted_x - platform.global_position.x
+func _wrap_x(x: float, screen_width: float) -> float:
+	if screen_width <= 0.0:
+		return x
+
+	var wrapped := fmod(x, screen_width)
+	if wrapped < 0.0:
+		wrapped += screen_width
+	return wrapped
+
+func _shortest_local_x(
+	world_x: float,
+	platform_x: float,
+	screen_width: float
+) -> float:
+	var local_x := world_x - platform_x
 	if screen_width > 0.0:
 		if local_x > screen_width * 0.5:
 			local_x -= screen_width
 		elif local_x < -screen_width * 0.5:
 			local_x += screen_width
+	return local_x
 
-	var platform_half_width: float = float(platform.call("half_width"))
-	var landing_margin: float = 24.0
+func _extreme_horizontal_displacement(
+	initial_velocity: float,
+	duration: float,
+	direction: float,
+	max_speed: float,
+	acceleration: float
+) -> float:
+	if duration <= 0.0:
+		return 0.0
 
-	if absf(local_x) > platform_half_width + landing_margin:
-		return {}
+	if acceleration <= 0.0 or max_speed <= 0.0:
+		return initial_velocity * duration
+
+	var target_speed := direction * max_speed
+	var delta_v := target_speed - initial_velocity
+
+	if absf(delta_v) <= 0.0001:
+		return target_speed * duration
+
+	var reach_time := absf(delta_v) / acceleration
+	var sign_accel := signf(delta_v)
+
+	if reach_time >= duration:
+		return (
+			initial_velocity * duration
+			+ 0.5 * sign_accel * acceleration * duration * duration
+		)
+
+	return (
+		initial_velocity * reach_time
+		+ 0.5 * sign_accel * acceleration * reach_time * reach_time
+		+ target_speed * (duration - reach_time)
+	)
+
+func _get_horizontal_reachability(
+	ball: CharacterBody2D,
+	duration: float
+) -> Dictionary:
+	var min_displacement := _extreme_horizontal_displacement(
+		float(ball.velocity.x),
+		duration,
+		-1.0,
+		float(ball.max_horizontal_speed),
+		float(ball.horizontal_acceleration)
+	)
+	var max_displacement := _extreme_horizontal_displacement(
+		float(ball.velocity.x),
+		duration,
+		1.0,
+		float(ball.max_horizontal_speed),
+		float(ball.horizontal_acceleration)
+	)
 
 	return {
-		"platform": platform,
-		"time_to_land": time_to_land,
-		"predicted_x": predicted_x,
-		"local_x": local_x,
+		"min_x": ball.global_position.x + min_displacement,
+		"max_x": ball.global_position.x + max_displacement,
+	}
+
+func _find_reachable_platform_overlap(
+	predicted_x_unwrapped: float,
+	reach_min_x: float,
+	reach_max_x: float,
+	platform_x: float,
+	corridor_half_width: float,
+	screen_width: float
+) -> Dictionary:
+	if screen_width <= 0.0:
+		var direct_min := platform_x - corridor_half_width
+		var direct_max := platform_x + corridor_half_width
+		if direct_max < reach_min_x or direct_min > reach_max_x:
+			return {"valid": false}
+		return {
+			"valid": true,
+			"guidance_x": clampf(predicted_x_unwrapped, direct_min, direct_max),
+		}
+
+	var start_copy := int(floor(reach_min_x / screen_width)) - 2
+	var end_copy := int(ceil(reach_max_x / screen_width)) + 2
+
+	var best_distance := INF
+	var best_guidance := predicted_x_unwrapped
+	var found := false
+
+	for copy_index in range(start_copy, end_copy + 1):
+		var center_x := platform_x + float(copy_index) * screen_width
+		var corridor_min := center_x - corridor_half_width
+		var corridor_max := center_x + corridor_half_width
+
+		if corridor_max < reach_min_x or corridor_min > reach_max_x:
+			continue
+
+		var overlap_min := maxf(corridor_min, reach_min_x)
+		var overlap_max := minf(corridor_max, reach_max_x)
+		if overlap_min > overlap_max:
+			continue
+
+		var guidance_x := clampf(
+			predicted_x_unwrapped,
+			overlap_min,
+			overlap_max
+		)
+		var distance := absf(guidance_x - predicted_x_unwrapped)
+
+		if not found or distance < best_distance:
+			found = true
+			best_distance = distance
+			best_guidance = guidance_x
+
+	if not found:
+		return {"valid": false}
+
+	return {
+		"valid": true,
+		"guidance_x": best_guidance,
 	}
 
 func _get_best_landing_prediction(ball: CharacterBody2D) -> Dictionary:
