@@ -340,9 +340,11 @@ func _update_approach_progress(
 		1.0
 	)
 
-	# Width controls the preferred visual tempo, but the actual landing
-	# deadline still determines the forward playback rate.
+	# Width controls the preferred visual tempo, but difficult edge approaches
+	# get a little more visual runway. This affects only the feedback animation.
+	var edge_factor := clampf(absf(_approach_target_x - 0.5) * 2.0, 0.0, 1.0)
 	var preferred_duration: float = lerpf(1.35, 0.90, width_factor)
+	preferred_duration += lerpf(0.0, 0.22, edge_factor)
 	var preferred_rate: float = 1.0 / preferred_duration
 
 	if not target_confirmed:
@@ -643,14 +645,16 @@ func _get_vertical_platform_prediction(
 ) -> Dictionary:
 	var g: float = float(ball.gravity)
 	var vy: float = float(ball.velocity.y)
-	var platform_dy: float = platform.global_position.y - ball.global_position.y
+	var platform_half_height := float(platform.get("height")) * 0.5
+	var contact_y: float = platform.global_position.y - platform_half_height - float(ball.radius)
+	var platform_dy: float = contact_y - ball.global_position.y
 
 	if g <= 0.0 or platform_dy <= 0.0:
 		return {}
 
-	# Solve the ballistic crossing time regardless of whether the ball is
-	# currently rising or falling. During ascent this finds the FUTURE
-	# descending crossing of the platform height.
+	# Solve the ballistic crossing time to the actual visual contact plane:
+	# platform top minus the ball radius. This keeps prediction aligned with
+	# where the ball body can really touch the platform, including edge hits.
 	var discriminant: float = vy * vy + 2.0 * g * platform_dy
 	if discriminant < 0.0:
 		return {}
