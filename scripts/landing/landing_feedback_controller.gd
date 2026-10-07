@@ -50,9 +50,12 @@ func _connect_platform(node: Node) -> void:
 	if node == null or not node.has_signal("landing_occurred"):
 		return
 
-	var callback := Callable(self, "_on_platform_landed")
-	if not node.landing_occurred.is_connected(callback):
-		node.landing_occurred.connect(callback.bind(node))
+	# Platforms are pooled and their signal connection persists for their
+	# lifetime, so each platform is connected once after the pool is created.
+	node.connect(
+		"landing_occurred",
+		Callable(self, "_on_platform_landed").bind(node)
+	)
 
 func _physics_process(delta: float) -> void:
 	if _ball == null or not is_instance_valid(_ball):
