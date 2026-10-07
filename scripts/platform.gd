@@ -519,6 +519,32 @@ func _get_stable_landing_prediction(ball: CharacterBody2D) -> Dictionary:
 				stable_target
 			)
 			if not held_prediction.is_empty():
+				var soft_guidance_x := _wrap_x(
+					float(held_prediction["predicted_x_unwrapped"]),
+					float(get_viewport_rect().size.x)
+				)
+				var soft_local_x := _shortest_local_x(
+					soft_guidance_x,
+					stable_target.global_position.x,
+					float(get_viewport_rect().size.x)
+				)
+				var soft_half_width: float = float(stable_target.call("half_width"))
+				var soft_edge_factor := 0.0
+				if soft_half_width > 0.0:
+					soft_edge_factor = clampf(
+						inverse_lerp(
+							soft_half_width * 0.20,
+							soft_half_width,
+							absf(soft_local_x)
+						),
+						0.0,
+						1.0
+					)
+				held_prediction["platform"] = stable_target
+				held_prediction["predicted_x"] = soft_guidance_x
+				held_prediction["guidance_x"] = soft_guidance_x
+				held_prediction["local_x"] = soft_local_x
+				held_prediction["edge_factor"] = soft_edge_factor
 				held_prediction["soft_lock"] = true
 				return held_prediction
 
