@@ -24,7 +24,7 @@ void fragment() {
 	vec3 neutral_color = vec3(0.50, 0.19, 0.98);
 	vec3 active_color = vec3(0.10, 2.15, 3.20);
 	vec3 active_core = vec3(0.45, 3.15, 4.20);
-	vec3 confirm_color = vec3(1.35, 3.90, 4.60);
+	vec3 confirm_color = vec3(4.20, 4.20, 4.20);
 
 	// The charge is a continuous bilateral loading bar. Both sides always
 	// start at the physical ends of the platform and advance toward the
@@ -48,14 +48,15 @@ void fragment() {
 	float core = max(left_core, right_core) * charge;
 	result = mix(result, active_core, core);
 
-	// Landing confirmation briefly peaks the already-connected edge.
-	float confirm = clamp(landing_confirm, 0.0, 1.0);
-	result += confirm_color * confirm * confirm;
-
 	// Once the platform has been landed on, it remains in its awake cyan
 	// state. The approach animation itself never needs to know the landing
 	// quality; confirmation is a separate layer.
 	result = mix(result, active_color, active);
+
+	// Completion flash is applied AFTER the activated state so it remains
+	// visible as a true white connection moment, then settles back to cyan.
+	float confirm = clamp(landing_confirm, 0.0, 1.0);
+	result = mix(result, confirm_color, confirm);
 
 	COLOR.rgb = result;
 }
