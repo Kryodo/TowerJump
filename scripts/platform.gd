@@ -42,6 +42,20 @@ const LANDING_FEEDBACK_TARGET_META := "_towerjump_landing_feedback_target"
 const TARGET_SWITCH_DY_MARGIN := 36.0
 const RETRACT_RATE_MULTIPLIER := 0.90
 
+# Small, directional prediction assist for aggressive horizontal steering.
+# This is deliberately capped and only activates while the ball is already
+# moving toward the candidate platform, so idle jumps keep the old precise
+# single-point behavior.
+const STEERING_ASSIST_MIN_SPEED := 120.0
+const STEERING_ASSIST_MAX_DISPLACEMENT := 140.0
+const STEERING_ASSIST_BLEND_MAX := 0.65
+const APPROACH_TARGET_SMOOTH_RATE := 16.0
+
+# Give the timeline a small visual buffer near contact so the required rate
+# does not explode during the last few frames and produce a visible snap.
+const APPROACH_TIME_BUFFER_MAX := 0.14
+const MAX_CATCHUP_MULTIPLIER := 2.25
+
 var platform_type: PlatformType = PlatformType.NORMAL
 
 var _base_position: Vector2 = Vector2.ZERO
@@ -264,7 +278,11 @@ func _update_landing_target(delta: float) -> void:
 		return
 
 	if predicted_target == self and not prediction.is_empty():
-		_set_approach_target_x(float(prediction["predicted_x"]))
+		_set_approach_target_x(
+			float(prediction.get("predicted_x", 0.0)),
+			float(prediction.get("edge_factor", 0.0)),
+			delta
+		)
 
 	_neon_edge.set_instance_shader_parameter(
 		"approach_charge",
@@ -349,13 +367,18 @@ func _update_approach_progress(
 		return
 
 	var remaining_progress: float = maxf(1.0 - _approach_progress, 0.0)
-	var remaining_time: float = maxf(time_to_land, 0.05)
+	var time_buffer: float = lerpf(
+		0.04,
+		APPROACH_TIME_BUFFER_MAX,
+		1.0 - width_factor
+	)
+	var remaining_time: float = maxf(time_to_land + time_buffer, 0.08)
 	var required_rate: float = remaining_progress / remaining_time
 
-	# Catch-up is deliberately capped. If the player only gives us a very
-	# short window, the sequence is allowed to be behind at contact rather
-	# than visibly completing before the ball lands.
-	var max_catchup_rate: float = preferred_rate * 3.0
+	# Catch-up is deliberately capped. The extra timing buffer prevents the
+	# last few frames from turning a smooth approach into a visible 60 -> 100
+	# acceleration burst. Actual landing still sets the final 100%.
+	var max_catchup_rate: float = preferred_rate * MAX_CATCHUP_MULTIPLIER
 	var desired_rate: float = minf(required_rate, max_catchup_rate)
 
 	# Timing changes only alter the positive playback speed. They never create
@@ -388,7 +411,11 @@ func _approach_charge() -> float:
 		return 0.70 + 0.10 * smoothstep(0.0, 1.0, (progress - 0.70) / 0.10)
 	return 0.80 + 0.20 * smoothstep(0.0, 1.0, (progress - 0.80) / 0.20)
 
-func _set_approach_target_x(predicted_x: float) -> void:
+func _set_approach_target_x(
+	predicted_x: float,
+	edge_factor: float,
+	delta: float
+) -> void:
 	var local_x: float = predicted_x - global_position.x
 	var screen_width: float = float(get_viewport_rect().size.x)
 
@@ -398,10 +425,29 @@ func _set_approach_target_x(predicted_x: float) -> void:
 		elif local_x < -screen_width * 0.5:
 			local_x += screen_width
 
-	_approach_target_x = clampf(
+	var base_margin := _visual_target_margin()
+	# Only predictions that are already valid landing candidates reach this
+	# point. Near a real edge, reduce the visual clamp so an edge landing does
+	# not get forced toward the platform interior.
+	var visual_margin := lerpf(
+		base_margin,
+		0.04,
+		clampf(edge_factor, 0.0, 1.0)
+	)
+
+	var desired_target_x := clampf(
 		(local_x + half_width()) / (width * width_scale),
-		_visual_target_margin(),
-		1.0 - _visual_target_margin()
+		visual_margin,
+		1.0 - visual_margin
+	)
+
+	# Smooth target motion by a few physics frames. This removes the little
+	# target-point hop that can happen when aggressive steering changes the
+	# predicted landing position, without changing which platform is targeted.
+	_approach_target_x = move_toward(
+		_approach_target_x,
+		desired_target_x,
+		APPROACH_TARGET_SMOOTH_RATE * delta
 	)
 
 func _visual_target_margin() -> float:
@@ -468,9 +514,8 @@ func _get_platform_prediction(
 	if g <= 0.0 or platform_dy <= 0.0:
 		return {}
 
-	# Solve the ballistic crossing time regardless of whether the ball is
-	# currently rising or falling. During ascent this finds the FUTURE
-	# descending crossing of the platform height.
+	# Keep the proven ballistic crossing-time calculation as the primary
+	# prediction. It remains the gate for normal/idle jumps.
 	var discriminant: float = vy * vy + 2.0 * g * platform_dy
 	if discriminant < 0.0:
 		return {}
@@ -479,31 +524,164 @@ func _get_platform_prediction(
 	if time_to_land <= 0.0:
 		return {}
 
-	var predicted_x: float = ball.global_position.x + ball.velocity.x * time_to_land
-	if screen_width > 0.0:
-		predicted_x = fmod(predicted_x, screen_width)
-		if predicted_x < 0.0:
-			predicted_x += screen_width
+	var predicted_x_unwrapped: float = (
+		ball.global_position.x
+		+ ball.velocity.x * time_to_land
+	)
+	var predicted_x: float = _wrap_x(predicted_x_unwrapped, screen_width)
 
-	var local_x: float = predicted_x - platform.global_position.x
+	var platform_half_width: float = float(platform.call("half_width"))
+	var landing_margin: float = 24.0
+	var accepted_half_width: float = platform_half_width + landing_margin
+
+	var local_x: float = _shortest_local_x(
+		predicted_x,
+		platform.global_position.x,
+		screen_width
+	)
+
+	var guidance_x_unwrapped := predicted_x_unwrapped
+
+	# Primary gate: preserve the precise old behavior whenever the current
+	# ballistic prediction already lands on the platform.
+	if absf(local_x) > accepted_half_width:
+		# Secondary assist: only when the ball is already moving toward this
+		# platform with meaningful horizontal velocity. This compensates for
+		# acceleration during long left->right steering without creating the
+		# general "reachable platform" behavior that caused false activations.
+		var current_to_platform := _shortest_local_x(
+			ball.global_position.x,
+			platform.global_position.x,
+			screen_width
+		)
+		var target_direction := signf(current_to_platform)
+
+		if (
+			target_direction == 0.0
+			or absf(ball.velocity.x) < STEERING_ASSIST_MIN_SPEED
+			or signf(ball.velocity.x) != target_direction
+		):
+			return {}
+
+		var assisted_displacement := _steering_assisted_displacement(
+			float(ball.velocity.x),
+			time_to_land,
+			target_direction,
+			float(ball.max_horizontal_speed),
+			float(ball.horizontal_acceleration)
+		)
+		var assisted_x_unwrapped := ball.global_position.x + assisted_displacement
+
+		# Cap how far the assist may move the proven ballistic prediction.
+		guidance_x_unwrapped = move_toward(
+			predicted_x_unwrapped,
+			assisted_x_unwrapped,
+			STEERING_ASSIST_MAX_DISPLACEMENT
+		)
+
+		var steering_factor := clampf(
+			absf(ball.velocity.x) / maxf(
+			float(ball.max_horizontal_speed),
+			STEERING_ASSIST_MIN_SPEED
+			),
+			0.25,
+			STEERING_ASSIST_BLEND_MAX
+		)
+		guidance_x_unwrapped = lerpf(
+			predicted_x_unwrapped,
+			guidance_x_unwrapped,
+			steering_factor
+		)
+
+		var guidance_x := _wrap_x(guidance_x_unwrapped, screen_width)
+		local_x = _shortest_local_x(
+			guidance_x,
+			platform.global_position.x,
+			screen_width
+		)
+
+		if absf(local_x) > accepted_half_width:
+			return {}
+	else:
+		guidance_x_unwrapped = predicted_x_unwrapped
+
+	var guidance_x := _wrap_x(guidance_x_unwrapped, screen_width)
+	local_x = _shortest_local_x(
+		guidance_x,
+		platform.global_position.x,
+		screen_width
+	)
+
+	var edge_factor := 0.0
+	if platform_half_width > 0.0:
+		edge_factor = clampf(
+			inverse_lerp(
+				platform_half_width * 0.20,
+				platform_half_width,
+				absf(local_x)
+			),
+			0.0,
+			1.0
+		)
+
+	return {
+		"platform": platform,
+		"time_to_land": time_to_land,
+		"predicted_x": guidance_x,
+		"local_x": local_x,
+		"edge_factor": edge_factor,
+	}
+
+func _steering_assisted_displacement(
+	initial_velocity: float,
+	duration: float,
+	direction: float,
+	max_speed: float,
+	acceleration: float
+) -> float:
+	if duration <= 0.0:
+		return 0.0
+
+	if acceleration <= 0.0 or max_speed <= 0.0:
+		return initial_velocity * duration
+
+	var target_speed := direction * max_speed
+	var delta_v := target_speed - initial_velocity
+	var reach_time := absf(delta_v) / acceleration
+
+	if reach_time >= duration:
+		return (
+			initial_velocity * duration
+			+ 0.5 * signf(delta_v) * acceleration * duration * duration
+		)
+
+	var accelerated_displacement := (
+		initial_velocity * reach_time
+		+ 0.5 * signf(delta_v) * acceleration * reach_time * reach_time
+	)
+	return accelerated_displacement + target_speed * (duration - reach_time)
+
+func _wrap_x(x: float, screen_width: float) -> float:
+	if screen_width <= 0.0:
+		return x
+
+	var wrapped := fmod(x, screen_width)
+	if wrapped < 0.0:
+		wrapped += screen_width
+	return wrapped
+
+func _shortest_local_x(
+	world_x: float,
+	platform_x: float,
+	screen_width: float
+) -> float:
+	var local_x := world_x - platform_x
 	if screen_width > 0.0:
 		if local_x > screen_width * 0.5:
 			local_x -= screen_width
 		elif local_x < -screen_width * 0.5:
 			local_x += screen_width
-
-	var platform_half_width: float = float(platform.call("half_width"))
-	var landing_margin: float = 24.0
-
-	if absf(local_x) > platform_half_width + landing_margin:
-		return {}
-
-	return {
-		"platform": platform,
-		"time_to_land": time_to_land,
-		"predicted_x": predicted_x,
-		"local_x": local_x,
-	}
+	return local_x
 
 func _get_best_landing_prediction(ball: CharacterBody2D) -> Dictionary:
 	var candidates: Array[Node] = get_tree().get_nodes_in_group("platforms")
