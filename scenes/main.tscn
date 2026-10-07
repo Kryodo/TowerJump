@@ -9,6 +9,7 @@
 [ext_resource type="Script" uid="uid://c0id0qhhwsyql" path="res://scripts/game_over_screen.gd" id="7_gameover"]
 [ext_resource type="PackedScene" path="res://scenes/coin.tscn" id="8_coin"]
 [ext_resource type="Script" uid="uid://ck0ynampffokl" path="res://scripts/coin_spawner.gd" id="9_coinspawner"]
+[ext_resource type="Script" path="res://scripts/landing/landing_feedback_controller.gd" id="10_landing_feedback"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
 bg_color = Color(0.12, 0.13, 0.18, 0.95)
@@ -60,6 +61,10 @@ script = ExtResource("4_spawner")
 platform_scene = ExtResource("2_platform")
 ball_path = NodePath("../Ball")
 camera_path = NodePath("../GameCamera")
+
+[node name="LandingFeedbackController" type="Node" parent="."]
+script = ExtResource("10_landing_feedback")
+ball_path = NodePath("../Ball")
 
 [node name="HUD" type="CanvasLayer" parent="." unique_id=908125500]
 script = ExtResource("6_hud")
