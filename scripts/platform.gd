@@ -45,7 +45,11 @@ const RETRACT_RATE_MULTIPLIER := 0.90
 # The predictor mirrors the ball's real horizontal acceleration/deceleration
 # model for the current held direction. It is deterministic rather than a
 # broad "reachable area", so idle jumps keep the old precise behavior.
-const APPROACH_TARGET_SMOOTH_RATE := 16.0
+const APPROACH_TARGET_SMOOTH_RATE := 10.0
+const APPROACH_TARGET_SMOOTH_RATE_NEAR_LANDING := 5.0
+const APPROACH_TARGET_NEAR_LANDING_TIME := 0.50
+const ACTIVE_TARGET_MARGIN_BONUS := 12.0
+const ACTIVE_TARGET_MIN_STEERING_SPEED := 100.0
 
 # Give the timeline a small visual buffer near contact so the required rate
 # does not explode during the last few frames and produce a visible snap.
@@ -277,6 +281,7 @@ func _update_landing_target(delta: float) -> void:
 		_set_approach_target_x(
 			float(prediction.get("predicted_x", 0.0)),
 			float(prediction.get("edge_factor", 0.0)),
+			float(prediction.get("time_to_land", INF)),
 			delta
 		)
 
@@ -410,6 +415,7 @@ func _approach_charge() -> float:
 func _set_approach_target_x(
 	predicted_x: float,
 	edge_factor: float,
+	time_to_land: float,
 	delta: float
 ) -> void:
 	var local_x: float = predicted_x - global_position.x
@@ -437,13 +443,32 @@ func _set_approach_target_x(
 		1.0 - visual_margin
 	)
 
-	# Smooth target motion by a few physics frames. This removes the little
-	# target-point hop that can happen when aggressive steering changes the
-	# predicted landing position, without changing which platform is targeted.
-	_approach_target_x = move_toward(
+	# Smooth target motion instead of making it chase each prediction
+	# frame directly. Close to landing we deliberately soften the response:
+	# the indicator should quickly move toward the new point, but never look
+	# like it teleported between steering states.
+	var near_landing_factor := 0.0
+	if is_finite(time_to_land):
+		near_landing_factor = clampf(
+			inverse_lerp(
+				APPROACH_TARGET_NEAR_LANDING_TIME,
+				0.10,
+				time_to_land
+			),
+			0.0,
+			1.0
+		)
+
+	var smooth_rate := lerpf(
+			APPROACH_TARGET_SMOOTH_RATE,
+			APPROACH_TARGET_SMOOTH_RATE_NEAR_LANDING,
+			near_landing_factor
+		)
+	var response := 1.0 - exp(-smooth_rate * delta)
+	_approach_target_x = lerpf(
 		_approach_target_x,
 		desired_target_x,
-		APPROACH_TARGET_SMOOTH_RATE * delta
+		response
 	)
 
 func _visual_target_margin() -> float:
@@ -466,9 +491,17 @@ func _get_stable_landing_prediction(ball: CharacterBody2D) -> Dictionary:
 		stable_target = null
 
 	if stable_target != null and stable_target.visible:
+		var active_margin_bonus := 0.0
+		if (
+			absf(float(ball.velocity.x)) >= ACTIVE_TARGET_MIN_STEERING_SPEED
+			and absf(float(ball.get("input_direction"))) > 0.01
+		):
+			active_margin_bonus = ACTIVE_TARGET_MARGIN_BONUS
+
 		var current_prediction := _get_platform_prediction(
 			ball,
-			stable_target
+			stable_target,
+			active_margin_bonus
 		)
 
 		if not current_prediction.is_empty():
@@ -500,7 +533,8 @@ func _get_stable_landing_prediction(ball: CharacterBody2D) -> Dictionary:
 
 func _get_platform_prediction(
 	ball: CharacterBody2D,
-	platform: Node2D
+	platform: Node2D,
+	extra_landing_margin: float = 0.0
 ) -> Dictionary:
 	var g: float = float(ball.gravity)
 	var vy: float = float(ball.velocity.y)
@@ -537,7 +571,10 @@ func _get_platform_prediction(
 	# For visual targeting, the ball's radius is the actual extra horizontal
 	# contact allowance. Do not add a large heuristic margin that could make
 	# nearby platforms look targetable when the player is not really landing.
-	var landing_margin: float = float(ball.radius)
+	var landing_margin: float = float(ball.radius) + maxf(
+		extra_landing_margin,
+		0.0
+	)
 	var accepted_half_width: float = platform_half_width + landing_margin
 
 	var local_x: float = _shortest_local_x(
