@@ -53,6 +53,7 @@ var _broken: bool = false
 # Platform-local visual state is kept in a dedicated helper. The controller
 # owns targeting/prediction; the platform only exposes a visual adapter.
 var _landing_approach: LandingApproachState = LandingApproachState.new()
+var _landing_confirmation_tween: Tween = null
 
 @onready var _collision_shape: CollisionShape2D = $CollisionShape2D
 @onready var _visual: Polygon2D = $Visual
@@ -151,15 +152,13 @@ func spawn_as(
 	_apply_geometry()
 
 func on_ball_landed(landing_world_x: float) -> float:
-	# Emit before completing the local approach state so the central controller
-	# can capture the actual pre-landing approach progress in LandingEvent.
+	# Surface the physical landing. LandingFeedbackController turns this into
+	# one LandingEvent that all future reaction layers can consume.
 	landing_occurred.emit(landing_world_x)
 
-	_play_landing_pulse(landing_world_x)
 	_landing_approach.complete()
 	_neon_edge.set_instance_shader_parameter("approach_charge", 1.0)
 	_neon_edge.set_instance_shader_parameter("activated", 1.0)
-	_neon_edge.set_instance_shader_parameter("landing_confirm", 1.0)
 
 	if platform_type == PlatformType.BREAKABLE:
 		_start_breaking()
@@ -170,59 +169,80 @@ func on_ball_landed(landing_world_x: float) -> float:
 
 	return 1.0
 
-func _play_landing_pulse(_landing_world_x: float) -> void:
-	_neon_edge.set_instance_shader_parameter("landing_confirm", 1.0)
+func play_landing_confirmation(strength: float = 1.0) -> void:
+	if _landing_confirmation_tween != null and _landing_confirmation_tween.is_valid():
+		_landing_confirmation_tween.kill()
 
+	_neon_edge.set_instance_shader_parameter("activated", 1.0)
+	_neon_edge.set_instance_shader_parameter("landing_confirm", 0.0)
 	_visual.set_instance_shader_parameter(
 		"landing_pulse",
 		0.0
 	)
 
-	var tween := create_tween()
-	tween.set_parallel(true)
+	_landing_confirmation_tween = create_tween()
+	_landing_confirmation_tween.set_parallel(true)
 
-	tween.tween_method(
+	# Platform body: keep the existing subtle physical pulse.
+	_landing_confirmation_tween.tween_method(
 		func(value: float) -> void:
 			_visual.set_instance_shader_parameter(
 				"landing_pulse",
 				value
 			),
 		0.0,
-		1.0,
-		0.18
+		strength,
+		0.12
 	).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
-	tween.tween_method(
+	# NeonEdge: rapid white completion flash.
+	_landing_confirmation_tween.tween_method(
 		func(value: float) -> void:
 			_neon_edge.set_instance_shader_parameter(
 				"landing_confirm",
 				value
 			),
-		1.0,
 		0.0,
-		0.18
+		strength,
+		0.045
+	).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+
+	_landing_confirmation_tween.set_parallel(false)
+
+	# Smoothly settle back into the activated HDR cyan rather than snapping.
+	_landing_confirmation_tween.tween_method(
+		func(value: float) -> void:
+			_neon_edge.set_instance_shader_parameter(
+				"landing_confirm",
+				value
+			),
+		strength,
+		0.0,
+		0.28
 	).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
-	tween.set_parallel(false)
-
-	tween.tween_method(
+	_landing_confirmation_tween.tween_method(
 		func(value: float) -> void:
 			_visual.set_instance_shader_parameter(
 				"landing_pulse",
 				value
 			),
-		1.0,
+		strength,
 		0.0,
-		0.28
+		0.30
 	).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
-	tween.tween_callback(
+	_landing_confirmation_tween.tween_callback(
 		func() -> void:
+			_neon_edge.set_instance_shader_parameter(
+				"landing_confirm",
+				0.0
+			)
 			_visual.set_instance_shader_parameter(
 				"landing_pulse",
 				0.0
 			)
-			_neon_edge.set_instance_shader_parameter("landing_confirm", 0.0)
+			_landing_confirmation_tween = null
 	)
 
 func set_landing_approach_feedback(
