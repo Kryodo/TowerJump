@@ -185,7 +185,7 @@ func _get_platform_prediction(
 	var platform_dy: float = (
 		platform.global_position.y - ball.global_position.y
 	)
-	var screen_width: float = float(get_viewport_rect().size.x)
+	var screen_width: float = float(get_viewport().get_visible_rect().size.x)
 
 	if g <= 0.0 or platform_dy <= 0.0:
 		return {}
@@ -337,6 +337,7 @@ func _shortest_local_x(
 	return local_x
 
 func _get_best_landing_prediction() -> Dictionary:
+	var ball := _ball
 	var candidates: Array[Node] = get_tree().get_nodes_in_group(
 		platforms_group
 	)
