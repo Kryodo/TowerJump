@@ -196,20 +196,7 @@ func _get_stable_landing_prediction() -> Dictionary:
 				return current_prediction
 
 		# A real competing platform can still take over normally once it is
-		# clearly better. If there is no competing target (or the same target is
-		# still best), give an already-started target a very narrow late-landing
-		# commitment window. This is based on the BALL'S CURRENT physical position,
-		# not a generic prediction grace period.
-		if (
-			best_prediction.is_empty()
-			or best_prediction.get("platform") == stable_target
-		):
-			var late_commitment := _get_late_commitment_prediction(
-				stable_target
-			)
-			if not late_commitment.is_empty():
-				return late_commitment
-
+		# clearly better; no additional delay is imposed here.
 		return best_prediction
 
 	# The target's precise prediction can briefly disappear during rapid steering.
@@ -251,109 +238,6 @@ func _get_stable_landing_prediction() -> Dictionary:
 		_ball.set_meta(LANDING_FEEDBACK_TARGET_META, null)
 
 	return best_prediction
-func _get_late_commitment_prediction(
-	platform: Node2D
-) -> Dictionary:
-	if platform == null or not is_instance_valid(platform):
-		return {}
-
-	if not platform.visible:
-		return {}
-
-	# This fallback is only for a target that was already visually engaged.
-	# A brand-new nearby platform must still pass the normal prediction path.
-	if not platform.has_method("get_landing_approach_progress"):
-		return {}
-
-	var approach_progress: float = platform.get_landing_approach_progress()
-	if approach_progress < 0.15:
-		return {}
-
-	var g: float = float(_ball.gravity)
-	var vy: float = float(_ball.velocity.y)
-	var screen_width: float = float(get_viewport().get_visible_rect().size.x)
-
-	# Only apply while descending. After a bounce the old platform is above
-	# the ball in Godot's +Y-down coordinate system, so this cannot interfere
-	# with the normal handoff to the next platform.
-	if g <= 0.0 or vy <= 0.0:
-		return {}
-
-	var platform_half_width: float = float(platform.call("half_width"))
-	var platform_half_height: float = float(platform.get("height")) * 0.5
-	var contact_y: float = (
-		platform.global_position.y
-		- platform_half_height
-		- float(_ball.radius)
-	)
-	var vertical_gap: float = contact_y - _ball.global_position.y
-
-	if vertical_gap <= 0.0:
-		return {}
-
-	var discriminant: float = vy * vy + 2.0 * g * vertical_gap
-	if discriminant < 0.0:
-		return {}
-
-	var time_to_contact: float = (
-		-vy + sqrt(discriminant)
-	) / g
-
-	# This is intentionally short. We are not predicting an entire jump here;
-	# we are only protecting the final approach when physical contact is near.
-	const LATE_COMMIT_MAX_TIME := 0.30
-	if time_to_contact > LATE_COMMIT_MAX_TIME:
-		return {}
-
-	var local_x: float = (
-		_ball.global_position.x - platform.global_position.x
-	)
-	if screen_width > 0.0:
-		if local_x > screen_width * 0.5:
-			local_x -= screen_width
-		elif local_x < -screen_width * 0.5:
-			local_x += screen_width
-
-	# The ball's radius is the real horizontal contact allowance. A tiny extra
-	# amount only absorbs numerical/one-frame jitter at the very edge.
-	const LATE_COMMIT_EXTRA_X := 6.0
-	var accepted_half_width: float = (
-		platform_half_width
-		+ float(_ball.radius)
-		+ LATE_COMMIT_EXTRA_X
-	)
-
-	if absf(local_x) > accepted_half_width:
-		return {}
-
-	var edge_factor := 0.0
-	if platform_half_width > 0.0:
-		edge_factor = clampf(
-			inverse_lerp(
-				platform_half_width * 0.20,
-				platform_half_width,
-				absf(local_x)
-			),
-			0.0,
-			1.0
-		)
-
-	var guidance_x: float = _ball.global_position.x
-
-	if screen_width > 0.0:
-		guidance_x = fmod(guidance_x, screen_width)
-		if guidance_x < 0.0:
-			guidance_x += screen_width
-
-	return {
-		"platform": platform,
-		"time_to_land": time_to_contact,
-		"predicted_x": guidance_x,
-		"local_x": local_x,
-		"edge_factor": edge_factor,
-		"late_commitment": true,
-	}
-
 func _get_platform_prediction(
 	ball: CharacterBody2D,
 	platform: Node2D
