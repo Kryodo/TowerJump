@@ -7,9 +7,6 @@ extends RefCounted
 ## visual target position so platform.gd stays a thin adapter.
 
 const RETRACT_RATE_MULTIPLIER := 0.90
-const APPROACH_TARGET_SMOOTH_RATE := 10.0
-const APPROACH_TARGET_SMOOTH_RATE_NEAR_LANDING := 5.0
-const APPROACH_TARGET_NEAR_LANDING_TIME := 0.50
 
 var progress: float = 0.0
 var speed_rate: float = 0.0
@@ -173,32 +170,9 @@ func _set_target_x(
 		1.0 - visual_margin
 	)
 
-	# Smooth the visual indicator instead of making it chase each prediction
-	# frame. Close to landing it intentionally becomes calmer so a last-second
-	# steering change reads as a quick shift, not a teleport.
-	var near_landing_factor := 0.0
-	if is_finite(time_to_land):
-		near_landing_factor = clampf(
-			inverse_lerp(
-				APPROACH_TARGET_NEAR_LANDING_TIME,
-				0.10,
-				time_to_land
-			),
-			0.0,
-			1.0
-		)
-
-	var smooth_rate := lerpf(
-		APPROACH_TARGET_SMOOTH_RATE,
-		APPROACH_TARGET_SMOOTH_RATE_NEAR_LANDING,
-		near_landing_factor
-	)
-	var response := 1.0 - exp(-smooth_rate * delta)
-	target_x = lerpf(
-		target_x,
-		desired_target_x,
-		response
-	)
+	# LandingPredictionFilter is the single visual smoothing layer.
+	# Keep this state direct so we do not smooth the same X signal twice.
+	target_x = desired_target_x
 
 func charge() -> float:
 	var value: float = clampf(progress, 0.0, 1.0)
