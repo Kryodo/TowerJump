@@ -26,18 +26,6 @@ signal landing_confirmed(event: LandingEvent)
 const LANDING_FEEDBACK_TARGET_META := "_towerjump_landing_feedback_target"
 
 const TARGET_SWITCH_DY_MARGIN := 36.0
-const TARGET_SWITCH_TIME_MARGIN := 0.08
-
-# Wild left/right input is deliberately filtered for FEEDBACK PREDICTION ONLY.
-# Ball physics continue to receive the real input unchanged.
-const FEEDBACK_STEERING_RESPONSE := 18.0
-const FEEDBACK_STEERING_REVERSAL_RESPONSE := 7.0
-const FEEDBACK_STEERING_RELEASE_RESPONSE := 12.0
-
-# Once landing is close, the already-selected platform gets a short commitment
-# window. Ambiguity should hold the visual state instead of causing a reset.
-const LATE_LANDING_COMMIT_TIME := 0.45
-const LATE_LANDING_LOSS_GRACE := 0.18
 
 # Visual timing behavior preserved from the current tested prototype.
 const APPROACH_TIME_BUFFER_MAX := 0.14
@@ -49,9 +37,6 @@ const MAX_CATCHUP_MULTIPLIER := 2.25
 var _ball: CharacterBody2D = null
 var _approach_target: Node2D = null
 var _retracting_targets: Array[Node2D] = []
-
-var _feedback_steering_input: float = 0.0
-var _target_loss_elapsed: float = 0.0
 
 func _ready() -> void:
 	_ball = get_node_or_null(ball_path) as CharacterBody2D
@@ -78,32 +63,8 @@ func _physics_process(delta: float) -> void:
 		if _ball == null:
 			return
 
-	_update_feedback_steering(delta)
 	_update_landing_target(delta)
 	_update_retracting_targets(delta)
-
-func _update_feedback_steering(delta: float) -> void:
-	var raw_input: float = clampf(
-		float(_ball.input_direction),
-		-1.0,
-		1.0
-	)
-
-	var response := FEEDBACK_STEERING_RELEASE_RESPONSE
-	if absf(raw_input) > 0.01:
-		if (
-			absf(_feedback_steering_input) > 0.01
-			and signf(raw_input) != signf(_feedback_steering_input)
-		):
-			response = FEEDBACK_STEERING_REVERSAL_RESPONSE
-		else:
-			response = FEEDBACK_STEERING_RESPONSE
-
-	_feedback_steering_input = move_toward(
-		_feedback_steering_input,
-		raw_input,
-		response * delta
-	)
 
 func _update_landing_target(delta: float) -> void:
 	var prediction := _get_stable_landing_prediction()
@@ -137,15 +98,12 @@ func _update_landing_target(delta: float) -> void:
 	var predicted_x := float(prediction.get("predicted_x", _approach_target.global_position.x))
 	var edge_factor := float(prediction.get("edge_factor", 0.0))
 
-	if bool(prediction.get("uncertain", false)):
-		_approach_target.stabilize_landing_approach_feedback(delta)
-	else:
-		_approach_target.set_landing_approach_feedback(
-			time_to_land,
-			predicted_x,
-			edge_factor,
-			delta
-		)
+	_approach_target.set_landing_approach_feedback(
+		time_to_land,
+		predicted_x,
+		edge_factor,
+		delta
+	)
 
 	landing_approach_updated.emit(
 		_approach_target,
@@ -191,8 +149,6 @@ func _get_stable_landing_prediction() -> Dictionary:
 		)
 
 		if not current_prediction.is_empty():
-			_target_loss_elapsed = 0.0
-
 			if best_prediction.is_empty():
 				return current_prediction
 
@@ -206,46 +162,11 @@ func _get_stable_landing_prediction() -> Dictionary:
 			var best_dy: float = (
 				best_target.global_position.y - _ball.global_position.y
 			)
-			var current_time: float = float(
-				current_prediction.get("time_to_land", INF)
-			)
-			var best_time: float = float(
-				best_prediction.get("time_to_land", INF)
-			)
 
-			# Normal hysteresis: a tiny trajectory change must not swap targets.
+			# Keep the existing target unless another platform is clearly better.
+			# This prevents tiny trajectory changes from moving the neon target.
 			if best_dy >= current_dy - TARGET_SWITCH_DY_MARGIN:
 				return current_prediction
-
-			# Late commitment: once the current target is close to landing, keep
-			# its identity unless another target is materially better in BOTH
-			# vertical distance and landing time.
-			if current_time <= LATE_LANDING_COMMIT_TIME:
-				var materially_better := (
-					best_dy < current_dy - TARGET_SWITCH_DY_MARGIN
-					and best_time + TARGET_SWITCH_TIME_MARGIN < current_time
-				)
-				if not materially_better:
-					return current_prediction
-
-			return best_prediction
-
-		# The current target became briefly unresolvable. Hold its last known
-		# landing prediction for a short grace window instead of immediately
-		# flipping the platform into a retraction/reset.
-		_target_loss_elapsed += get_physics_process_delta_time()
-		if _target_loss_elapsed <= LATE_LANDING_LOSS_GRACE:
-			var held_prediction: Dictionary = {
-				"platform": stable_target,
-				"time_to_land": 0.0,
-				"predicted_x": _ball.global_position.x,
-				"local_x": 0.0,
-				"edge_factor": 0.0,
-				"uncertain": true,
-			}
-			return held_prediction
-
-	_target_loss_elapsed = 0.0
 
 	if not best_prediction.is_empty():
 		_ball.set_meta(
@@ -256,7 +177,6 @@ func _get_stable_landing_prediction() -> Dictionary:
 		_ball.set_meta(LANDING_FEEDBACK_TARGET_META, null)
 
 	return best_prediction
-
 
 func _get_platform_prediction(
 	ball: CharacterBody2D,
@@ -333,7 +253,6 @@ func _get_platform_prediction(
 		"predicted_x": predicted_x,
 		"local_x": local_x,
 		"edge_factor": edge_factor,
-		"feedback_steering": _feedback_steering_input,
 	}
 
 func _predict_horizontal_displacement(
@@ -344,7 +263,11 @@ func _predict_horizontal_displacement(
 		return 0.0
 
 	var initial_velocity: float = float(ball.velocity.x)
-	var steering_input: float = _feedback_steering_input
+	var steering_input: float = clampf(
+		float(ball.input_direction),
+		-1.0,
+		1.0
+	)
 	var max_speed: float = float(ball.max_horizontal_speed)
 
 	if max_speed <= 0.0:
