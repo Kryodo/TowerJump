@@ -7,8 +7,8 @@ extends RefCounted
 ## visual target position so platform.gd stays a thin adapter.
 
 const RETRACT_RATE_MULTIPLIER := 0.90
-const APPROACH_TARGET_SMOOTH_RATE := 10.0
-const APPROACH_TARGET_SMOOTH_RATE_NEAR_LANDING := 5.0
+const APPROACH_TARGET_SMOOTH_RATE := 16.0
+const APPROACH_TARGET_SMOOTH_RATE_NEAR_LANDING := 9.0
 const APPROACH_TARGET_NEAR_LANDING_TIME := 0.50
 
 var progress: float = 0.0
