@@ -26,6 +26,11 @@ signal landing_confirmed(event: LandingEvent)
 const LANDING_FEEDBACK_TARGET_META := "_towerjump_landing_feedback_target"
 
 const TARGET_SWITCH_DY_MARGIN := 36.0
+const TARGET_LOSS_GRACE_TIME := 0.09
+
+const LandingPredictionFilterScript := preload(
+	"res://scripts/landing/landing_prediction_filter.gd"
+)
 
 # Visual timing behavior preserved from the current tested prototype.
 const APPROACH_TIME_BUFFER_MAX := 0.14
@@ -37,6 +42,10 @@ const MAX_CATCHUP_MULTIPLIER := 2.25
 var _ball: CharacterBody2D = null
 var _approach_target: Node2D = null
 var _retracting_targets: Array[Node2D] = []
+
+var _prediction_filter: LandingPredictionFilterScript = LandingPredictionFilterScript.new()
+var _last_valid_prediction: Dictionary = {}
+var _last_valid_prediction_at_msec: int = 0
 
 func _ready() -> void:
 	_ball = get_node_or_null(ball_path) as CharacterBody2D
@@ -61,6 +70,7 @@ func _physics_process(delta: float) -> void:
 	if _ball == null or not is_instance_valid(_ball):
 		_ball = get_node_or_null(ball_path) as CharacterBody2D
 		if _ball == null:
+			_prediction_filter.reset()
 			return
 
 	_update_landing_target(delta)
@@ -77,6 +87,9 @@ func _update_landing_target(delta: float) -> void:
 
 	if predicted_target != previous_target:
 		_approach_target = predicted_target
+		_prediction_filter.reset()
+		_last_valid_prediction = {}
+		_last_valid_prediction_at_msec = 0
 
 		if (
 			previous_target != null
@@ -98,9 +111,20 @@ func _update_landing_target(delta: float) -> void:
 	var predicted_x := float(prediction.get("predicted_x", _approach_target.global_position.x))
 	var edge_factor := float(prediction.get("edge_factor", 0.0))
 
+	var filtered_x := _prediction_filter.update(
+		predicted_x,
+		_approach_target.global_position.x,
+		float(get_viewport().get_visible_rect().size.x),
+		float(_approach_target.get("width")) * float(_approach_target.get("width_scale")),
+		delta
+	)
+
+	prediction["raw_predicted_x"] = predicted_x
+	prediction["predicted_x"] = filtered_x
+
 	_approach_target.set_landing_approach_feedback(
 		time_to_land,
-		predicted_x,
+		filtered_x,
 		edge_factor,
 		delta
 	)
@@ -149,6 +173,9 @@ func _get_stable_landing_prediction() -> Dictionary:
 		)
 
 		if not current_prediction.is_empty():
+			_last_valid_prediction = current_prediction.duplicate()
+			_last_valid_prediction_at_msec = Time.get_ticks_msec()
+
 			if best_prediction.is_empty():
 				return current_prediction
 
@@ -164,9 +191,43 @@ func _get_stable_landing_prediction() -> Dictionary:
 			)
 
 			# Keep the existing target unless another platform is clearly better.
-			# This prevents tiny trajectory changes from moving the neon target.
+			# This is the existing target hysteresis from the stable prototype.
 			if best_dy >= current_dy - TARGET_SWITCH_DY_MARGIN:
 				return current_prediction
+
+		# A real competing platform can still take over normally once it is
+		# clearly better; no additional delay is imposed here.
+		return best_prediction
+
+	# The target's precise prediction can briefly disappear during rapid steering.
+	# Trust the last valid target for only a few frames rather than immediately
+	# tearing down the visual sequence. This protects the timeline without
+	# freezing it or inventing a broader landing zone.
+	if (
+		stable_target != null
+		and stable_target.visible
+		and not _last_valid_prediction.is_empty()
+		and _last_valid_prediction.get("platform") == stable_target
+	):
+		var elapsed: float = (
+			Time.get_ticks_msec() - _last_valid_prediction_at_msec
+		) / 1000.0
+
+		if elapsed <= TARGET_LOSS_GRACE_TIME:
+			var held_prediction: Dictionary = _last_valid_prediction.duplicate()
+			var old_time_to_land := float(
+				held_prediction.get("time_to_land", 0.0)
+			)
+			held_prediction["platform"] = stable_target
+			held_prediction["time_to_land"] = maxf(
+				old_time_to_land - elapsed,
+				0.02
+			)
+			held_prediction["grace_hold"] = true
+			return held_prediction
+
+	_last_valid_prediction = {}
+	_last_valid_prediction_at_msec = 0
 
 	if not best_prediction.is_empty():
 		_ball.set_meta(
@@ -177,7 +238,6 @@ func _get_stable_landing_prediction() -> Dictionary:
 		_ball.set_meta(LANDING_FEEDBACK_TARGET_META, null)
 
 	return best_prediction
-
 func _get_platform_prediction(
 	ball: CharacterBody2D,
 	platform: Node2D
