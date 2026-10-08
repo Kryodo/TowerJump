@@ -283,6 +283,20 @@ func retract_landing_approach_feedback(delta: float) -> void:
 		_landing_approach.target_x
 	)
 
+func stabilize_landing_approach_feedback(delta: float) -> void:
+	_landing_approach.update_uncertain(
+		delta,
+		width * width_scale
+	)
+	_neon_edge.set_instance_shader_parameter(
+		"approach_charge",
+		_landing_approach.charge()
+	)
+	_neon_edge.set_instance_shader_parameter(
+		"approach_target_x",
+		_landing_approach.target_x
+	)
+
 func complete_landing_approach_feedback() -> void:
 	_landing_approach.complete()
 	_neon_edge.set_instance_shader_parameter(

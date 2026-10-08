@@ -57,6 +57,35 @@ func update_retract(delta: float, platform_width: float) -> void:
 		false
 	)
 
+func update_uncertain(delta: float, platform_width: float) -> void:
+	# When the player's steering becomes ambiguous, the platform should look
+	# hesitant rather than panicked. Slow the current motion toward a standstill
+	# without resetting or reversing the accumulated charge.
+	var width_factor: float = clampf(
+		inverse_lerp(100.0, 320.0, platform_width),
+		0.0,
+		1.0
+	)
+	var preferred_duration: float = lerpf(1.35, 0.90, width_factor)
+	preferred_duration += lerpf(
+		0.0,
+		0.22,
+		clampf(absf(target_x - 0.5) * 2.0, 0.0, 1.0)
+	)
+	var preferred_rate: float = 1.0 / preferred_duration
+	var response: float = preferred_rate * 8.0
+
+	speed_rate = move_toward(
+		speed_rate,
+		0.0,
+		response * delta
+	)
+	progress = clampf(
+		progress + speed_rate * delta,
+		0.0,
+		0.999
+	)
+
 func _update_progress(
 	delta: float,
 	time_to_land: float,
