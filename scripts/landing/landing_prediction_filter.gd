@@ -7,11 +7,11 @@ extends RefCounted
 ## movement is allowed to move the target quickly. It never changes platform
 ## identity, landing time, or ball physics.
 
-const NORMAL_RESPONSE := 28.0
-const OSCILLATION_RESPONSE := 10.0
-const REVERSAL_WINDOW := 0.16
-const REVERSAL_DECAY := 3.0
-const REVERSAL_GAIN := 0.55
+const NORMAL_RESPONSE := 36.0
+const OSCILLATION_RESPONSE := 18.0
+const REVERSAL_WINDOW := 0.12
+const REVERSAL_DECAY := 5.0
+const REVERSAL_GAIN := 0.35
 const REVERSAL_DELTA_THRESHOLD := 0.025
 
 var _initialized: bool = false

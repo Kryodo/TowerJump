@@ -195,20 +195,17 @@ func _get_stable_landing_prediction() -> Dictionary:
 			if best_dy >= current_dy - TARGET_SWITCH_DY_MARGIN:
 				return current_prediction
 
-		# A real competing platform can still take over normally once it is
-		# clearly better; no additional delay is imposed here.
-		return best_prediction
+		# The target's precise prediction can briefly disappear during the
+		# final approach, especially on long curved edge landings. Before allowing
+		# target replacement, trust the last valid target for only a few frames.
+		# This protects the visual sequence without freezing it or inventing a
+		# broader landing zone.
+		if (
+			_last_valid_prediction.is_empty()
+			or _last_valid_prediction.get("platform") != stable_target
+		):
+			return best_prediction
 
-	# The target's precise prediction can briefly disappear during rapid steering.
-	# Trust the last valid target for only a few frames rather than immediately
-	# tearing down the visual sequence. This protects the timeline without
-	# freezing it or inventing a broader landing zone.
-	if (
-		stable_target != null
-		and stable_target.visible
-		and not _last_valid_prediction.is_empty()
-		and _last_valid_prediction.get("platform") == stable_target
-	):
 		var elapsed: float = (
 			Time.get_ticks_msec() - _last_valid_prediction_at_msec
 		) / 1000.0
@@ -225,6 +222,9 @@ func _get_stable_landing_prediction() -> Dictionary:
 			)
 			held_prediction["grace_hold"] = true
 			return held_prediction
+
+		# Grace expired; a real competing platform can take over normally.
+		return best_prediction
 
 	_last_valid_prediction = {}
 	_last_valid_prediction_at_msec = 0
