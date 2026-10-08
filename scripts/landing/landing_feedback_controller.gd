@@ -43,7 +43,7 @@ var _ball: CharacterBody2D = null
 var _approach_target: Node2D = null
 var _retracting_targets: Array[Node2D] = []
 
-var _prediction_filter: LandingPredictionFilterScript = LandingPredictionFilterScript.new()
+var _prediction_filter: LandingPredictionFilter = LandingPredictionFilter.new()
 var _last_valid_prediction: Dictionary = {}
 var _last_valid_prediction_at_msec: int = 0
 
