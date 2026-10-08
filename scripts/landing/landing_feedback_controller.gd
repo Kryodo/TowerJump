@@ -26,7 +26,6 @@ signal landing_confirmed(event: LandingEvent)
 const LANDING_FEEDBACK_TARGET_META := "_towerjump_landing_feedback_target"
 
 const TARGET_SWITCH_DY_MARGIN := 36.0
-const TARGET_LOSS_GRACE_TIME := 0.09
 
 const LandingPredictionFilterScript := preload(
 	"res://scripts/landing/landing_prediction_filter.gd"
@@ -44,8 +43,6 @@ var _approach_target: Node2D = null
 var _retracting_targets: Array[Node2D] = []
 
 var _prediction_filter: LandingPredictionFilter = LandingPredictionFilter.new()
-var _last_valid_prediction: Dictionary = {}
-var _last_valid_prediction_at_msec: int = 0
 
 func _ready() -> void:
 	_ball = get_node_or_null(ball_path) as CharacterBody2D
@@ -88,8 +85,6 @@ func _update_landing_target(delta: float) -> void:
 	if predicted_target != previous_target:
 		_approach_target = predicted_target
 		_prediction_filter.reset()
-		_last_valid_prediction = {}
-		_last_valid_prediction_at_msec = 0
 
 		if (
 			previous_target != null
@@ -173,9 +168,6 @@ func _get_stable_landing_prediction() -> Dictionary:
 		)
 
 		if not current_prediction.is_empty():
-			_last_valid_prediction = current_prediction.duplicate()
-			_last_valid_prediction_at_msec = Time.get_ticks_msec()
-
 			if best_prediction.is_empty():
 				return current_prediction
 
@@ -195,41 +187,19 @@ func _get_stable_landing_prediction() -> Dictionary:
 			if best_dy >= current_dy - TARGET_SWITCH_DY_MARGIN:
 				return current_prediction
 
-		# A real competing platform can still take over normally once it is
-		# clearly better; no additional delay is imposed here.
-		return best_prediction
+			return best_prediction
 
-	# The target's precise prediction can briefly disappear during rapid steering.
-	# Trust the last valid target for only a few frames rather than immediately
-	# tearing down the visual sequence. This protects the timeline without
-	# freezing it or inventing a broader landing zone.
-	if (
-		stable_target != null
-		and stable_target.visible
-		and not _last_valid_prediction.is_empty()
-		and _last_valid_prediction.get("platform") == stable_target
-	):
-		var elapsed: float = (
-			Time.get_ticks_msec() - _last_valid_prediction_at_msec
-		) / 1000.0
-
-		if elapsed <= TARGET_LOSS_GRACE_TIME:
-			var held_prediction: Dictionary = _last_valid_prediction.duplicate()
-			var old_time_to_land := float(
-				held_prediction.get("time_to_land", 0.0)
-			)
-			held_prediction["platform"] = stable_target
-			held_prediction["time_to_land"] = maxf(
-				old_time_to_land - elapsed,
-				0.02
-			)
-			held_prediction["grace_hold"] = true
-			return held_prediction
-
-	_last_valid_prediction = {}
-	_last_valid_prediction_at_msec = 0
-
-	if not best_prediction.is_empty():
+		# The platform is already the established landing target, but its exact
+		# future X briefly fell outside the narrow prediction corridor. Separate
+		# target identity from exact landing-point accuracy: if the ball is already
+		# descending toward this platform and is physically close enough to land,
+		# keep the target rather than cancelling the whole visual sequence.
+		var committed_prediction := _get_committed_target_prediction(
+			stable_target
+		)
+		if not committed_prediction.is_empty():
+			return committed_prediction
+		if not best_prediction.is_empty():
 		_ball.set_meta(
 			LANDING_FEEDBACK_TARGET_META,
 			best_prediction["platform"]
@@ -238,6 +208,134 @@ func _get_stable_landing_prediction() -> Dictionary:
 		_ball.set_meta(LANDING_FEEDBACK_TARGET_META, null)
 
 	return best_prediction
+func _get_committed_target_prediction(
+	platform: Node2D
+) -> Dictionary:
+	if platform == null or not is_instance_valid(platform):
+		return {}
+
+	if not platform.visible or not platform.has_method("get_landing_approach_progress"):
+		return {}
+
+	# Only protect a target that has already become meaningfully active. A
+	# platform that was never selected cannot enter this fallback.
+	var approach_progress: float = (
+		platform.get_landing_approach_progress()
+	)
+	if approach_progress < 0.15:
+		return {}
+
+	var g: float = float(_ball.gravity)
+	var vy: float = float(_ball.velocity.y)
+
+	# This fallback is intentionally descent-only. After bouncing from A, A is
+	# above the ball, so the safeguard cannot keep A alive and block the next
+	# platform target.
+	if g <= 0.0 or vy <= 0.0:
+		return {}
+
+	var platform_half_width: float = float(
+		platform.call("half_width")
+	)
+	var platform_half_height: float = float(
+		platform.get("height")
+	) * 0.5
+	var contact_y: float = (
+		platform.global_position.y
+		- platform_half_height
+		- float(_ball.radius)
+	)
+	var vertical_gap: float = (
+		contact_y - _ball.global_position.y
+	)
+
+	if vertical_gap <= 0.0:
+		return {}
+
+	var discriminant: float = (
+		vy * vy
+		+ 2.0 * g * vertical_gap
+	)
+	if discriminant < 0.0:
+		return {}
+
+	var time_to_contact: float = (
+		-vy + sqrt(discriminant)
+	) / g
+
+	# This is deliberately not a global grace period. It only protects an
+	# already-active target during the useful final part of the descent.
+	const COMMITTED_TARGET_MAX_TIME := 0.65
+	if time_to_contact > COMMITTED_TARGET_MAX_TIME:
+		return {}
+
+	var screen_width: float = float(
+		get_viewport().get_visible_rect().size.x
+	)
+	var local_x: float = _shortest_local_x(
+		_ball.global_position.x,
+		platform.global_position.x,
+		screen_width
+	)
+
+	var physical_half_width: float = (
+		platform_half_width + float(_ball.radius)
+	)
+
+	# Only a small physical buffer beyond the real contact corridor is allowed.
+	# This is not a broad reachability envelope.
+	const COMMITTED_X_BUFFER := 18.0
+	var committed_half_width: float = (
+		physical_half_width + COMMITTED_X_BUFFER
+	)
+
+	if absf(local_x) > committed_half_width:
+		return {}
+
+	# If the ball is just outside the real corridor, require its current
+	# horizontal velocity to be pointing back toward the platform. This prevents
+	# a target from staying committed while the player is genuinely steering away.
+	if absf(local_x) > physical_half_width:
+		var toward_platform := -signf(local_x)
+		if (
+			absf(_ball.velocity.x) < 60.0
+			or signf(_ball.velocity.x) != toward_platform
+		):
+			return {}
+
+	# Use the nearest physically valid contact point as the temporary visual
+	# guidance X. The prediction filter remains the single smoothing layer.
+	var committed_local_x: float = clampf(
+		local_x,
+		-physical_half_width,
+		physical_half_width
+	)
+	var guidance_x: float = _wrap_x(
+		platform.global_position.x + committed_local_x,
+		screen_width
+	)
+
+	var edge_factor := 0.0
+	if platform_half_width > 0.0:
+		edge_factor = clampf(
+			inverse_lerp(
+				platform_half_width * 0.20,
+				platform_half_width,
+				absf(local_x)
+			),
+			0.0,
+			1.0
+		)
+
+	return {
+		"platform": platform,
+		"time_to_land": time_to_contact,
+		"predicted_x": guidance_x,
+		"local_x": local_x,
+		"edge_factor": edge_factor,
+		"committed_target": true,
+	}
+
 func _get_platform_prediction(
 	ball: CharacterBody2D,
 	platform: Node2D
