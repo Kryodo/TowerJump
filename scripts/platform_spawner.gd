@@ -195,29 +195,36 @@ func _size_name_to_enum(size_name: String) -> PlatformSize:
 func _next_platform_spec(p: Node2D) -> Dictionary:
 	if _pending_slots.is_empty():
 		var difficulty: float = _generator_brain.get_difficulty()
+		var next_pattern: PlatformPatterns.PatternType
+		var entry_mode: PlatformPatterns.EntryMode = PlatformPatterns.EntryMode.NONE
+		var density_multiplier: float = 1.0
 
-		var next_pattern: PlatformPatterns.PatternType = \
-			_generator_brain.choose_pattern_type()
+		if force_test_pattern:
+			# Keep the test deterministic: the same pattern loops continuously,
+			# independent of score-based pattern selection.
+			next_pattern = test_pattern
+		else:
+			next_pattern = _generator_brain.choose_pattern_type()
 
-		## Chooses the handoff based on the current and previous pattern context.
-		var previous_pattern: PlatformPatterns.PatternType = \
-			_generator_brain.get_previous_pattern()
+			## Chooses the handoff based on the current and previous pattern context.
+			var previous_pattern: PlatformPatterns.PatternType = \
+				_generator_brain.get_previous_pattern()
 
-		var entry_mode: PlatformPatterns.EntryMode = \
-			_generator_brain.choose_entry_mode(
+			entry_mode = _generator_brain.choose_entry_mode(
 				next_pattern,
 				previous_pattern
 			)
-			
-		## Gets the current vertical generation pacing from the Generator Brain.
-		var density: Dictionary = _generator_brain.get_generation_density()	
-		
+
+			## Gets the current vertical pacing from the Generator Brain.
+			var density: Dictionary = _generator_brain.get_generation_density()
+			density_multiplier = float(density["multiplier"])
+
 		_pending_slots = PlatformPatterns.build(
 			next_pattern,
 			difficulty,
 			entry_mode,
 			_previous_x_fraction,
-			float(density["multiplier"])
+			density_multiplier
 		)
 
 	var slot: Dictionary = _pending_slots.pop_front()
@@ -231,7 +238,8 @@ func _next_platform_spec(p: Node2D) -> Dictionary:
 	)
 	
 	var width_scale: float = target_width / base_width
-	width_scale = _generator_brain.scale_width_scale(width_scale)
+	if not force_test_pattern:
+		width_scale = _generator_brain.scale_width_scale(width_scale)
 	var half_width: float = target_width * 0.5
 
 	# branch=true (Risk-Pattern): teilt sich die Höhe mit der zuletzt platzierten
@@ -242,7 +250,12 @@ func _next_platform_spec(p: Node2D) -> Dictionary:
 		var max_gap: float = _max_gap
 		if bool(slot.get("boosted_gap", false)) and _last_type == Platform.PlatformType.SPRING:
 			max_gap = _boosted_max_gap(p)
-		var gap_fraction: float = _scale_gap_fraction(float(slot.get("dy", 0.2)))
+		var gap_fraction: float
+		if force_test_pattern and test_pattern == PlatformPatterns.PatternType.FAST_PACING_TEST:
+			# Exact spacing is important for reproducing the same fast charge windows.
+			gap_fraction = clampf(float(slot.get("dy", 0.2)), 0.0, 1.0)
+		else:
+			gap_fraction = _scale_gap_fraction(float(slot.get("dy", 0.2)))
 		# Egal was das Pattern für dy vorgibt: der tatsächliche Gap bleibt IMMER
 		# zwischen min_gap und (ggf. boost-erweitertem) max_gap geklemmt - dieselbe
 		# physik-basierte Erreichbarkeits-Grenze wie zuvor, jetzt pro Slot angewandt.
