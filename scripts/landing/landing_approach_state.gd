@@ -10,6 +10,7 @@ const RETRACT_RATE_MULTIPLIER := 0.90
 
 # Short landing windows compress the visual charge instead of letting the
 # contact event do nearly all of the remaining work.
+const FAST_APPROACH_ENTRY_TIME := 0.30
 const FAST_APPROACH_FULL_URGENCY_TIME := 0.12
 const FAST_APPROACH_NORMAL_TIME := 0.45
 
@@ -20,11 +21,15 @@ const APPROACH_TARGET_NEAR_LANDING_TIME := 0.50
 var progress: float = 0.0
 var speed_rate: float = 0.0
 var target_x: float = 0.5
+var _approach_started: bool = false
+var _fast_pacing_mode: bool = false
 
 func reset() -> void:
 	progress = 0.0
 	speed_rate = 0.0
 	target_x = 0.5
+	_approach_started = false
+	_fast_pacing_mode = false
 
 func complete() -> void:
 	progress = 1.0
@@ -39,6 +44,16 @@ func update_forward(
 	platform_global_x: float,
 	screen_width: float
 ) -> void:
+	# Classify pacing only when this platform first becomes an approach target.
+	# A normal approach stays on its proven timing curve even after its remaining
+	# time naturally drops below the fast-window thresholds.
+	if not _approach_started:
+		_approach_started = true
+		_fast_pacing_mode = (
+			is_finite(time_to_land)
+			and time_to_land <= FAST_APPROACH_ENTRY_TIME
+		)
+
 	_update_progress(
 		delta,
 		time_to_land,
@@ -111,11 +126,13 @@ func _update_progress(
 	# Preserve the relaxed timing for normal approaches. As contact gets close,
 	# smoothly remove the extra time buffer so the charge can meet the real
 	# landing deadline rather than being guaranteed to finish after contact.
-	var approach_urgency: float = 1.0 - smoothstep(
-		FAST_APPROACH_FULL_URGENCY_TIME,
-		FAST_APPROACH_NORMAL_TIME,
-		time_to_land
-	)
+	var approach_urgency: float = 0.0
+	if _fast_pacing_mode:
+		approach_urgency = 1.0 - smoothstep(
+			FAST_APPROACH_FULL_URGENCY_TIME,
+			FAST_APPROACH_NORMAL_TIME,
+			time_to_land
+		)
 	var base_time_buffer: float = lerpf(
 		0.04,
 		0.14,
