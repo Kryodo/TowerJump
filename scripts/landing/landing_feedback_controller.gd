@@ -206,17 +206,26 @@ func _get_platform_prediction(
 ) -> Dictionary:
 	var g: float = float(ball.gravity)
 	var vy: float = float(ball.velocity.y)
-	var platform_dy: float = (
-		platform.global_position.y - ball.global_position.y
-	)
 	var screen_width: float = float(get_viewport().get_visible_rect().size.x)
 
-	if g <= 0.0 or platform_dy <= 0.0:
+	# Predict the ball-center position at actual collision contact: the top
+	# of the platform rectangle minus the ball radius. The visual NeonEdge
+	# does not define the collision surface.
+	var platform_half_height: float = float(platform.get("height")) * 0.5
+	var contact_y: float = (
+		platform.global_position.y
+		- platform_half_height
+		- float(ball.radius)
+	)
+	var contact_gap: float = contact_y - ball.global_position.y
+
+	if g <= 0.0 or contact_gap <= 0.0:
 		return {}
 
-	# Keep the proven ballistic crossing-time calculation as the primary
-	# prediction. It remains the gate for normal/idle jumps.
-	var discriminant: float = vy * vy + 2.0 * g * platform_dy
+	# Use this same contact time for both charge timing and horizontal
+	# projection, so the predicted X and the charge timeline refer to the
+	# same physical landing moment.
+	var discriminant: float = vy * vy + 2.0 * g * contact_gap
 	if discriminant < 0.0:
 		return {}
 
