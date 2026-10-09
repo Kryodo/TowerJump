@@ -45,6 +45,7 @@ enum PatternType {
 	DIAGONAL,
 	CROSS_SCREEN,
 	CENTER_EDGE,
+	FAST_PACING_TEST,
 }
 
 enum EntryMode {
@@ -87,6 +88,9 @@ static func build(
 
 		PatternType.CENTER_EDGE:
 			slots = _center_edge(difficulty, entry_mode, previous_x)
+
+		PatternType.FAST_PACING_TEST:
+			slots = _fast_pacing_test()
 
 		_:
 			slots = _basic(difficulty)
@@ -2263,6 +2267,86 @@ static func _staircase_gauntlet() -> Array[Dictionary]:
 		{
 			"x": 0.26,
 			"dy": 0.22,
+			"size": "standard",
+			"type": Platform.PlatformType.NORMAL,
+		},
+	]
+## FAST PACING TEST
+## Temporary deterministic stress pattern for short approach-to-contact windows.
+## Alternates compact groups with near-maximum but still reachable jump gaps.
+## Horizontal changes around the high gaps are deliberately small enough that
+## the test stresses charge timing rather than requiring perfect steering.
+static func _fast_pacing_test() -> Array[Dictionary]:
+	return [
+		{
+			"x": 0.48,
+			"dy": 0.18,
+			"size": "standard",
+			"type": Platform.PlatformType.NORMAL,
+		},
+		{
+			"x": 0.53,
+			"dy": 0.20,
+			"size": "small",
+			"type": Platform.PlatformType.NORMAL,
+		},
+		{
+			"x": 0.54,
+			"dy": 0.97,
+			"size": "standard",
+			"type": Platform.PlatformType.NORMAL,
+		},
+		{
+			"x": 0.49,
+			"dy": 0.18,
+			"size": "small",
+			"type": Platform.PlatformType.NORMAL,
+		},
+		{
+			"x": 0.45,
+			"dy": 0.20,
+			"size": "standard",
+			"type": Platform.PlatformType.NORMAL,
+		},
+		{
+			"x": 0.46,
+			"dy": 0.97,
+			"size": "standard",
+			"type": Platform.PlatformType.NORMAL,
+		},
+		{
+			"x": 0.52,
+			"dy": 0.18,
+			"size": "small",
+			"type": Platform.PlatformType.NORMAL,
+		},
+		{
+			"x": 0.56,
+			"dy": 0.20,
+			"size": "standard",
+			"type": Platform.PlatformType.NORMAL,
+		},
+		{
+			"x": 0.55,
+			"dy": 0.97,
+			"size": "small",
+			"type": Platform.PlatformType.NORMAL,
+		},
+		{
+			"x": 0.49,
+			"dy": 0.18,
+			"size": "standard",
+			"type": Platform.PlatformType.NORMAL,
+		},
+		{
+			"x": 0.44,
+			"dy": 0.20,
+			"size": "small",
+			"type": Platform.PlatformType.NORMAL,
+		},
+		{
+			"x": 0.45,
+			"dy": 0.97,
 			"size": "standard",
 			"type": Platform.PlatformType.NORMAL,
 		},
