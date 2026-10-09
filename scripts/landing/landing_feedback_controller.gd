@@ -187,6 +187,12 @@ func _get_stable_landing_prediction() -> Dictionary:
 			if best_dy >= current_dy - TARGET_SWITCH_DY_MARGIN:
 				return current_prediction
 
+			# Keep the ball's stored target identity in sync with the selected
+			# visual target whenever hysteresis permits a genuine switch.
+			_ball.set_meta(
+				LANDING_FEEDBACK_TARGET_META,
+				best_prediction["platform"]
+			)
 			return best_prediction
 
 		# Only an already-selected target can use this fallback. It preserves
@@ -215,6 +221,13 @@ func _get_stable_landing_prediction() -> Dictionary:
 
 		# A real competing platform can still take over normally once it is
 		# clearly better; no generic grace period or stale prediction is used.
+		if not best_prediction.is_empty():
+			_ball.set_meta(
+				LANDING_FEEDBACK_TARGET_META,
+				best_prediction["platform"]
+			)
+		else:
+			_ball.set_meta(LANDING_FEEDBACK_TARGET_META, null)
 		return best_prediction
 
 	if not best_prediction.is_empty():
