@@ -2272,82 +2272,82 @@ static func _staircase_gauntlet() -> Array[Dictionary]:
 		},
 	]
 ## FAST PACING TEST
-## Temporary deterministic stress pattern for short approach-to-contact windows.
-## Alternates compact groups with near-maximum but still reachable jump gaps.
-## Horizontal changes around the high gaps are deliberately small enough that
-## the test stresses charge timing rather than requiring perfect steering.
+## Temporary deterministic stress pattern for consecutive short charge windows.
+## All gaps are near the maximum jump height so the pattern repeatedly gives
+## the approach animation little time to charge before contact. Horizontal
+## changes are deliberately modest; this test isolates charging cadence.
 static func _fast_pacing_test() -> Array[Dictionary]:
 	return [
 		{
 			"x": 0.48,
-			"dy": 0.18,
+			"dy": 0.94,
 			"size": "standard",
 			"type": Platform.PlatformType.NORMAL,
 		},
 		{
 			"x": 0.53,
-			"dy": 0.20,
-			"size": "small",
-			"type": Platform.PlatformType.NORMAL,
-		},
-		{
-			"x": 0.54,
 			"dy": 0.97,
-			"size": "standard",
-			"type": Platform.PlatformType.NORMAL,
-		},
-		{
-			"x": 0.49,
-			"dy": 0.18,
-			"size": "small",
-			"type": Platform.PlatformType.NORMAL,
-		},
-		{
-			"x": 0.45,
-			"dy": 0.20,
-			"size": "standard",
-			"type": Platform.PlatformType.NORMAL,
-		},
-		{
-			"x": 0.46,
-			"dy": 0.97,
-			"size": "standard",
-			"type": Platform.PlatformType.NORMAL,
-		},
-		{
-			"x": 0.52,
-			"dy": 0.18,
 			"size": "small",
 			"type": Platform.PlatformType.NORMAL,
 		},
 		{
 			"x": 0.56,
-			"dy": 0.20,
+			"dy": 0.92,
 			"size": "standard",
-			"type": Platform.PlatformType.NORMAL,
-		},
-		{
-			"x": 0.55,
-			"dy": 0.97,
-			"size": "small",
 			"type": Platform.PlatformType.NORMAL,
 		},
 		{
 			"x": 0.49,
-			"dy": 0.18,
-			"size": "standard",
-			"type": Platform.PlatformType.NORMAL,
-		},
-		{
-			"x": 0.44,
-			"dy": 0.20,
+			"dy": 0.96,
 			"size": "small",
 			"type": Platform.PlatformType.NORMAL,
 		},
 		{
 			"x": 0.45,
+			"dy": 0.95,
+			"size": "standard",
+			"type": Platform.PlatformType.NORMAL,
+		},
+		{
+			"x": 0.46,
+			"dy": 0.93,
+			"size": "small",
+			"type": Platform.PlatformType.NORMAL,
+		},
+		{
+			"x": 0.52,
 			"dy": 0.97,
 			"size": "standard",
+			"type": Platform.PlatformType.NORMAL,
+		},
+		{
+			"x": 0.57,
+			"dy": 0.94,
+			"size": "small",
+			"type": Platform.PlatformType.NORMAL,
+		},
+		{
+			"x": 0.55,
+			"dy": 0.96,
+			"size": "standard",
+			"type": Platform.PlatformType.NORMAL,
+		},
+		{
+			"x": 0.49,
+			"dy": 0.92,
+			"size": "small",
+			"type": Platform.PlatformType.NORMAL,
+		},
+		{
+			"x": 0.44,
+			"dy": 0.95,
+			"size": "standard",
+			"type": Platform.PlatformType.NORMAL,
+		},
+		{
+			"x": 0.47,
+			"dy": 0.97,
+			"size": "small",
 			"type": Platform.PlatformType.NORMAL,
 		},
 	]
