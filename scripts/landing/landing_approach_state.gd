@@ -7,6 +7,12 @@ extends RefCounted
 ## visual target position so platform.gd stays a thin adapter.
 
 const RETRACT_RATE_MULTIPLIER := 0.90
+
+# Short landing windows compress the visual charge instead of letting the
+# contact event do nearly all of the remaining work.
+const FAST_APPROACH_FULL_URGENCY_TIME := 0.12
+const FAST_APPROACH_NORMAL_TIME := 0.45
+
 const APPROACH_TARGET_SMOOTH_RATE := 10.0
 const APPROACH_TARGET_SMOOTH_RATE_NEAR_LANDING := 5.0
 const APPROACH_TARGET_NEAR_LANDING_TIME := 0.50
@@ -101,30 +107,65 @@ func _update_progress(
 		return
 
 	var remaining_progress: float = maxf(1.0 - progress, 0.0)
-	var time_buffer: float = lerpf(
+
+	# Preserve the relaxed timing for normal approaches. As contact gets close,
+	# smoothly remove the extra time buffer so the charge can meet the real
+	# landing deadline rather than being guaranteed to finish after contact.
+	var approach_urgency: float = 1.0 - smoothstep(
+		FAST_APPROACH_FULL_URGENCY_TIME,
+		FAST_APPROACH_NORMAL_TIME,
+		time_to_land
+	)
+	var base_time_buffer: float = lerpf(
 		0.04,
 		0.14,
 		1.0 - width_factor
 	)
+	var time_buffer: float = lerpf(
+		base_time_buffer,
+		0.0,
+		approach_urgency
+	)
 	var remaining_time: float = maxf(
 		time_to_land + time_buffer,
-		0.08
+		maxf(delta, 0.001)
 	)
 	var required_rate: float = remaining_progress / remaining_time
 
-	# Keep the same deliberately capped catch-up behavior as the current
-	# prototype; the actual landing event supplies the final 100%.
-	var max_catchup_rate: float = preferred_rate * 2.25
+	# Keep the existing catch-up cap at normal pacing. For short windows, blend
+	# that cap toward the rate needed to finish by contact.
+	var normal_max_catchup_rate: float = preferred_rate * 2.25
+	var urgent_max_catchup_rate: float = maxf(
+		normal_max_catchup_rate,
+		required_rate
+	)
+	var max_catchup_rate: float = lerpf(
+		normal_max_catchup_rate,
+		urgent_max_catchup_rate,
+		approach_urgency
+	)
 	var desired_rate: float = minf(
 		required_rate,
 		max_catchup_rate
 	)
 
-	var rate_response: float = preferred_rate * 8.0
-	speed_rate = move_toward(
+	# Rate changes remain smoothed in the normal window. Under time pressure,
+	# increasingly follow the required rate directly; only progress speed changes,
+	# never the ball's physics, target choice, or visual target smoothing.
+	var rate_response: float = preferred_rate * lerpf(
+		8.0,
+		24.0,
+		approach_urgency
+	)
+	var smoothed_rate: float = move_toward(
 		speed_rate,
 		desired_rate,
 		rate_response * delta
+	)
+	speed_rate = lerpf(
+		smoothed_rate,
+		desired_rate,
+		approach_urgency
 	)
 
 	progress = minf(
