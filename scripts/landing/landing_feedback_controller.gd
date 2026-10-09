@@ -200,10 +200,10 @@ func _get_stable_landing_prediction() -> Dictionary:
 		if not committed_prediction.is_empty():
 			return committed_prediction
 		if not best_prediction.is_empty():
-		_ball.set_meta(
-			LANDING_FEEDBACK_TARGET_META,
-			best_prediction["platform"]
-		)
+			_ball.set_meta(
+				LANDING_FEEDBACK_TARGET_META,
+				best_prediction["platform"]
+			)
 	else:
 		_ball.set_meta(LANDING_FEEDBACK_TARGET_META, null)
 
