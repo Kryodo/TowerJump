@@ -62,6 +62,10 @@ script = ExtResource("4_spawner")
 platform_scene = ExtResource("2_platform")
 ball_path = NodePath("../Ball")
 camera_path = NodePath("../GameCamera")
+min_gap = 105.0
+gap_safety_factor = 0.985
+force_test_pattern = true
+test_pattern = 7
 
 [node name="LandingFeedbackController" type="Node" parent="."]
 script = ExtResource("10_landing_feedback")
