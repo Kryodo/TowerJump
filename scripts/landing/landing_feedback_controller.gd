@@ -187,8 +187,47 @@ func _get_stable_landing_prediction() -> Dictionary:
 			if best_dy >= current_dy - TARGET_SWITCH_DY_MARGIN:
 				return current_prediction
 
+			# Keep the ball's stored target identity in sync with the selected
+			# visual target whenever hysteresis permits a genuine switch.
+			_ball.set_meta(
+				LANDING_FEEDBACK_TARGET_META,
+				best_prediction["platform"]
+			)
+			return best_prediction
+
+		# Only an already-selected target can use this fallback. It preserves
+		# target identity when the single-point projection briefly misses the
+		# corridor, but only if the current physics state can still reach it.
+		if _approach_target == stable_target:
+			var reachable_prediction := _get_committed_target_reachability_prediction(
+				stable_target
+			)
+			if not reachable_prediction.is_empty():
+				if best_prediction.is_empty():
+					return reachable_prediction
+
+				var best_target := best_prediction["platform"] as Node2D
+				if best_target == stable_target:
+					return reachable_prediction
+
+				var current_dy: float = (
+					stable_target.global_position.y - _ball.global_position.y
+				)
+				var best_dy: float = (
+					best_target.global_position.y - _ball.global_position.y
+				)
+				if best_dy >= current_dy - TARGET_SWITCH_DY_MARGIN:
+					return reachable_prediction
+
 		# A real competing platform can still take over normally once it is
-		# clearly better; no additional delay is imposed here.
+		# clearly better; no generic grace period or stale prediction is used.
+		if not best_prediction.is_empty():
+			_ball.set_meta(
+				LANDING_FEEDBACK_TARGET_META,
+				best_prediction["platform"]
+			)
+		else:
+			_ball.set_meta(LANDING_FEEDBACK_TARGET_META, null)
 		return best_prediction
 
 	if not best_prediction.is_empty():
@@ -200,17 +239,152 @@ func _get_stable_landing_prediction() -> Dictionary:
 		_ball.set_meta(LANDING_FEEDBACK_TARGET_META, null)
 
 	return best_prediction
-func _get_platform_prediction(
-	ball: CharacterBody2D,
+func _get_committed_target_reachability_prediction(
 	platform: Node2D
 ) -> Dictionary:
-	var g: float = float(ball.gravity)
-	var vy: float = float(ball.velocity.y)
-	var screen_width: float = float(get_viewport().get_visible_rect().size.x)
+	if (
+		platform == null
+		or not is_instance_valid(platform)
+		or not platform.visible
+		or _ball == null
+		or not is_instance_valid(_ball)
+	):
+		return {}
 
-	# Predict the ball-center position at actual collision contact: the top
-	# of the platform rectangle minus the ball radius. The visual NeonEdge
-	# does not define the collision surface.
+	# This is deliberately limited to the target already being animated.
+	# New targets must still pass the strict single-trajectory prediction.
+	var time_to_contact := _get_time_to_contact(_ball, platform)
+	if not is_finite(time_to_contact) or time_to_contact <= 0.0:
+		return {}
+
+	var screen_width: float = float(get_viewport().get_visible_rect().size.x)
+	var platform_half_width: float = float(platform.call("half_width"))
+	var physical_half_width: float = (
+		platform_half_width + float(_ball.radius)
+	)
+
+	if not _is_horizontally_reachable(
+			_ball,
+			platform,
+			time_to_contact,
+			physical_half_width,
+			screen_width
+	):
+		return {}
+
+	# The player's current input is still used for the visual point prediction.
+	# If that point lies outside the contact corridor, clamp only the visual
+	# guidance to the nearest valid edge. This does not alter ball physics.
+	var current_displacement := _predict_horizontal_displacement(
+		_ball,
+		time_to_contact
+	)
+	var current_projected_x := _wrap_x(
+		_ball.global_position.x + current_displacement,
+		screen_width
+	)
+	var projected_local_x := _shortest_local_x(
+		current_projected_x,
+		platform.global_position.x,
+		screen_width
+	)
+	var guidance_local_x := clampf(
+		projected_local_x,
+		-physical_half_width,
+		physical_half_width
+	)
+	var guidance_x := _wrap_x(
+		platform.global_position.x + guidance_local_x,
+		screen_width
+	)
+
+	var edge_factor := 0.0
+	if platform_half_width > 0.0:
+		edge_factor = clampf(
+			inverse_lerp(
+				platform_half_width * 0.20,
+				platform_half_width,
+				absf(guidance_local_x)
+			),
+			0.0,
+			1.0
+		)
+
+	return {
+		"platform": platform,
+		"time_to_land": time_to_contact,
+		"predicted_x": guidance_x,
+		"local_x": guidance_local_x,
+		"edge_factor": edge_factor,
+		"reachability_fallback": true,
+	}
+
+func _is_horizontally_reachable(
+	ball: CharacterBody2D,
+	platform: Node2D,
+	duration: float,
+	physical_half_width: float,
+	screen_width: float
+) -> bool:
+	if duration <= 0.0:
+		return false
+
+	var max_speed: float = float(ball.max_horizontal_speed)
+	if max_speed <= 0.0:
+		return false
+
+	# Bound all positions the ball can reach if steering is held fully left
+	# or fully right. Any intermediate sequence of input reversals lies within
+	# these extrema; unlike the point prediction, this does not assume the
+	# current input persists for the entire flight.
+	var left_displacement := _predict_displacement_to_target_speed(
+		float(ball.velocity.x),
+		-max_speed,
+		float(ball.horizontal_acceleration),
+		duration
+	)
+	var right_displacement := _predict_displacement_to_target_speed(
+		float(ball.velocity.x),
+		max_speed,
+		float(ball.horizontal_acceleration),
+		duration
+	)
+	var min_displacement := minf(left_displacement, right_displacement)
+	var max_displacement := maxf(left_displacement, right_displacement)
+
+	# If the reachable interval spans a full screen, every horizontal corridor
+	# is reachable under screen-wrap. Otherwise test nearby wrapped copies of
+	# this platform against the interval.
+	if screen_width > 0.0 and max_displacement - min_displacement >= screen_width:
+		return true
+
+	var platform_delta := _shortest_local_x(
+		platform.global_position.x,
+		ball.global_position.x,
+		screen_width
+	)
+	for wrap_index in range(-1, 2):
+		var corridor_center := platform_delta
+		if screen_width > 0.0:
+			corridor_center += float(wrap_index) * screen_width
+		var corridor_left := corridor_center - physical_half_width
+		var corridor_right := corridor_center + physical_half_width
+		if (
+			max_displacement >= corridor_left
+			and min_displacement <= corridor_right
+		):
+			return true
+
+	return false
+
+func _get_time_to_contact(
+	ball: CharacterBody2D,
+	platform: Node2D
+) -> float:
+	var gravity: float = float(ball.gravity)
+	if gravity <= 0.0:
+		return INF
+
 	var platform_half_height: float = float(platform.get("height")) * 0.5
 	var contact_y: float = (
 		platform.global_position.y
@@ -218,19 +392,61 @@ func _get_platform_prediction(
 		- float(ball.radius)
 	)
 	var contact_gap: float = contact_y - ball.global_position.y
+	if contact_gap <= 0.0:
+		return INF
 
-	if g <= 0.0 or contact_gap <= 0.0:
-		return {}
-
-	# Use this same contact time for both charge timing and horizontal
-	# projection, so the predicted X and the charge timeline refer to the
-	# same physical landing moment.
-	var discriminant: float = vy * vy + 2.0 * g * contact_gap
+	var vertical_velocity: float = float(ball.velocity.y)
+	var discriminant: float = (
+		vertical_velocity * vertical_velocity
+		+ 2.0 * gravity * contact_gap
+	)
 	if discriminant < 0.0:
-		return {}
+		return INF
 
-	var time_to_land: float = (-vy + sqrt(discriminant)) / g
-	if time_to_land <= 0.0:
+	return (-vertical_velocity + sqrt(discriminant)) / gravity
+
+func _predict_displacement_to_target_speed(
+	initial_velocity: float,
+	target_speed: float,
+	acceleration_rate: float,
+	duration: float
+) -> float:
+	if duration <= 0.0:
+		return 0.0
+
+	if acceleration_rate <= 0.0:
+		return target_speed * duration
+
+	var delta_velocity := target_speed - initial_velocity
+	if absf(delta_velocity) <= 0.0001:
+		return target_speed * duration
+
+	var time_to_target := absf(delta_velocity) / acceleration_rate
+	if time_to_target >= duration:
+		return (
+			initial_velocity * duration
+			+ 0.5 * signf(delta_velocity)
+			* acceleration_rate
+			* duration
+			* duration
+		)
+
+	var first_phase := (
+		initial_velocity * time_to_target
+		+ 0.5 * signf(delta_velocity)
+		* acceleration_rate
+		* time_to_target
+		* time_to_target
+	)
+	return first_phase + target_speed * (duration - time_to_target)
+
+func _get_platform_prediction(
+	ball: CharacterBody2D,
+	platform: Node2D
+) -> Dictionary:
+	var screen_width: float = float(get_viewport().get_visible_rect().size.x)
+	var time_to_land := _get_time_to_contact(ball, platform)
+	if not is_finite(time_to_land) or time_to_land <= 0.0:
 		return {}
 
 	# Predict horizontal movement using the same control model as ball.gd:
@@ -293,7 +509,6 @@ func _predict_horizontal_displacement(
 	if duration <= 0.0:
 		return 0.0
 
-	var initial_velocity: float = float(ball.velocity.x)
 	var steering_input: float = clampf(
 		float(ball.input_direction),
 		-1.0,
@@ -302,7 +517,7 @@ func _predict_horizontal_displacement(
 	var max_speed: float = float(ball.max_horizontal_speed)
 
 	if max_speed <= 0.0:
-		return initial_velocity * duration
+		return float(ball.velocity.x) * duration
 
 	var target_speed: float
 	var acceleration_rate: float
@@ -314,34 +529,11 @@ func _predict_horizontal_displacement(
 		target_speed = 0.0
 		acceleration_rate = float(ball.horizontal_deceleration)
 
-	if acceleration_rate <= 0.0:
-		return target_speed * duration
-
-	var delta_v := target_speed - initial_velocity
-	if absf(delta_v) <= 0.0001:
-		return target_speed * duration
-
-	var time_to_target := absf(delta_v) / acceleration_rate
-
-	if time_to_target >= duration:
-		return (
-			initial_velocity * duration
-			+ 0.5 * signf(delta_v)
-			* acceleration_rate
-			* duration
-			* duration
-		)
-
-	var first_phase := (
-		initial_velocity * time_to_target
-		+ 0.5 * signf(delta_v)
-		* acceleration_rate
-		* time_to_target
-		* time_to_target
-	)
-
-	return first_phase + target_speed * (
-		duration - time_to_target
+	return _predict_displacement_to_target_speed(
+		float(ball.velocity.x),
+		target_speed,
+		acceleration_rate,
+		duration
 	)
 
 func _wrap_x(x: float, screen_width: float) -> float:
