@@ -81,12 +81,41 @@ func _update_trail_lines() -> void:
 	_energy_line.clear_points()
 	_trail_aura.clear_points()
 
-	for point in _points:
+	# Rebuild the stream every frame with a tiny animated lateral drift.
+	# This keeps the energy alive at the jump apex even when the ball itself
+	# has almost no velocity and no new trail samples are being collected.
+	for i in range(_points.size()):
+		var point: Vector2 = _get_animated_trail_point(i)
 		_energy_line.add_point(_energy_line.to_local(point))
 		_trail_aura.add_point(_trail_aura.to_local(point))
 
-	_update_wisp_line(_wisp_left, 1.0, 6.5, 0.3)
-	_update_wisp_line(_wisp_right, -1.0, 9.0, 2.0)
+	_update_wisp_line(_wisp_left, 1.0, 11.0, 0.3)
+	_update_wisp_line(_wisp_right, -1.0, 14.0, 2.0)
+
+
+func _get_animated_trail_point(index: int) -> Vector2:
+	var point: Vector2 = _points[index]
+	if _points.size() < 3:
+		return point
+
+	var tangent: Vector2
+	if index < _points.size() - 1:
+		tangent = point - _points[index + 1]
+	else:
+		tangent = _points[index - 1] - point
+
+	if tangent.length_squared() < 0.001:
+		return point
+
+	tangent = tangent.normalized()
+	var perpendicular := Vector2(-tangent.y, tangent.x)
+	var t: float = float(index) / float(_points.size() - 1)
+	var envelope: float = smoothstep(0.02, 0.32, t)
+	var wave: float = sin(_trail_time * 2.1 - t * 8.0)
+	var secondary_wave: float = sin(_trail_time * 1.25 + t * 5.5 + 0.8)
+	var drift: float = (wave * 0.7 + secondary_wave * 0.3) * (0.5 + 1.8 * t) * envelope
+
+	return point + perpendicular * drift
 
 
 func _update_wisp_line(
@@ -101,13 +130,14 @@ func _update_wisp_line(
 
 	var denominator: float = float(_points.size() - 1)
 	for i in range(_points.size()):
-		var point: Vector2 = _points[i]
+		var raw_point: Vector2 = _points[i]
+		var point: Vector2 = _get_animated_trail_point(i)
 		var tangent: Vector2
 
 		if i < _points.size() - 1:
-			tangent = point - _points[i + 1]
+			tangent = raw_point - _points[i + 1]
 		else:
-			tangent = _points[i - 1] - point
+			tangent = _points[i - 1] - raw_point
 
 		if tangent.length_squared() < 0.001:
 			line.add_point(line.to_local(point))
@@ -116,9 +146,11 @@ func _update_wisp_line(
 		tangent = tangent.normalized()
 		var perpendicular := Vector2(-tangent.y, tangent.x)
 		var t: float = float(i) / denominator
-		var envelope: float = smoothstep(0.0, 0.38, t)
+		var envelope: float = smoothstep(0.0, 0.24, t)
 		var sway: float = sin(_trail_time * 0.75 + t * 5.8 + phase)
-		var drift: float = (3.0 + amplitude * sway) * envelope * t
+		# Keep each wisp on its own side while varying its offset, rather than
+		# allowing rapid oscillation to make the wisps swap sides.
+		var drift: float = (4.0 + amplitude * 0.35 * (1.0 + sway)) * envelope * t
 		var offset: Vector2 = perpendicular * side * drift * wisp_strength
 
 		line.add_point(line.to_local(point + offset))
