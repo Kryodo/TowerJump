@@ -1,7 +1,7 @@
 shader_type canvas_item;
 
 // 0 = saturated electric blue, 1 = rich violet.
-// The palette is also used by the trail controller so orb and trail stay coherent.
+// The trail controller sets this so orb and trail share one palette.
 uniform int palette_mode = 0;
 
 void fragment() {
@@ -25,7 +25,6 @@ void fragment() {
 	vec3 glint_color;
 
 	if (palette_mode == 1) {
-		// Violet core with a cool white-lavender centre.
 		inner_body = vec3(0.28, 0.035, 0.68);
 		outer_body = vec3(0.045, 0.006, 0.16);
 		moving_energy = vec3(0.52, 0.12, 1.25);
@@ -37,7 +36,6 @@ void fragment() {
 		highlight_color = vec3(1.0, 0.72, 1.5);
 		glint_color = vec3(2.0, 1.55, 2.8);
 	} else {
-		// Saturated electric blue, with a bright cyan-white energy core.
 		inner_body = vec3(0.018, 0.22, 0.62);
 		outer_body = vec3(0.003, 0.028, 0.15);
 		moving_energy = vec3(0.04, 0.48, 1.25);
@@ -50,13 +48,13 @@ void fragment() {
 		glint_color = vec3(1.5, 2.5, 3.2);
 	}
 
-	// Rich, saturated body with a soft radial falloff.
+	// Saturated energy body with a deeper outer edge for visual depth.
 	float body_falloff = 1.0 - smoothstep(0.08, 0.91, d);
 	vec3 body_color = mix(outer_body, inner_body, body_falloff);
 	float body_strength = mix(0.88, 1.12, body_falloff);
 	vec3 color = body_color * body_strength;
 
-	// Slow internal waves keep the orb alive without making it look noisy.
+	// Slow internal waves create a living energy field without noisy detail.
 	float angle = atan(p.y, p.x);
 	float wave_a = sin(angle * 4.0 + d * 9.0 - time * 1.8);
 	float wave_b = sin(angle * 7.0 - d * 6.0 + time * 1.25);
@@ -72,15 +70,14 @@ void fragment() {
 	float outer_transition = 1.0 - smoothstep(0.72, 0.96, d);
 	color += transition_color * outer_transition * 0.23;
 
-	// Smooth, slightly thicker rim. It remains an energy contour rather than
-	// a hard vector outline.
+	// Smooth, slightly thicker rim rather than a thin pixel-like contour.
 	float outer_ring =
 		smoothstep(0.86, 0.905, d)
 		-
 		smoothstep(0.955, 0.995, d);
 	color += ring_color * outer_ring * aura_breath;
 
-	// The core pulse changes the luminous centre subtly in both size and power.
+	// The luminous centre gently changes size and intensity over time.
 	float core_pulse = 0.5 + 0.5 * sin(time * 2.2);
 	float core_radius = mix(0.245, 0.305, core_pulse);
 	float core = 1.0 - smoothstep(0.0, core_radius, d);
@@ -91,7 +88,7 @@ void fragment() {
 		1.0 - smoothstep(core_radius * 0.62, core_radius * 1.8, d);
 	color += aura_color * core_aura * 0.28 * aura_breath;
 
-	// Broad, soft upper-left reflection plus a smaller specular glint.
+	// Broad upper-left reflection and a small specular glint add orb-like depth.
 	vec2 highlight_pos = vec2(-0.28, -0.30);
 	vec2 highlight_delta = p - highlight_pos;
 	float highlight_dist = length(vec2(highlight_delta.x * 0.78, highlight_delta.y * 1.35));
