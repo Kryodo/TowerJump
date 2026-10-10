@@ -6,14 +6,36 @@
 [ext_resource type="Shader" uid="uid://berr1ad3exlim" path="res://scenes/ball_trail_energy.gdshader" id="3_eew57"]
 [ext_resource type="Texture2D" uid="uid://bdjibaetopyy2" path="res://Assets/ball_mask.png" id="3_f7cbr"]
 [ext_resource type="Texture2D" uid="uid://cxkt5pn1abx0k" path="res://Assets/soft_energy_particle.png" id="4_jj7gd"]
+[ext_resource type="Texture2D" path="res://Assets/energy_particle_atlas.png" id="5_energy_atlas"]
 
 [sub_resource type="Curve" id="Curve_iijjg"]
 _data = [Vector2(0, 1), 0.0, -1.1999999, 0, 1, Vector2(0.15, 0.82), -1.1999999, -1.1999999, 1, 1, Vector2(0.4, 0.52), -1.1999999, -1.08, 1, 1, Vector2(0.65, 0.25), -1.08, -0.8499998, 1, 1, Vector2(0.85, 0.08), -0.8499998, -0.5333334, 1, 1, Vector2(1, 0), -0.5333334, 0.0, 1, 0]
 point_count = 6
 
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ball_diamond"]
+atlas = ExtResource("5_energy_atlas")
+region = Rect2(16, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ball_shard"]
+atlas = ExtResource("5_energy_atlas")
+region = Rect2(32, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ball_square"]
+atlas = ExtResource("5_energy_atlas")
+region = Rect2(64, 0, 16, 16)
+
+[sub_resource type="Gradient" id="Gradient_wisp_left"]
+offsets = PackedFloat32Array(0, 0.22, 0.65, 1)
+colors = PackedColorArray(1, 1, 1, 0.84, 1, 1, 1, 0.48, 1, 1, 1, 0.12, 1, 1, 1, 0)
+
+[sub_resource type="Gradient" id="Gradient_wisp_right"]
+offsets = PackedFloat32Array(0, 0.18, 0.58, 1)
+colors = PackedColorArray(1, 1, 1, 0.68, 1, 1, 1, 0.35, 1, 1, 1, 0.09, 1, 1, 1, 0)
+
 [sub_resource type="Gradient" id="Gradient_f7kxq"]
 offsets = PackedFloat32Array(0, 0.26666668, 0.6, 0.8, 1)
-colors = PackedColorArray(0, 0.8980392, 1, 1, 0, 0.8117647, 0.9098039, 1, 0, 0.6156863, 0.70980394, 1, 0, 0.40784314, 0.47058824, 1, 1, 1, 1, 0)
+colors = PackedColorArray(0, 0.8980392, 1, 0.46, 0, 0.8117647, 0.9098039, 0.30, 0, 0.6156863, 0.70980394, 0.16, 0, 0.40784314, 0.47058824, 0.06, 1, 1, 1, 0)
 metadata/_snap_enabled = true
 metadata/_snap_count = 15
 
@@ -118,9 +140,28 @@ z_index = -1
 script = ExtResource("2_4dx81")
 
 [node name="TrailAura" type="Line2D" parent="TrailVisual" unique_id=333510001]
-width = 18.0
+width = 34.0
 width_curve = SubResource("Curve_iijjg")
 gradient = SubResource("Gradient_f7kxq")
+joint_mode = 2
+begin_cap_mode = 2
+end_cap_mode = 2
+antialiased = true
+
+
+[node name="WispLeft" type="Line2D" parent="TrailVisual" unique_id=1841021001]
+width = 6.0
+width_curve = SubResource("Curve_4dx81")
+gradient = SubResource("Gradient_wisp_left")
+joint_mode = 2
+begin_cap_mode = 2
+end_cap_mode = 2
+antialiased = true
+
+[node name="WispRight" type="Line2D" parent="TrailVisual" unique_id=1841021002]
+width = 4.0
+width_curve = SubResource("Curve_4dx81")
+gradient = SubResource("Gradient_wisp_right")
 joint_mode = 2
 begin_cap_mode = 2
 end_cap_mode = 2
@@ -137,11 +178,36 @@ end_cap_mode = 2
 antialiased = true
 
 [node name="TrailParticles" type="GPUParticles2D" parent="TrailVisual" unique_id=2074338206]
-amount = 28
+amount = 12
 texture = ExtResource("4_jj7gd")
 lifetime = 1.25
 randomness = 0.45
 process_material = SubResource("ParticleProcessMaterial_fwo8l")
+
+
+[node name="TrailDiamonds" type="GPUParticles2D" parent="TrailVisual" unique_id=1841021003]
+amount = 8
+texture = SubResource("AtlasTexture_ball_diamond")
+lifetime = 1.0
+randomness = 0.55
+process_material = SubResource("ParticleProcessMaterial_fwo8l")
+scale = Vector2(0.72, 0.72)
+
+[node name="TrailSquares" type="GPUParticles2D" parent="TrailVisual" unique_id=1841021004]
+amount = 6
+texture = SubResource("AtlasTexture_ball_square")
+lifetime = 0.95
+randomness = 0.65
+process_material = SubResource("ParticleProcessMaterial_fwo8l")
+scale = Vector2(0.7, 0.7)
+
+[node name="TrailShards" type="GPUParticles2D" parent="TrailVisual" unique_id=1841021005]
+amount = 5
+texture = SubResource("AtlasTexture_ball_shard")
+lifetime = 0.85
+randomness = 0.65
+process_material = SubResource("ParticleProcessMaterial_fwo8l")
+scale = Vector2(0.78, 0.78)
 
 [node name="Visual" type="Sprite2D" parent="." unique_id=213819786]
 material = SubResource("ShaderMaterial_4dx81")
