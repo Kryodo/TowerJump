@@ -9,6 +9,7 @@ extends Node2D
 @export var max_points: int = 22
 @export var min_distance: float = 2.5
 @export var max_segment_distance: float = 120.0
+@export_range(0.0, 40.0, 1.0) var trail_head_offset: float = 28.0
 
 @export_category("Visual Palette")
 @export_enum("Electric Blue", "Rich Violet") var visual_palette: int = 0
@@ -95,7 +96,7 @@ func _update_trail_lines() -> void:
 
 func _get_animated_trail_point(index: int) -> Vector2:
 	var point: Vector2 = _points[index]
-	if _points.size() < 3:
+	if _points.size() < 2:
 		return point
 
 	var tangent: Vector2
@@ -115,7 +116,11 @@ func _get_animated_trail_point(index: int) -> Vector2:
 	var secondary_wave: float = sin(_trail_time * 1.25 + t * 5.5 + 0.8)
 	var drift: float = (wave * 0.7 + secondary_wave * 0.3) * (0.5 + 1.8 * t) * envelope
 
-	return point + perpendicular * drift
+	# The newest sample is the ball centre. Move just this head point backward
+	# along the travel direction so the visible V begins at the orb's trailing
+	# surface instead of emerging from its luminous core.
+	var head_offset: float = trail_head_offset if index == 0 else 0.0
+	return point - tangent * head_offset + perpendicular * drift
 
 
 func _update_wisp_line(
@@ -161,15 +166,16 @@ func _update_particle_emitters(
 	movement: Vector2,
 	distance_from_trail: float
 ) -> void:
-	# Keep emission attached to the moving ball, while particles stay in world
-	# space and form a trail behind its actual movement.
-	for emitter in _particle_emitters:
-		emitter.global_position = current_world_position
-
 	if distance_from_trail > 0.01 and distance_from_trail <= max_segment_distance:
 		_last_emission_direction = -movement.normalized()
 
+	# Spawn geometric fragments from the back of the orb, not its centre, so
+	# they appear to break away from the comet tail rather than through the ball.
+	var emission_position: Vector2 = (
+		current_world_position + _last_emission_direction * trail_head_offset
+	)
 	for emitter in _particle_emitters:
+		emitter.global_position = emission_position
 		var material := emitter.process_material as ParticleProcessMaterial
 		if material != null:
 			material.direction = Vector3(
