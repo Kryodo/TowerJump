@@ -3,6 +3,7 @@ shader_type canvas_item;
 uniform float flow_speed : hint_range(0.0, 4.0) = 0.9;
 uniform float energy_strength : hint_range(0.0, 3.0) = 1.35;
 uniform float filament_strength : hint_range(0.0, 4.0) = 1.7;
+uniform int palette_mode = 0;
 
 
 // ------------------------------------------------------------
@@ -182,21 +183,16 @@ void fragment()
 	energy *= trail_fade;
 
 
-	// --------------------------------------------------------
-	// Cyan energy → bright cyan/white filament
-	// --------------------------------------------------------
-
-	vec3 base_color = vec3(
-		0.0,
-		0.65,
-		0.85
-	);
-
-	vec3 bright_color = vec3(
-		0.55,
-		1.0,
-		1.0
-	);
+	// Palette-matched energy stream: saturated blue or rich violet.
+	vec3 base_color;
+	vec3 bright_color;
+	if (palette_mode == 1) {
+		base_color = vec3(0.30, 0.035, 0.82);
+		bright_color = vec3(0.95, 0.58, 1.25);
+	} else {
+		base_color = vec3(0.025, 0.20, 0.95);
+		bright_color = vec3(0.38, 0.86, 1.35);
+	}
 
 	float brightness = clamp(
 		energy,
