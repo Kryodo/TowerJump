@@ -9,8 +9,8 @@
 [ext_resource type="Texture2D" uid="uid://x4vri0ghb2xn" path="res://Assets/energy_particle_atlas.png" id="5_energy_atlas"]
 
 [sub_resource type="Curve" id="Curve_iijjg"]
-_data = [Vector2(0, 1), 0.0, -1.1999999, 0, 1, Vector2(0.15, 0.82), -1.1999999, -1.1999999, 1, 1, Vector2(0.4, 0.52), -1.1999999, -1.08, 1, 1, Vector2(0.65, 0.25), -1.08, -0.8499998, 1, 1, Vector2(0.85, 0.08), -0.8499998, -0.5333334, 1, 1, Vector2(1, 0), -0.5333334, 0.0, 1, 0]
-point_count = 6
+_data = [Vector2(0, 0.12), 0.0, 3.2, 0, 1, Vector2(0.12, 0.72), 3.2, 1.0, 1, 1, Vector2(0.22, 1), 1.0, 0.0, 1, 1, Vector2(0.42, 0.78), 0.0, -0.9, 1, 1, Vector2(0.72, 0.34), -0.9, -1.0, 1, 1, Vector2(0.9, 0.06), -1.0, -0.7, 1, 1, Vector2(1, 0), -0.7, 0.0, 1, 0]
+point_count = 7
 
 [sub_resource type="Gradient" id="Gradient_f7kxq"]
 offsets = PackedFloat32Array(0, 0.26666668, 0.6, 0.8, 1)
@@ -19,8 +19,8 @@ metadata/_snap_enabled = true
 metadata/_snap_count = 15
 
 [sub_resource type="Curve" id="Curve_4dx81"]
-_data = [Vector2(0, 1), 0.0, -0.70625985, 0, 1, Vector2(0.35000002, 0.75280905), -0.70625985, -1.1420155, 1, 1, Vector2(0.655, 0.4044944), -1.1420155, -1.4589453, 1, 1, Vector2(0.85, 0.12), -1.4589453, -0.80000013, 1, 1, Vector2(1, 0), -0.80000013, 0.0, 1, 0]
-point_count = 5
+_data = [Vector2(0, 0.10), 0.0, 4.2, 0, 1, Vector2(0.10, 0.68), 4.2, 1.0, 1, 1, Vector2(0.20, 1), 1.0, 0.0, 1, 1, Vector2(0.42, 0.78), 0.0, -0.9, 1, 1, Vector2(0.72, 0.38), -0.9, -1.0, 1, 1, Vector2(0.92, 0.05), -1.0, 0.0, 1, 1, Vector2(1, 0), 0.0, 0.0, 1, 0]
+point_count = 7
 
 [sub_resource type="Gradient" id="Gradient_wisp_left"]
 offsets = PackedFloat32Array(0, 0.22, 0.65, 1)
@@ -89,11 +89,15 @@ curve = SubResource("Curve_jj7gd")
 [sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_fwo8l"]
 lifetime_randomness = 0.15
 emission_shape = 1
-emission_sphere_radius = 25.0
+emission_sphere_radius = 18.0
 direction = Vector3(0, 1, 0)
 spread = 30.0
-initial_velocity_min = 2.0
-initial_velocity_max = 14.0
+angle_min = -180.0
+angle_max = 180.0
+angular_velocity_min = -95.0
+angular_velocity_max = 95.0
+initial_velocity_min = 3.0
+initial_velocity_max = 18.0
 gravity = Vector3(0, 0, 0)
 tangential_accel_min = -10.000002
 tangential_accel_max = 9.999997
@@ -125,7 +129,7 @@ region = Rect2(64, 0, 16, 16)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_ball_shard"]
 atlas = ExtResource("5_energy_atlas")
-region = Rect2(32, 0, 16, 16)
+region = Rect2(48, 0, 16, 16)
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_4dx81"]
 shader = ExtResource("2_f7cbr")
@@ -143,7 +147,7 @@ visual_palette = 1
 wisp_strength = 2.0
 
 [node name="TrailAura" type="Line2D" parent="TrailVisual" unique_id=333510001]
-width = 34.0
+width = 38.0
 width_curve = SubResource("Curve_iijjg")
 gradient = SubResource("Gradient_f7kxq")
 joint_mode = 2
@@ -180,29 +184,30 @@ end_cap_mode = 2
 antialiased = true
 
 [node name="TrailParticles" type="GPUParticles2D" parent="TrailVisual" unique_id=2074338206]
-amount = 12
+amount = 10
 texture = ExtResource("4_jj7gd")
 lifetime = 1.25
 randomness = 0.45
 process_material = SubResource("ParticleProcessMaterial_fwo8l")
 
 [node name="TrailDiamonds" type="GPUParticles2D" parent="TrailVisual" unique_id=1841021003]
-scale = Vector2(0.72, 0.72)
+scale = Vector2(1.12, 1.12)
+amount = 12
 texture = SubResource("AtlasTexture_ball_diamond")
 randomness = 0.55
 process_material = SubResource("ParticleProcessMaterial_fwo8l")
 
 [node name="TrailSquares" type="GPUParticles2D" parent="TrailVisual" unique_id=1841021004]
-scale = Vector2(0.7, 0.7)
-amount = 6
+scale = Vector2(1.0, 1.0)
+amount = 9
 texture = SubResource("AtlasTexture_ball_square")
 lifetime = 0.95
 randomness = 0.65
 process_material = SubResource("ParticleProcessMaterial_fwo8l")
 
 [node name="TrailShards" type="GPUParticles2D" parent="TrailVisual" unique_id=1841021005]
-scale = Vector2(0.78, 0.78)
-amount = 5
+scale = Vector2(1.12, 1.12)
+amount = 8
 texture = SubResource("AtlasTexture_ball_shard")
 lifetime = 0.85
 randomness = 0.65
