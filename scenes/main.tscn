@@ -9,8 +9,77 @@
 [ext_resource type="Script" uid="uid://c0id0qhhwsyql" path="res://scripts/game_over_screen.gd" id="7_gameover"]
 [ext_resource type="PackedScene" path="res://scenes/coin.tscn" id="8_coin"]
 [ext_resource type="Script" uid="uid://ck0ynampffokl" path="res://scripts/coin_spawner.gd" id="9_coinspawner"]
-[ext_resource type="Script" path="res://scripts/landing/landing_feedback_controller.gd" id="10_landing_feedback"]
-[ext_resource type="Script" path="res://scripts/landing/landing_platform_reaction.gd" id="11_landing_platform_reaction"]
+[ext_resource type="Script" uid="uid://w2ijwcyipbda" path="res://scripts/landing/landing_feedback_controller.gd" id="10_landing_feedback"]
+[ext_resource type="Script" uid="uid://cg3nexhcchxia" path="res://scripts/landing/landing_platform_reaction.gd" id="11_landing_platform_reaction"]
+[ext_resource type="Texture2D" uid="uid://bfduv7ff6742p" path="res://scenes/ambient_mote.svg" id="12_ambient_mote"]
+
+[sub_resource type="Gradient" id="Gradient_ambient_motes"]
+offsets = PackedFloat32Array(0, 0.12, 0.7, 1)
+colors = PackedColorArray(0.62, 0.92, 1, 0, 0.62, 0.92, 1, 0.34, 0.62, 0.92, 1, 0.22, 0.62, 0.92, 1, 0)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_ambient_motes"]
+gradient = SubResource("Gradient_ambient_motes")
+
+[sub_resource type="Gradient" id="Gradient_ambient_mote_palette"]
+offsets = PackedFloat32Array(0, 0.5, 1)
+colors = PackedColorArray(0.82, 0.93, 1.12, 1, 0.94, 1, 1.06, 1, 1.06, 1.06, 1.08, 1)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_ambient_mote_palette"]
+gradient = SubResource("Gradient_ambient_mote_palette")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_ambient_motes"]
+emission_shape = 3
+emission_box_extents = Vector3(440, 760, 1)
+direction = Vector3(0, -1, 0)
+spread = 180.0
+initial_velocity_min = 2.0
+initial_velocity_max = 8.0
+gravity = Vector3(0, 0, 0)
+linear_accel_min = -0.25
+linear_accel_max = 0.25
+scale_min = 0.18
+scale_max = 0.62
+color_initial_ramp = SubResource("GradientTexture1D_ambient_mote_palette")
+color_ramp = SubResource("GradientTexture1D_ambient_motes")
+
+[sub_resource type="Gradient" id="Gradient_ambient_mote_highlights"]
+offsets = PackedFloat32Array(0, 0.06, 0.14, 0.22, 0.32, 0.44, 0.72, 1)
+colors = PackedColorArray(0.72, 0.94, 1, 0, 0.76, 0.96, 1.08, 0.12, 0.86, 0.99, 1.22, 0.88, 0.80, 0.96, 1.14, 0.5, 0.90, 1.0, 1.25, 0.76, 0.78, 0.95, 1.10, 0.32, 0.72, 0.94, 1.0, 0.12, 0.72, 0.94, 1.0, 0)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_ambient_mote_highlights"]
+gradient = SubResource("Gradient_ambient_mote_highlights")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_ambient_mote_highlights"]
+emission_shape = 3
+emission_box_extents = Vector3(440, 380, 1)
+emission_shape_offset = Vector3(0, -340, 0)
+direction = Vector3(0, -1, 0)
+spread = 180.0
+initial_velocity_min = 2.5
+initial_velocity_max = 7.0
+gravity = Vector3(0, 0, 0)
+linear_accel_min = -0.25
+linear_accel_max = 0.25
+scale_min = 0.32
+scale_max = 0.66
+color = Color(0.7, 0.95, 1.35, 1)
+color_ramp = SubResource("GradientTexture1D_ambient_mote_highlights")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_ambient_motes_near"]
+emission_shape = 3
+emission_box_extents = Vector3(440, 760, 1)
+direction = Vector3(0, -1, 0)
+spread = 180.0
+initial_velocity_min = 3.0
+initial_velocity_max = 9.0
+gravity = Vector3(0, 0, 0)
+linear_accel_min = -0.25
+linear_accel_max = 0.25
+scale_min = 0.34
+scale_max = 0.72
+color = Color(0.9, 0.96, 1.04, 1)
+color_initial_ramp = SubResource("GradientTexture1D_ambient_mote_palette")
+color_ramp = SubResource("GradientTexture1D_ambient_motes")
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
 bg_color = Color(0.12, 0.13, 0.18, 0.95)
@@ -51,6 +120,33 @@ offset_right = 360.0
 offset_bottom = 640.0
 color = Color(0.007843138, 0.023529412, 0.050980393, 1)
 
+[node name="AmbientMotes" type="GPUParticles2D" parent="GameCamera" unique_id=1267258197]
+z_index = -30
+amount = 60
+texture = ExtResource("12_ambient_mote")
+lifetime = 8.0
+preprocess = 8.0
+visibility_rect = Rect2(-520, -900, 1040, 1800)
+process_material = SubResource("ParticleProcessMaterial_ambient_motes")
+
+[node name="AmbientMotesNear" type="GPUParticles2D" parent="GameCamera" unique_id=1200261143]
+z_index = -28
+amount = 16
+texture = ExtResource("12_ambient_mote")
+lifetime = 8.0
+preprocess = 8.0
+visibility_rect = Rect2(-520, -900, 1040, 1800)
+process_material = SubResource("ParticleProcessMaterial_ambient_motes_near")
+
+[node name="AmbientMoteHighlights" type="GPUParticles2D" parent="GameCamera" unique_id=1584820793]
+z_index = -29
+amount = 4
+texture = ExtResource("12_ambient_mote")
+lifetime = 8.0
+preprocess = 8.0
+visibility_rect = Rect2(-520, -900, 1040, 1800)
+process_material = SubResource("ParticleProcessMaterial_ambient_mote_highlights")
+
 [node name="CoinSpawner" type="Node2D" parent="." unique_id=606753791]
 script = ExtResource("9_coinspawner")
 coin_scene = ExtResource("8_coin")
@@ -63,11 +159,11 @@ platform_scene = ExtResource("2_platform")
 ball_path = NodePath("../Ball")
 camera_path = NodePath("../GameCamera")
 
-[node name="LandingFeedbackController" type="Node" parent="."]
+[node name="LandingFeedbackController" type="Node" parent="." unique_id=1209415316]
 script = ExtResource("10_landing_feedback")
 ball_path = NodePath("../Ball")
 
-[node name="LandingPlatformReaction" type="Node" parent="."]
+[node name="LandingPlatformReaction" type="Node" parent="." unique_id=764254584]
 script = ExtResource("11_landing_platform_reaction")
 
 [node name="HUD" type="CanvasLayer" parent="." unique_id=908125500]
