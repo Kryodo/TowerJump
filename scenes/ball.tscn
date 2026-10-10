@@ -119,6 +119,37 @@ turbulence_noise_speed_random = 0.15
 turbulence_influence_max = 0.2
 turbulence_influence_over_life = SubResource("CurveTexture_fwo8l")
 
+[sub_resource type="Gradient" id="Gradient_comet_fragment_lifetime"]
+offsets = PackedFloat32Array(0, 0.1, 0.72, 1)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0.72, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_comet_fragment_lifetime"]
+gradient = SubResource("Gradient_comet_fragment_lifetime")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_comet_fragments"]
+lifetime_randomness = 0.22
+emission_shape = 1
+emission_sphere_radius = 16.0
+direction = Vector3(0, 1, 0)
+spread = 42.0
+angle_min = -180.0
+angle_max = 180.0
+angular_velocity_min = -150.0
+angular_velocity_max = 150.0
+initial_velocity_min = 8.0
+initial_velocity_max = 30.0
+gravity = Vector3(0, 0, 0)
+tangential_accel_min = -5.0
+tangential_accel_max = 5.0
+damping_min = 4.0
+damping_max = 10.0
+scale_min = 0.55
+scale_max = 1.0
+scale_curve = SubResource("CurveTexture_iijjg")
+color_ramp = SubResource("GradientTexture1D_comet_fragment_lifetime")
+hue_variation_min = -0.04
+hue_variation_max = 0.04
+
 [sub_resource type="AtlasTexture" id="AtlasTexture_ball_diamond"]
 atlas = ExtResource("5_energy_atlas")
 region = Rect2(16, 0, 16, 16)
@@ -195,7 +226,7 @@ scale = Vector2(1.12, 1.12)
 amount = 12
 texture = SubResource("AtlasTexture_ball_diamond")
 randomness = 0.55
-process_material = SubResource("ParticleProcessMaterial_fwo8l")
+process_material = SubResource("ParticleProcessMaterial_comet_fragments")
 
 [node name="TrailSquares" type="GPUParticles2D" parent="TrailVisual" unique_id=1841021004]
 scale = Vector2(1.0, 1.0)
@@ -203,7 +234,7 @@ amount = 9
 texture = SubResource("AtlasTexture_ball_square")
 lifetime = 0.95
 randomness = 0.65
-process_material = SubResource("ParticleProcessMaterial_fwo8l")
+process_material = SubResource("ParticleProcessMaterial_comet_fragments")
 
 [node name="TrailShards" type="GPUParticles2D" parent="TrailVisual" unique_id=1841021005]
 scale = Vector2(1.12, 1.12)
@@ -211,7 +242,7 @@ amount = 8
 texture = SubResource("AtlasTexture_ball_shard")
 lifetime = 0.85
 randomness = 0.65
-process_material = SubResource("ParticleProcessMaterial_fwo8l")
+process_material = SubResource("ParticleProcessMaterial_comet_fragments")
 
 [node name="Visual" type="Sprite2D" parent="." unique_id=213819786]
 material = SubResource("ShaderMaterial_4dx81")
