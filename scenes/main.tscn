@@ -14,8 +14,8 @@
 [ext_resource type="Texture2D" uid="uid://bfduv7ff6742p" path="res://scenes/ambient_mote.svg" id="12_ambient_mote"]
 
 [sub_resource type="Gradient" id="Gradient_ambient_motes"]
-offsets = PackedFloat32Array(0, 0.14, 0.72, 1)
-colors = PackedColorArray(0.55, 0.9, 1, 0, 0.55, 0.9, 1, 0.18, 0.55, 0.9, 1, 0.12, 0.55, 0.9, 1, 0)
+offsets = PackedFloat32Array(0, 0.12, 0.7, 1)
+colors = PackedColorArray(0.62, 0.92, 1, 0, 0.62, 0.92, 1, 0.34, 0.62, 0.92, 1, 0.22, 0.62, 0.92, 1, 0)
 
 [sub_resource type="GradientTexture1D" id="GradientTexture1D_ambient_motes"]
 gradient = SubResource("Gradient_ambient_motes")
@@ -30,8 +30,8 @@ initial_velocity_max = 8.0
 gravity = Vector3(0, 0, 0)
 linear_accel_min = -0.25
 linear_accel_max = 0.25
-scale_min = 0.12
-scale_max = 0.28
+scale_min = 0.24
+scale_max = 0.45
 color_ramp = SubResource("GradientTexture1D_ambient_motes")
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
@@ -75,7 +75,7 @@ color = Color(0.007843138, 0.023529412, 0.050980393, 1)
 
 [node name="AmbientMotes" type="GPUParticles2D" parent="GameCamera" unique_id=1267258197]
 z_index = -30
-amount = 30
+amount = 60
 texture = ExtResource("12_ambient_mote")
 lifetime = 8.0
 preprocess = 8.0
