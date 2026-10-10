@@ -67,14 +67,22 @@ void fragment() {
 	float inner_energy = 1.0 - smoothstep(0.22, 0.75, d);
 	color += inner_energy_color * inner_energy * 0.32;
 
-	float outer_transition = 1.0 - smoothstep(0.54, 0.985, d);
-	color += transition_color * outer_transition * 0.23;
+	// Broad shell fill bridges the core aura to the rim, avoiding a dark
+	// background-colored band inside the orb. Fade it only near the silhouette.
+	float shell_fill =
+		smoothstep(0.18, 0.58, d)
+		*
+		(1.0 - smoothstep(0.78, 0.985, d));
+	color += transition_color * shell_fill * 0.48;
 
-	// Smooth, slightly thicker rim rather than a thin pixel-like contour.
+	float outer_transition = 1.0 - smoothstep(0.36, 0.99, d);
+	color += transition_color * outer_transition * 0.18;
+
+	// A thinner luminous contour reads as an aura outline, not a hard border.
 	float outer_ring =
-		smoothstep(0.88, 0.925, d)
+		smoothstep(0.90, 0.93, d)
 		-
-		smoothstep(0.955, 0.99, d);
+		smoothstep(0.956, 0.982, d);
 	color += ring_color * outer_ring * aura_breath;
 
 	// The luminous centre gently changes size and intensity over time.
