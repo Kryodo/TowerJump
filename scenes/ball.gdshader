@@ -29,7 +29,7 @@ void fragment() {
 		outer_body = vec3(0.045, 0.006, 0.16);
 		moving_energy = vec3(0.52, 0.12, 1.25);
 		inner_energy_color = vec3(0.58, 0.10, 1.5);
-		transition_color = vec3(0.24, 0.025, 0.62);
+		transition_color = vec3(0.34, 0.045, 0.78);
 		ring_color = vec3(2.7, 0.55, 5.2);
 		core_color = vec3(4.0, 3.25, 6.2);
 		aura_color = vec3(1.45, 0.22, 3.1);
@@ -40,7 +40,7 @@ void fragment() {
 		outer_body = vec3(0.003, 0.028, 0.15);
 		moving_energy = vec3(0.04, 0.48, 1.25);
 		inner_energy_color = vec3(0.025, 0.32, 1.05);
-		transition_color = vec3(0.012, 0.12, 0.48);
+		transition_color = vec3(0.025, 0.20, 0.68);
 		ring_color = vec3(0.32, 2.8, 5.1);
 		core_color = vec3(3.2, 5.1, 6.3);
 		aura_color = vec3(0.04, 1.25, 3.0);
@@ -49,7 +49,7 @@ void fragment() {
 	}
 
 	// Saturated energy body with a deeper outer edge for visual depth.
-	float body_falloff = 1.0 - smoothstep(0.08, 0.91, d);
+	float body_falloff = 1.0 - smoothstep(0.04, 1.02, d);
 	vec3 body_color = mix(outer_body, inner_body, body_falloff);
 	float body_strength = mix(0.88, 1.12, body_falloff);
 	vec3 color = body_color * body_strength;
@@ -67,14 +67,14 @@ void fragment() {
 	float inner_energy = 1.0 - smoothstep(0.22, 0.75, d);
 	color += inner_energy_color * inner_energy * 0.32;
 
-	float outer_transition = 1.0 - smoothstep(0.72, 0.96, d);
+	float outer_transition = 1.0 - smoothstep(0.54, 0.985, d);
 	color += transition_color * outer_transition * 0.23;
 
 	// Smooth, slightly thicker rim rather than a thin pixel-like contour.
 	float outer_ring =
-		smoothstep(0.86, 0.905, d)
+		smoothstep(0.88, 0.925, d)
 		-
-		smoothstep(0.955, 0.995, d);
+		smoothstep(0.955, 0.99, d);
 	color += ring_color * outer_ring * aura_breath;
 
 	// The luminous centre gently changes size and intensity over time.
