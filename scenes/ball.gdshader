@@ -41,7 +41,7 @@ void fragment() {
 		moving_energy = vec3(0.04, 0.48, 1.25);
 		inner_energy_color = vec3(0.025, 0.32, 1.05);
 		transition_color = vec3(0.025, 0.20, 0.68);
-		ring_color = vec3(0.32, 2.8, 5.1);
+		ring_color = vec3(0.18, 2.15, 5.2);
 		core_color = vec3(3.2, 5.1, 6.3);
 		aura_color = vec3(0.04, 1.25, 3.0);
 		highlight_color = vec3(0.65, 1.45, 2.25);
