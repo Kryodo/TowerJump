@@ -188,7 +188,10 @@ func _apply_visual_palette() -> void:
 	var left_wisp_tail: Color
 	var right_wisp_head: Color
 	var right_wisp_tail: Color
-	var particle_tint: Color
+	var soft_particle_tint: Color
+	var diamond_tint: Color
+	var square_tint: Color
+	var shard_tint: Color
 
 	if visual_palette == 1:
 		energy_head = Color(0.98, 0.72, 1.0, 1.0)
@@ -199,7 +202,10 @@ func _apply_visual_palette() -> void:
 		left_wisp_tail = Color(0.42, 0.06, 0.88, 1.0)
 		right_wisp_head = Color(0.74, 0.38, 1.0, 1.0)
 		right_wisp_tail = Color(0.20, 0.035, 0.62, 1.0)
-		particle_tint = Color(0.76, 0.32, 1.0, 1.0)
+		soft_particle_tint = Color(0.58, 0.32, 0.90, 0.76)
+		diamond_tint = Color(0.98, 0.52, 1.20, 1.0)
+		square_tint = Color(0.58, 0.20, 1.12, 0.96)
+		shard_tint = Color(1.0, 0.70, 1.25, 1.0)
 	else:
 		energy_head = Color(0.72, 0.94, 1.0, 1.0)
 		energy_tail = Color(0.035, 0.16, 0.82, 1.0)
@@ -209,7 +215,10 @@ func _apply_visual_palette() -> void:
 		left_wisp_tail = Color(0.035, 0.20, 0.95, 1.0)
 		right_wisp_head = Color(0.25, 0.62, 1.0, 1.0)
 		right_wisp_tail = Color(0.015, 0.08, 0.55, 1.0)
-		particle_tint = Color(0.18, 0.58, 1.0, 1.0)
+		soft_particle_tint = Color(0.18, 0.48, 0.82, 0.72)
+		diamond_tint = Color(0.40, 0.78, 1.25, 1.0)
+		square_tint = Color(0.12, 0.42, 1.18, 0.96)
+		shard_tint = Color(0.62, 0.90, 1.30, 1.0)
 
 	# Duplicate materials locally so palette changes don't mutate shared resources.
 	var orb_material := _ball_visual.material as ShaderMaterial
@@ -229,8 +238,21 @@ func _apply_visual_palette() -> void:
 	_set_line_gradient(_wisp_left, left_wisp_head, left_wisp_tail)
 	_set_line_gradient(_wisp_right, right_wisp_head, right_wisp_tail)
 
-	for emitter in _particle_emitters:
-		emitter.modulate = particle_tint
+	# Give each fragment type a distinct but coordinated tint. The atlas
+	# itself is neutral white, so these colors remain clear in both palettes.
+	var soft_emitter := get_node_or_null("TrailParticles") as GPUParticles2D
+	var diamond_emitter := get_node_or_null("TrailDiamonds") as GPUParticles2D
+	var square_emitter := get_node_or_null("TrailSquares") as GPUParticles2D
+	var shard_emitter := get_node_or_null("TrailShards") as GPUParticles2D
+
+	if soft_emitter != null:
+		soft_emitter.modulate = soft_particle_tint
+	if diamond_emitter != null:
+		diamond_emitter.modulate = diamond_tint
+	if square_emitter != null:
+		square_emitter.modulate = square_tint
+	if shard_emitter != null:
+		shard_emitter.modulate = shard_tint
 
 
 func _set_line_gradient(
