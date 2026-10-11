@@ -1,4 +1,4 @@
-# Teilgespräch · TowerJump Neon Prototype Ball Trail Particles
+# TowerJump Neon Prototype
 
 **User:** Anonymous  
 **Created:** 10/11/2026 5:28:56  
