@@ -206,7 +206,7 @@ wisp_strength = 2.0
 
 [node name="UnifiedCometShape" type="Polygon2D" parent="TrailVisual" unique_id=1770062203]
 material = SubResource("ShaderMaterial_unified_comet")
-z_index = 1
+z_index = -1
 
 [node name="UnifiedCometContour" type="Line2D" parent="TrailVisual" unique_id=1770062204]
 z_index = 1
@@ -227,6 +227,7 @@ end_cap_mode = 2
 antialiased = true
 
 [node name="WispLeft" type="Line2D" parent="TrailVisual" unique_id=1841021001]
+z_index = 1
 width = 6.0
 width_curve = SubResource("Curve_4dx81")
 gradient = SubResource("Gradient_wisp_left")
@@ -236,6 +237,7 @@ end_cap_mode = 2
 antialiased = true
 
 [node name="WispRight" type="Line2D" parent="TrailVisual" unique_id=1841021002]
+z_index = 1
 width = 4.0
 width_curve = SubResource("Curve_4dx81")
 gradient = SubResource("Gradient_wisp_right")
@@ -255,6 +257,7 @@ end_cap_mode = 2
 antialiased = true
 
 [node name="TrailParticles" type="GPUParticles2D" parent="TrailVisual" unique_id=2074338206]
+z_index = 1
 amount = 10
 texture = ExtResource("4_jj7gd")
 lifetime = 1.25
@@ -262,6 +265,7 @@ randomness = 0.45
 process_material = SubResource("ParticleProcessMaterial_fwo8l")
 
 [node name="TrailDiamonds" type="GPUParticles2D" parent="TrailVisual" unique_id=1841021003]
+z_index = 1
 scale = Vector2(1.12, 1.12)
 amount = 12
 texture = SubResource("AtlasTexture_ball_diamond")
@@ -269,6 +273,7 @@ randomness = 0.55
 process_material = SubResource("ParticleProcessMaterial_comet_fragments")
 
 [node name="TrailSquares" type="GPUParticles2D" parent="TrailVisual" unique_id=1841021004]
+z_index = 1
 amount = 9
 texture = SubResource("AtlasTexture_ball_square")
 lifetime = 0.95
@@ -276,6 +281,7 @@ randomness = 0.65
 process_material = SubResource("ParticleProcessMaterial_comet_fragments")
 
 [node name="TrailShards" type="GPUParticles2D" parent="TrailVisual" unique_id=1841021005]
+z_index = 1
 scale = Vector2(1.12, 1.12)
 texture = SubResource("AtlasTexture_ball_shard")
 lifetime = 0.85
