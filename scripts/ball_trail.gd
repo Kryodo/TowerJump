@@ -10,7 +10,6 @@ extends Node2D
 @export var min_distance: float = 2.0
 @export var max_segment_distance: float = 120.0
 @export_range(0.0, 40.0, 1.0) var trail_head_offset: float = 28.0
-@export_range(0.0, 30.0, 1.0) var trail_connection_offset: float = 18.0
 
 @export_category("Visual Palette")
 @export_enum("Electric Blue", "Rich Violet") var visual_palette: int = 0
@@ -118,10 +117,10 @@ func _get_animated_trail_point(index: int) -> Vector2:
 	var secondary_wave: float = sin(_trail_time * 1.25 + t * 5.5 + 0.8)
 	var drift: float = (wave * 0.7 + secondary_wave * 0.3) * (0.5 + 1.8 * t) * envelope
 
-	# Offset the newest point a little behind the centre. The orb hides most of
-	# the start, leaving a short, narrow connection that broadens into the trail.
-	# This keeps the neck subtle without returning to the old long, thin stem.
-	var head_offset: float = trail_connection_offset if index == 0 else 0.0
+	# The newest sample is the ball centre. Move just this head point backward
+	# along the travel direction so the visible V begins at the orb's trailing
+	# surface instead of emerging from its luminous core.
+	var head_offset: float = trail_head_offset if index == 0 else 0.0
 	return point - tangent * head_offset + perpendicular * drift
 
 
