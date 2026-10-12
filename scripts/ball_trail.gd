@@ -308,7 +308,9 @@ func _update_wisp_line(
 		tangent = tangent.normalized()
 		var perpendicular := Vector2(-tangent.y, tangent.x)
 		var progress: float = distance_along / total_distance
-		var envelope: float = smoothstep(0.015, 0.18, progress)
+		# Delay the visible peel-away so the wisps don't appear to sprout from
+		# the seam directly under the orb. Their lateral movement builds smoothly.
+		var envelope: float = smoothstep(0.045, 0.235, progress)
 		var sway: float = sin(_trail_time * 0.75 + progress * 6.7 + phase)
 		var flutter: float = sin(_trail_time * 1.10 + progress * 10.5 + phase * 1.6)
 
@@ -334,9 +336,32 @@ func _update_wisp_line(
 		var clearance: float = (
 			1.5 + amplitude * 0.08 * (1.0 + sway)
 		) * wisp_strength
-		var lateral_flutter: float = flutter * (1.5 + amplitude * 0.08) * wisp_strength * 0.75
+
+		# Reduce crossings near the neck, where random contour intersections
+		# look messy. Let the lower filaments flutter more freely as they peel out.
+		var flutter_envelope: float = lerp(
+			0.28,
+			1.0,
+			smoothstep(0.20, 0.48, progress)
+		)
+		var lateral_flutter: float = (
+			flutter
+			* (1.2 + amplitude * 0.07)
+			* wisp_strength
+			* 0.62
+			* flutter_envelope
+		)
+
+		# Gradually increase lateral spread down the tail. This gives the wisps
+		# a gentle diagonal sweep away from the body instead of tracing the
+		# contour at a nearly constant distance.
+		var diagonal_spread: float = lerp(
+			0.0,
+			5.5,
+			smoothstep(0.18, 0.78, progress)
+		) * min(wisp_strength, 1.5)
 		var target_offset: float = max(
-			silhouette_half_width * 0.80 + clearance + lateral_flutter,
+			silhouette_half_width * 0.80 + clearance + lateral_flutter + diagonal_spread,
 			silhouette_half_width * 0.48
 		)
 		var drift: float = target_offset * envelope
