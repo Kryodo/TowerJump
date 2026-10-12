@@ -1,6 +1,7 @@
 extends Node2D
 
 const PARTICLE_EMISSION_OFFSET: float = 28.0
+const TRAIL_ROOT_BLEND_DISTANCE: float = 48.0
 
 ## Visual energy trail for the player ball.
 ## The trail is layered: a soft outer aura, a turbulent inner stream, two
@@ -120,10 +121,19 @@ func _get_animated_trail_point(index: int) -> Vector2:
 	var secondary_wave: float = sin(_trail_time * 1.25 + t * 5.5 + 0.8)
 	var drift: float = (wave * 0.7 + secondary_wave * 0.3) * (0.5 + 1.8 * t) * envelope
 
-	# The newest sample is the ball centre. Move just this head point backward
-	# along the travel direction so the visible V begins at the orb's trailing
-	# surface instead of emerging from its luminous core.
-	var head_offset: float = trail_head_offset if index == 0 else 0.0
+	# Extend the head offset across a short arc-length blend instead of moving
+	# only the newest point. This avoids a pinched/folded neck and carries the
+	# trail smoothly underneath the orb before it opens into the visible plume.
+	var distance_from_head: float = 0.0
+	for previous_index in range(index):
+		distance_from_head += _points[previous_index].distance_to(_points[previous_index + 1])
+
+	var root_blend: float = 1.0 - smoothstep(
+		0.0,
+		TRAIL_ROOT_BLEND_DISTANCE,
+		distance_from_head
+	)
+	var head_offset: float = trail_head_offset * root_blend
 	return point - tangent * head_offset + perpendicular * drift
 
 
