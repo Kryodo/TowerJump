@@ -1,6 +1,7 @@
 shader_type canvas_item;
 
 uniform int palette_mode = 1;
+uniform vec2 trail_direction = vec2(0.0, 1.0);
 
 void fragment() {
 	vec2 p = UV * 2.0 - 1.0;
@@ -19,6 +20,12 @@ void fragment() {
 		smoothstep(0.885, 0.935, radius)
 		*
 		(1.0 - smoothstep(0.972, 1.035, radius));
+
+	// Let the secondary contour dissolve into the trail at its exit point.
+	float trail_alignment = dot(normalize(p), normalize(trail_direction));
+	float trail_exit_fade = smoothstep(0.68, 0.96, trail_alignment);
+	float exit_visibility = mix(1.0, 0.15, trail_exit_fade);
+	outer_rim *= exit_visibility;
 
 	float travelling_energy =
 		0.72
