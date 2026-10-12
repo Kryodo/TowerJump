@@ -33,6 +33,6 @@ void fragment() {
 		rim_color = vec3(0.26, 1.42, 2.5);
 	}
 
-	float alpha = outer_rim * travelling_energy * mix(0.045, 0.085, breathing);
+	float alpha = outer_rim * travelling_energy * mix(0.055, 0.105, breathing);
 	COLOR = vec4(rim_color * travelling_energy, alpha);
 }
