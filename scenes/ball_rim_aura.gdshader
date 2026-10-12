@@ -22,9 +22,13 @@ void fragment() {
 		(1.0 - smoothstep(0.972, 1.035, radius));
 
 	// Let the secondary contour dissolve into the trail at its exit point.
-	float trail_alignment = dot(normalize(p), normalize(trail_direction));
-	float trail_exit_fade = smoothstep(0.68, 0.96, trail_alignment);
-	float exit_visibility = mix(1.0, 0.15, trail_exit_fade);
+	vec2 radial_direction = p / max(d, 0.001);
+	vec2 normalized_trail_direction = trail_direction / max(length(trail_direction), 0.001);
+	float trail_alignment = dot(radial_direction, normalized_trail_direction);
+	// Make the secondary rim visibly dissolve into the comet's exit collar,
+	// while retaining a faint residual glow rather than a hard cut-out.
+	float trail_exit_fade = smoothstep(0.40, 0.90, trail_alignment);
+	float exit_visibility = mix(1.0, 0.04, trail_exit_fade);
 	outer_rim *= exit_visibility;
 
 	float travelling_energy =
