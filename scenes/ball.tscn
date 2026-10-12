@@ -8,10 +8,15 @@
 [ext_resource type="Texture2D" uid="uid://cxkt5pn1abx0k" path="res://Assets/soft_energy_particle.png" id="4_jj7gd"]
 [ext_resource type="Texture2D" uid="uid://x4vri0ghb2xn" path="res://Assets/energy_particle_atlas.png" id="5_energy_atlas"]
 [ext_resource type="Shader" uid="uid://bundg76shhx4v" path="res://scenes/ball_rim_aura.gdshader" id="6_rim_aura"]
+[ext_resource type="Shader" path="res://scenes/unified_comet.gdshader" id="7_unified_comet"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_rim_aura"]
 shader = ExtResource("6_rim_aura")
 shader_parameter/palette_mode = 1
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_unified_comet"]
+shader = ExtResource("7_unified_comet")
+shader_parameter/palette_mode = 0
 
 [sub_resource type="Curve" id="Curve_iijjg"]
 _data = [Vector2(0, 0.015), 0.0, 4.2, 0, 1, Vector2(0.07, 0.505), 4.2, 1.2, 1, 1, Vector2(0.2, 1.15), 1.2, 0.0, 1, 1, Vector2(0.36, 0.94), 0.0, -0.9, 1, 1, Vector2(0.68, 0.42), -0.9, -1.0, 1, 1, Vector2(0.92, 0.04), -1.0, -0.5, 1, 1, Vector2(1, 0), -0.5, 0.0, 1, 0]
@@ -194,6 +199,10 @@ z_index = -1
 script = ExtResource("2_4dx81")
 visual_palette = 1
 wisp_strength = 2.0
+
+[node name="UnifiedCometShape" type="Polygon2D" parent="TrailVisual" unique_id=1770062203]
+material = SubResource("ShaderMaterial_unified_comet")
+z_index = -1
 
 [node name="TrailAura" type="Line2D" parent="TrailVisual" unique_id=333510001]
 width = 40.0

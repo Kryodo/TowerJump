@@ -3,6 +3,7 @@ shader_type canvas_item;
 // 0 = saturated electric blue, 1 = rich violet.
 // The trail controller sets this so orb and trail share one palette.
 uniform int palette_mode = 0;
+uniform vec2 trail_direction = vec2(0.0, 1.0);
 
 void fragment() {
 	vec2 p = UV * 2.0 - 1.0;
@@ -83,7 +84,13 @@ void fragment() {
 		smoothstep(0.90, 0.93, d)
 		-
 		smoothstep(0.956, 0.982, d);
-	color += ring_color * outer_ring * aura_breath;
+	// The shared comet silhouette continues under the rear contour into the tail.
+	vec2 radial_direction = p / max(d, 0.001);
+	vec2 tail_direction_normalized = trail_direction / max(length(trail_direction), 0.001);
+	float tail_alignment = dot(radial_direction, tail_direction_normalized);
+	float shared_join = smoothstep(0.42, 0.90, tail_alignment);
+	float ring_visibility = mix(1.0, 0.30, shared_join);
+	color += ring_color * outer_ring * aura_breath * ring_visibility;
 
 	// The luminous centre gently pulses, but its edge is deliberately organic:
 	// low-frequency angular waves break the perfect circular silhouette.

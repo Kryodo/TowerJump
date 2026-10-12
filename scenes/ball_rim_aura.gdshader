@@ -1,6 +1,7 @@
 shader_type canvas_item;
 
 uniform int palette_mode = 1;
+uniform vec2 trail_direction = vec2(0.0, 1.0);
 
 void fragment() {
 	vec2 p = UV * 2.0 - 1.0;
@@ -19,6 +20,13 @@ void fragment() {
 		smoothstep(0.885, 0.935, radius)
 		*
 		(1.0 - smoothstep(0.972, 1.035, radius));
+
+	// The unified silhouette takes over from this rim at the trail-facing side.
+	vec2 radial_direction = p / max(d, 0.001);
+	vec2 tail_direction_normalized = trail_direction / max(length(trail_direction), 0.001);
+	float tail_alignment = dot(radial_direction, tail_direction_normalized);
+	float shared_join = smoothstep(0.38, 0.88, tail_alignment);
+	outer_rim *= mix(1.0, 0.10, shared_join);
 
 	float travelling_energy =
 		0.72

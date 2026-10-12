@@ -11,12 +11,17 @@ extends Node2D
 @export var max_segment_distance: float = 120.0
 @export_range(0.0, 40.0, 1.0) var trail_head_offset: float = 28.0
 
+const UNIFIED_HEAD_RADIUS: float = 29.0
+const UNIFIED_ROOT_BLEND_DISTANCE: float = 38.0
+const UNIFIED_HEAD_ARC_SEGMENTS: int = 12
+
 @export_category("Visual Palette")
 @export_enum("Electric Blue", "Rich Violet") var visual_palette: int = 0
 @export_range(0.0, 2.0, 0.05) var wisp_strength: float = 1.0
 
 @onready var _energy_line: Line2D = $EnergyLine
 @onready var _trail_aura: Line2D = $TrailAura
+@onready var _unified_shape: Polygon2D = get_node_or_null("UnifiedCometShape") as Polygon2D
 @onready var _wisp_left: Line2D = $WispLeft
 @onready var _wisp_right: Line2D = $WispRight
 @onready var _ball_visual: Sprite2D = get_parent().get_node("Visual") as Sprite2D
@@ -78,6 +83,9 @@ func _update_trail_lines() -> void:
 		_trail_aura.clear_points()
 		_wisp_left.clear_points()
 		_wisp_right.clear_points()
+		if _unified_shape != null:
+			_unified_shape.polygon = PackedVector2Array()
+			_unified_shape.uv = PackedVector2Array()
 		return
 
 	_energy_line.clear_points()
@@ -93,9 +101,10 @@ func _update_trail_lines() -> void:
 
 	_update_wisp_line(_wisp_left, 1.0, 11.0, 0.3)
 	_update_wisp_line(_wisp_right, -1.0, 14.0, 2.0)
+	_update_unified_comet_shape()
 
 
-func _get_animated_trail_point(index: int) -> Vector2:
+func _get_animated_trail_point(index: int, apply_head_offset: bool = true) -> Vector2:
 	var point: Vector2 = _points[index]
 	if _points.size() < 2:
 		return point
@@ -120,8 +129,117 @@ func _get_animated_trail_point(index: int) -> Vector2:
 	# The newest sample is the ball centre. Move just this head point backward
 	# along the travel direction so the visible V begins at the orb's trailing
 	# surface instead of emerging from its luminous core.
-	var head_offset: float = trail_head_offset if index == 0 else 0.0
+	var head_offset: float = trail_head_offset if index == 0 and apply_head_offset else 0.0
 	return point - tangent * head_offset + perpendicular * drift
+
+
+
+func _update_unified_comet_shape() -> void:
+	if _unified_shape == null or _points.size() < 2:
+		return
+
+	# Use the same animated trail history, but keep the true ball-centre sample
+	# so the shared silhouette continues underneath the orb rather than starting
+	# at a separately offset trail point.
+	var path: Array[Vector2] = []
+	for i in range(_points.size()):
+		path.append(_get_animated_trail_point(i, false))
+
+	var cumulative_distances: Array[float] = [0.0]
+	var total_distance: float = 0.0
+	for i in range(1, path.size()):
+		total_distance += path[i - 1].distance_to(path[i])
+		cumulative_distances.append(total_distance)
+
+	if total_distance < 0.01:
+		_unified_shape.polygon = PackedVector2Array()
+		_unified_shape.uv = PackedVector2Array()
+		return
+
+	var tangents: Array[Vector2] = []
+	var normals: Array[Vector2] = []
+	var half_widths: Array[float] = []
+	for i in range(path.size()):
+		var tangent: Vector2
+		if i == 0:
+			tangent = path[1] - path[0]
+		elif i == path.size() - 1:
+			tangent = path[i] - path[i - 1]
+		else:
+			tangent = path[i + 1] - path[i - 1]
+
+		if tangent.length_squared() < 0.001:
+			tangent = Vector2.DOWN
+		else:
+			tangent = tangent.normalized()
+
+		var normal := Vector2(-tangent.y, tangent.x)
+		tangents.append(tangent)
+		normals.append(normal)
+
+		var progress: float = cumulative_distances[i] / total_distance
+		var width_factor: float = 1.0
+		if _trail_aura.width_curve != null:
+			width_factor = _trail_aura.width_curve.sample_baked(progress)
+		var line_half_width: float = _trail_aura.width * width_factor * 0.5
+		var root_blend: float = 1.0 - smoothstep(
+			0.0,
+			UNIFIED_ROOT_BLEND_DISTANCE,
+			cumulative_distances[i]
+		)
+		half_widths.append(lerp(line_half_width, UNIFIED_HEAD_RADIUS, root_blend))
+
+	var polygon_points := PackedVector2Array()
+	var polygon_uvs := PackedVector2Array()
+	var root_direction: Vector2 = tangents[0]
+	var root_normal: Vector2 = normals[0]
+
+	# Rear half of the ball: this cap is hidden beneath the normal orb sprite.
+	for arc_index in range(UNIFIED_HEAD_ARC_SEGMENTS + 1):
+		var arc_t: float = float(arc_index) / float(UNIFIED_HEAD_ARC_SEGMENTS)
+		var angle: float = PI * 0.5 - PI * arc_t
+		var world_point: Vector2 = (
+			path[0]
+			+ root_direction * UNIFIED_HEAD_RADIUS * cos(angle)
+			+ root_normal * UNIFIED_HEAD_RADIUS * sin(angle)
+		)
+		polygon_points.append(_unified_shape.to_local(world_point))
+		polygon_uvs.append(Vector2(0.0, arc_t))
+
+	# Right edge follows the same historical trajectory as the trail lines.
+	for i in range(1, path.size() - 1):
+		var right_point: Vector2 = path[i] - normals[i] * half_widths[i]
+		polygon_points.append(_unified_shape.to_local(right_point))
+		polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 1.0))
+
+	# Single tip vertex avoids coincident left/right end vertices at zero width.
+	polygon_points.append(_unified_shape.to_local(path[path.size() - 1]))
+	polygon_uvs.append(Vector2(1.0, 0.5))
+
+	# Return along the left edge and close against the orb's rear contour.
+	for i in range(path.size() - 2, 0, -1):
+		var left_point: Vector2 = path[i] + normals[i] * half_widths[i]
+		polygon_points.append(_unified_shape.to_local(left_point))
+		polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 0.0))
+
+	_unified_shape.polygon = polygon_points
+	_unified_shape.uv = polygon_uvs
+
+	# The same direction drives both rim shaders, tying their contour treatment
+	# to the actual shared silhouette instead of fading an independent effect.
+	var ball := get_parent() as CharacterBody2D
+	if ball != null:
+		var local_tail_direction: Vector2 = (
+			ball.to_local(ball.global_position + root_direction)
+			- ball.to_local(ball.global_position)
+		).normalized()
+		var orb_material := _ball_visual.material as ShaderMaterial
+		if orb_material != null:
+			orb_material.set_shader_parameter("trail_direction", local_tail_direction)
+		if _rim_aura != null:
+			var rim_material := _rim_aura.material as ShaderMaterial
+			if rim_material != null:
+				rim_material.set_shader_parameter("trail_direction", local_tail_direction)
 
 
 func _update_wisp_line(
@@ -238,6 +356,13 @@ func _apply_visual_palette() -> void:
 		var rim_aura_material := _rim_aura.material as ShaderMaterial
 		if rim_aura_material != null:
 			rim_aura_material.set_shader_parameter("palette_mode", visual_palette)
+
+	if _unified_shape != null:
+		var unified_material := _unified_shape.material as ShaderMaterial
+		if unified_material != null:
+			unified_material = unified_material.duplicate() as ShaderMaterial
+			unified_material.set_shader_parameter("palette_mode", visual_palette)
+			_unified_shape.material = unified_material
 
 	var energy_material := _energy_line.material as ShaderMaterial
 	if energy_material != null:
