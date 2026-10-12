@@ -85,15 +85,23 @@ void fragment() {
 		smoothstep(0.956, 0.982, d);
 	color += ring_color * outer_ring * aura_breath;
 
-	// The luminous centre gently changes size and intensity over time.
+	// The luminous centre gently pulses, but its edge is deliberately organic:
+	// low-frequency angular waves break the perfect circular silhouette.
 	float core_pulse = 0.5 + 0.5 * sin(time * 2.2);
 	float core_radius = mix(0.245, 0.305, core_pulse);
-	float core = 1.0 - smoothstep(0.0, core_radius, d);
-	float core_brightness = mix(0.84, 1.05, core_pulse);
+	float core_wobble =
+		1.0
+		+ 0.10 * sin(angle * 3.0 + time * 0.72)
+		+ 0.045 * sin(angle * 5.0 - time * 0.90 + 1.1)
+		+ 0.025 * sin(angle * 2.0 + p.x * 2.8 - time * 0.55);
+	float core_distance = d / max(core_wobble, 0.80);
+	float core = 1.0 - smoothstep(core_radius * 0.70, core_radius, core_distance);
+	// A slightly lower peak helps the orb and trail share the same energy budget.
+	float core_brightness = mix(0.79, 0.96, core_pulse);
 	color = mix(color, core_color * core_brightness, core);
 
 	float core_aura =
-		1.0 - smoothstep(core_radius * 0.62, core_radius * 1.8, d);
+		1.0 - smoothstep(core_radius * 0.62, core_radius * 1.8, core_distance);
 	color += aura_color * core_aura * 0.28 * aura_breath;
 
 	// Broad upper-left reflection and a small specular glint add orb-like depth.

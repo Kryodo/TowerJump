@@ -9,8 +9,8 @@
 [ext_resource type="Texture2D" uid="uid://x4vri0ghb2xn" path="res://Assets/energy_particle_atlas.png" id="5_energy_atlas"]
 
 [sub_resource type="Curve" id="Curve_iijjg"]
-_data = [Vector2(0, 0.015), 0.0, 4.2, 0, 1, Vector2(0.07, 0.38), 4.2, 1.2, 1, 1, Vector2(0.2, 1.15), 1.2, 0.0, 1, 1, Vector2(0.36, 0.94), 0.0, -0.9, 1, 1, Vector2(0.68, 0.42), -0.9, -1.0, 1, 1, Vector2(0.92, 0.04), -1.0, -0.5, 1, 1, Vector2(1, 0), -0.5, 0.0, 1, 0]
-point_count = 7
+_data = [Vector2(0, 0.9), 0.0, 5.0, 0, 1, Vector2(0.045, 1.12), 5.0, 2.0, 1, 1, Vector2(0.12, 1.25), 2.0, 0.0, 1, 1, Vector2(0.3, 1.03), 0.0, -1.0, 1, 1, Vector2(0.58, 0.56), -1.0, -1.0, 1, 1, Vector2(0.84, 0.07), -1.0, -0.5, 1, 1, Vector2(0.96, 0.025), -0.5, 0.0, 1, 1, Vector2(1, 0), 0.0, 0.0, 1, 0]
+point_count = 8
 
 [sub_resource type="Gradient" id="Gradient_f7kxq"]
 offsets = PackedFloat32Array(0, 0.26666668, 0.6, 0.8, 1)
@@ -20,6 +20,10 @@ metadata/_snap_count = 15
 
 [sub_resource type="Curve" id="Curve_4dx81"]
 _data = [Vector2(0, 0.015), 0.0, 3.5, 0, 1, Vector2(0.06, 0.3), 3.5, 1.3, 1, 1, Vector2(0.18, 1), 1.3, 0.0, 1, 1, Vector2(0.34, 0.92), 0.0, -0.9, 1, 1, Vector2(0.66, 0.48), -0.9, -1.0, 1, 1, Vector2(0.92, 0.06), -1.0, -0.5, 1, 1, Vector2(1, 0), -0.5, 0.0, 1, 0]
+point_count = 7
+
+[sub_resource type="Curve" id="Curve_comet_core"]
+_data = [Vector2(0, 0.62), 0.0, 5.0, 0, 1, Vector2(0.045, 0.92), 5.0, 2.0, 1, 1, Vector2(0.12, 1.15), 2.0, 0.0, 1, 1, Vector2(0.3, 0.96), 0.0, -1.0, 1, 1, Vector2(0.58, 0.52), -1.0, -1.0, 1, 1, Vector2(0.84, 0.06), -1.0, -0.5, 1, 1, Vector2(1, 0), -0.5, 0.0, 1, 0]
 point_count = 7
 
 [sub_resource type="Gradient" id="Gradient_wisp_left"]
@@ -33,8 +37,8 @@ colors = PackedColorArray(1, 1, 1, 0.68, 1, 1, 1, 0.35, 1, 1, 1, 0.09, 1, 1, 1, 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_eew57"]
 shader = ExtResource("3_eew57")
 shader_parameter/flow_speed = 0.9
-shader_parameter/energy_strength = 1.350000064125
-shader_parameter/filament_strength = 1.7
+shader_parameter/energy_strength = 1.5
+shader_parameter/filament_strength = 1.9
 shader_parameter/palette_mode = 0
 
 [sub_resource type="Curve" id="Curve_f7kxq"]
@@ -177,7 +181,7 @@ visual_palette = 1
 wisp_strength = 2.0
 
 [node name="TrailAura" type="Line2D" parent="TrailVisual" unique_id=333510001]
-width = 40.0
+width = 48.0
 width_curve = SubResource("Curve_iijjg")
 gradient = SubResource("Gradient_f7kxq")
 joint_mode = 2
@@ -206,7 +210,7 @@ antialiased = true
 [node name="EnergyLine" type="Line2D" parent="TrailVisual" unique_id=1281318945]
 material = SubResource("ShaderMaterial_eew57")
 width = 26.0
-width_curve = SubResource("Curve_4dx81")
+width_curve = SubResource("Curve_comet_core")
 texture_mode = 2
 joint_mode = 2
 begin_cap_mode = 2

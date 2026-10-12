@@ -6,8 +6,8 @@ extends Node2D
 ## This script only controls visuals; ball movement and collision remain in ball.gd.
 
 @export_category("Trail History")
-@export var max_points: int = 22
-@export var min_distance: float = 2.5
+@export var max_points: int = 30
+@export var min_distance: float = 2.0
 @export var max_segment_distance: float = 120.0
 @export_range(0.0, 40.0, 1.0) var trail_head_offset: float = 28.0
 
@@ -61,7 +61,7 @@ func _process(delta: float) -> void:
 		# large discontinuities in the sampled trajectory.
 		_points.clear()
 		_points.append(current_world_position)
-	elif distance_from_trail >= min_distance:
+	elif _points[0].distance_to(current_world_position) >= min_distance:
 		_points.push_front(current_world_position)
 		while _points.size() > max_points:
 			_points.pop_back()
@@ -116,11 +116,10 @@ func _get_animated_trail_point(index: int) -> Vector2:
 	var secondary_wave: float = sin(_trail_time * 1.25 + t * 5.5 + 0.8)
 	var drift: float = (wave * 0.7 + secondary_wave * 0.3) * (0.5 + 1.8 * t) * envelope
 
-	# The newest sample is the ball centre. Move just this head point backward
-	# along the travel direction so the visible V begins at the orb's trailing
-	# surface instead of emerging from its luminous core.
-	var head_offset: float = trail_head_offset if index == 0 else 0.0
-	return point - tangent * head_offset + perpendicular * drift
+	# The trail begins at the ball centre and renders behind the orb. The orb
+	# naturally occludes the hidden part, letting a broad leading flare emerge
+	# from its sides without a detached offset point or a pinched neck.
+	return point + perpendicular * drift
 
 
 func _update_wisp_line(

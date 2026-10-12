@@ -175,23 +175,38 @@ void fragment()
 	// --------------------------------------------------------
 
 	float trail_fade = 1.0 - smoothstep(
-		0.55,
+		0.72,
 		1.0,
 		uv.x
 	);
 
 	energy *= trail_fade;
 
+	// Two restrained edge filaments create a brighter bridge to the orb rim.
+	// They sit inside the translucent ribbon edges instead of outlining a hard tube.
+	float edge_distance = abs(uv.y * 2.0 - 1.0);
+	float edge_ridge =
+		smoothstep(0.58, 0.76, edge_distance)
+		*
+		(1.0 - smoothstep(0.88, 0.97, edge_distance));
+	float edge_waver =
+		0.78 + 0.22 * sin(uv.x * 25.0 - time * 1.7 + sin(uv.x * 8.0 + time * 0.4));
+	float edge_strength = edge_ridge * edge_waver * trail_fade;
+	energy = max(energy, edge_strength * 0.32);
+
 
 	// Palette-matched energy stream: saturated blue or rich violet.
 	vec3 base_color;
 	vec3 bright_color;
+	vec3 edge_color;
 	if (palette_mode == 1) {
 		base_color = vec3(0.30, 0.035, 0.82);
-		bright_color = vec3(0.95, 0.58, 1.25);
+		bright_color = vec3(1.12, 0.68, 1.48);
+		edge_color = vec3(1.55, 0.88, 1.95);
 	} else {
 		base_color = vec3(0.025, 0.20, 0.95);
-		bright_color = vec3(0.38, 0.86, 1.35);
+		bright_color = vec3(0.46, 0.96, 1.48);
+		edge_color = vec3(0.58, 1.22, 1.82);
 	}
 
 	float brightness = clamp(
@@ -206,6 +221,8 @@ void fragment()
 		brightness
 	);
 
+	// Additive HDR accents stay subtle at rest but connect to the orb's bright rim.
+	final_color += edge_color * edge_strength * 0.34;
 
 	COLOR = vec4(
 		final_color,
