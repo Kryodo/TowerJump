@@ -192,7 +192,7 @@ void fragment()
 	float edge_waver =
 		0.78 + 0.22 * sin(uv.x * 25.0 - time * 1.7 + sin(uv.x * 8.0 + time * 0.4));
 	float edge_strength = edge_ridge * edge_waver * trail_fade;
-	energy = max(energy, edge_strength * 0.32);
+	energy = max(energy, edge_strength * 0.42);
 
 
 	// Palette-matched energy stream: saturated blue or rich violet.
@@ -222,7 +222,7 @@ void fragment()
 	);
 
 	// Additive HDR accents stay subtle at rest but connect to the orb's bright rim.
-	final_color += edge_color * edge_strength * 0.34;
+	final_color += edge_color * edge_strength * 0.43;
 
 	COLOR = vec4(
 		final_color,

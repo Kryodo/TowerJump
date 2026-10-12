@@ -7,9 +7,10 @@
 [ext_resource type="Texture2D" uid="uid://bdjibaetopyy2" path="res://Assets/ball_mask.png" id="3_f7cbr"]
 [ext_resource type="Texture2D" uid="uid://cxkt5pn1abx0k" path="res://Assets/soft_energy_particle.png" id="4_jj7gd"]
 [ext_resource type="Texture2D" uid="uid://x4vri0ghb2xn" path="res://Assets/energy_particle_atlas.png" id="5_energy_atlas"]
+[ext_resource type="Shader" path="res://scenes/ball_rim_halo.gdshader" id="6_rim_halo"]
 
 [sub_resource type="Curve" id="Curve_iijjg"]
-_data = [Vector2(0, 0.9), 0.0, 5.0, 0, 1, Vector2(0.045, 1.12), 5.0, 2.0, 1, 1, Vector2(0.12, 1.25), 2.0, 0.0, 1, 1, Vector2(0.3, 1.03), 0.0, -1.0, 1, 1, Vector2(0.58, 0.56), -1.0, -1.0, 1, 1, Vector2(0.84, 0.07), -1.0, -0.5, 1, 1, Vector2(0.96, 0.025), -0.5, 0.0, 1, 1, Vector2(1, 0), 0.0, 0.0, 1, 0]
+_data = [Vector2(0, 0.56), 0.0, 5.0, 0, 1, Vector2(0.045, 0.82), 5.0, 2.0, 1, 1, Vector2(0.12, 1.15), 2.0, 0.0, 1, 1, Vector2(0.22, 1.22), 0.0, -0.5, 1, 1, Vector2(0.36, 0.98), -0.5, -1.0, 1, 1, Vector2(0.58, 0.56), -1.0, -1.0, 1, 1, Vector2(0.84, 0.07), -1.0, -0.5, 1, 1, Vector2(0.96, 0.025), -0.5, 0.0, 1, 1, Vector2(1, 0), 0.0, 0.0, 1, 0]
 point_count = 8
 
 [sub_resource type="Gradient" id="Gradient_f7kxq"]
@@ -37,8 +38,12 @@ shader_parameter/energy_strength = 1.5
 shader_parameter/filament_strength = 1.9
 shader_parameter/palette_mode = 0
 
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_rim_halo"]
+shader = ExtResource("6_rim_halo")
+shader_parameter/palette_mode = 1
+
 [sub_resource type="Curve" id="Curve_comet_core"]
-_data = [Vector2(0, 0.62), 0.0, 5.0, 0, 1, Vector2(0.045, 0.92), 5.0, 2.0, 1, 1, Vector2(0.12, 1.15), 2.0, 0.0, 1, 1, Vector2(0.3, 0.96), 0.0, -1.0, 1, 1, Vector2(0.58, 0.52), -1.0, -1.0, 1, 1, Vector2(0.84, 0.06), -1.0, -0.5, 1, 1, Vector2(1, 0), -0.5, 0.0, 1, 0]
+_data = [Vector2(0, 0.34), 0.0, 5.0, 0, 1, Vector2(0.045, 0.58), 5.0, 2.0, 1, 1, Vector2(0.12, 0.98), 2.0, 0.0, 1, 1, Vector2(0.22, 1.08), 0.0, -0.5, 1, 1, Vector2(0.34, 0.94), -0.5, -1.0, 1, 1, Vector2(0.58, 0.52), -1.0, -1.0, 1, 1, Vector2(0.84, 0.06), -1.0, -0.5, 1, 1, Vector2(1, 0), -0.5, 0.0, 1, 0]
 point_count = 7
 
 [sub_resource type="Curve" id="Curve_f7kxq"]
@@ -173,6 +178,12 @@ shader_parameter/palette_mode = 0
 script = ExtResource("1_ball")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1403364382]
+
+[node name="RimHalo" type="Sprite2D" parent="." unique_id=2025838926]
+material = SubResource("ShaderMaterial_rim_halo")
+z_index = -2
+scale = Vector2(0.54, 0.54)
+texture = ExtResource("3_f7cbr")
 
 [node name="TrailVisual" type="Node2D" parent="." unique_id=2025838925]
 z_index = -1

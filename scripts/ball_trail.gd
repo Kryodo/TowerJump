@@ -6,7 +6,7 @@ extends Node2D
 ## This script only controls visuals; ball movement and collision remain in ball.gd.
 
 @export_category("Trail History")
-@export var max_points: int = 30
+@export var max_points: int = 27
 @export var min_distance: float = 2.0
 @export var max_segment_distance: float = 120.0
 @export_range(0.0, 40.0, 1.0) var trail_head_offset: float = 28.0
@@ -20,6 +20,7 @@ extends Node2D
 @onready var _wisp_left: Line2D = $WispLeft
 @onready var _wisp_right: Line2D = $WispRight
 @onready var _ball_visual: Sprite2D = get_parent().get_node("Visual") as Sprite2D
+@onready var _rim_halo: Sprite2D = get_parent().get_node_or_null("RimHalo") as Sprite2D
 
 var _points: Array[Vector2] = []
 var _particle_emitters: Array[GPUParticles2D] = []
@@ -231,6 +232,11 @@ func _apply_visual_palette() -> void:
 		orb_material = orb_material.duplicate() as ShaderMaterial
 		orb_material.set_shader_parameter("palette_mode", visual_palette)
 		_ball_visual.material = orb_material
+
+	if _rim_halo != null:
+		var halo_material := _rim_halo.material as ShaderMaterial
+		if halo_material != null:
+			halo_material.set_shader_parameter("palette_mode", visual_palette)
 
 	var energy_material := _energy_line.material as ShaderMaterial
 	if energy_material != null:
