@@ -11,9 +11,9 @@ extends Node2D
 @export var max_segment_distance: float = 120.0
 @export_range(0.0, 40.0, 1.0) var trail_head_offset: float = 28.0
 
-const UNIFIED_HEAD_RADIUS: float = 29.0
+const UNIFIED_HEAD_RADIUS: float = 31.0
 const UNIFIED_ROOT_BLEND_DISTANCE: float = 38.0
-const UNIFIED_HEAD_ARC_SEGMENTS: int = 12
+const UNIFIED_HEAD_ARC_SEGMENTS: int = 20
 
 @export_category("Visual Palette")
 @export_enum("Electric Blue", "Rich Violet") var visual_palette: int = 0
@@ -22,6 +22,7 @@ const UNIFIED_HEAD_ARC_SEGMENTS: int = 12
 @onready var _energy_line: Line2D = $EnergyLine
 @onready var _trail_aura: Line2D = $TrailAura
 @onready var _unified_shape: Polygon2D = get_node_or_null("UnifiedCometShape") as Polygon2D
+@onready var _unified_contour: Line2D = get_node_or_null("UnifiedCometContour") as Line2D
 @onready var _wisp_left: Line2D = $WispLeft
 @onready var _wisp_right: Line2D = $WispRight
 @onready var _ball_visual: Sprite2D = get_parent().get_node("Visual") as Sprite2D
@@ -86,6 +87,8 @@ func _update_trail_lines() -> void:
 		if _unified_shape != null:
 			_unified_shape.polygon = PackedVector2Array()
 			_unified_shape.uv = PackedVector2Array()
+		if _unified_contour != null:
+			_unified_contour.clear_points()
 		return
 
 	_energy_line.clear_points()
@@ -154,6 +157,8 @@ func _update_unified_comet_shape() -> void:
 	if total_distance < 0.01:
 		_unified_shape.polygon = PackedVector2Array()
 		_unified_shape.uv = PackedVector2Array()
+		if _unified_contour != null:
+			_unified_contour.clear_points()
 		return
 
 	var tangents: Array[Vector2] = []
@@ -194,10 +199,11 @@ func _update_unified_comet_shape() -> void:
 	var root_direction: Vector2 = tangents[0]
 	var root_normal: Vector2 = normals[0]
 
-	# Rear half of the ball: this cap is hidden beneath the normal orb sprite.
+	# Close the fill across the FRONT half of the ball. The real orb is drawn
+	# above this skin, so its core remains untouched and the closure stays hidden.
 	for arc_index in range(UNIFIED_HEAD_ARC_SEGMENTS + 1):
 		var arc_t: float = float(arc_index) / float(UNIFIED_HEAD_ARC_SEGMENTS)
-		var angle: float = PI * 0.5 - PI * arc_t
+		var angle: float = PI * 0.5 + PI * arc_t
 		var world_point: Vector2 = (
 			path[0]
 			+ root_direction * UNIFIED_HEAD_RADIUS * cos(angle)
@@ -224,6 +230,28 @@ func _update_unified_comet_shape() -> void:
 
 	_unified_shape.polygon = polygon_points
 	_unified_shape.uv = polygon_uvs
+
+	# Draw only the exposed silhouette: begin at one shoulder, follow that
+	# side of the shared body to the tip, then return along the opposite side.
+	# The front head arc is deliberately omitted; the orb supplies that contour.
+	if _unified_contour != null:
+		var contour_points := PackedVector2Array()
+		contour_points.append(
+			_unified_shape.to_local(path[0] + root_normal * UNIFIED_HEAD_RADIUS)
+		)
+		for i in range(1, path.size() - 1):
+			contour_points.append(
+				_unified_shape.to_local(path[i] + normals[i] * half_widths[i])
+			)
+		contour_points.append(_unified_shape.to_local(path[path.size() - 1]))
+		for i in range(path.size() - 2, 0, -1):
+			contour_points.append(
+				_unified_shape.to_local(path[i] - normals[i] * half_widths[i])
+			)
+		contour_points.append(
+			_unified_shape.to_local(path[0] - root_normal * UNIFIED_HEAD_RADIUS)
+		)
+		_unified_contour.points = contour_points
 
 	# The same direction drives both rim shaders, tying their contour treatment
 	# to the actual shared silhouette instead of fading an independent effect.
@@ -317,6 +345,7 @@ func _apply_visual_palette() -> void:
 	var diamond_tint: Color
 	var square_tint: Color
 	var shard_tint: Color
+	var contour_color: Color
 
 	if visual_palette == 1:
 		energy_head = Color(0.98, 0.72, 1.0, 1.0)
@@ -331,6 +360,7 @@ func _apply_visual_palette() -> void:
 		diamond_tint = Color(0.98, 0.52, 1.20, 1.0)
 		square_tint = Color(0.58, 0.20, 1.12, 0.96)
 		shard_tint = Color(1.0, 0.70, 1.25, 1.0)
+		contour_color = Color(1.25, 0.42, 2.2, 1.0)
 	else:
 		energy_head = Color(0.72, 0.94, 1.0, 1.0)
 		energy_tail = Color(0.035, 0.16, 0.82, 1.0)
@@ -344,6 +374,7 @@ func _apply_visual_palette() -> void:
 		diamond_tint = Color(0.40, 0.78, 1.25, 1.0)
 		square_tint = Color(0.12, 0.42, 1.18, 0.96)
 		shard_tint = Color(0.62, 0.90, 1.30, 1.0)
+		contour_color = Color(0.16, 0.90, 1.8, 1.0)
 
 	# Duplicate materials locally so palette changes don't mutate shared resources.
 	var orb_material := _ball_visual.material as ShaderMaterial
@@ -374,6 +405,10 @@ func _apply_visual_palette() -> void:
 	_set_line_gradient(_trail_aura, aura_head, aura_tail)
 	_set_line_gradient(_wisp_left, left_wisp_head, left_wisp_tail)
 	_set_line_gradient(_wisp_right, right_wisp_head, right_wisp_tail)
+	if _unified_contour != null:
+		# Same hue on both flanks; the gradient's alpha profile fades toward
+		# the tip symmetrically instead of making one side darker than the other.
+		_set_line_gradient(_unified_contour, contour_color, contour_color)
 
 	# Give each fragment type a distinct but coordinated tint. The atlas
 	# itself is neutral white, so these colors remain clear in both palettes.
