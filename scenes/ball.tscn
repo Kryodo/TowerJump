@@ -18,6 +18,10 @@ shader_parameter/palette_mode = 1
 shader = ExtResource("7_unified_comet")
 shader_parameter/palette_mode = 0
 
+[sub_resource type="Gradient" id="Gradient_unified_contour"]
+offsets = PackedFloat32Array(0, 0.12, 0.44, 0.56, 0.88, 1)
+colors = PackedColorArray(1, 1, 1, 0.68, 1, 1, 1, 0.50, 1, 1, 1, 0.18, 1, 1, 1, 0.18, 1, 1, 1, 0.50, 1, 1, 1, 0.68)
+
 [sub_resource type="Curve" id="Curve_iijjg"]
 _data = [Vector2(0, 0.015), 0.0, 4.2, 0, 1, Vector2(0.07, 0.505), 4.2, 1.2, 1, 1, Vector2(0.2, 1.15), 1.2, 0.0, 1, 1, Vector2(0.36, 0.94), 0.0, -0.9, 1, 1, Vector2(0.68, 0.42), -0.9, -1.0, 1, 1, Vector2(0.92, 0.04), -1.0, -0.5, 1, 1, Vector2(1, 0), -0.5, 0.0, 1, 0]
 point_count = 7
@@ -202,7 +206,16 @@ wisp_strength = 2.0
 
 [node name="UnifiedCometShape" type="Polygon2D" parent="TrailVisual" unique_id=1770062203]
 material = SubResource("ShaderMaterial_unified_comet")
-z_index = -1
+z_index = 1
+
+[node name="UnifiedCometContour" type="Line2D" parent="TrailVisual" unique_id=1770062204]
+z_index = 1
+width = 1.8
+gradient = SubResource("Gradient_unified_contour")
+joint_mode = 2
+begin_cap_mode = 2
+end_cap_mode = 2
+antialiased = true
 
 [node name="TrailAura" type="Line2D" parent="TrailVisual" unique_id=333510001]
 width = 40.0
