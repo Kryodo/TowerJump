@@ -280,12 +280,22 @@ func _update_wisp_line(
 	if _points.size() < 2:
 		return
 
-	var denominator: float = float(_points.size() - 1)
+	# Match the filament spread to the actual silhouette width, then let each
+	# wisp drift a little inside/outside its edge instead of sitting enclosed.
+	var total_distance: float = 0.0
+	for i in range(1, _points.size()):
+		total_distance += _points[i - 1].distance_to(_points[i])
+	if total_distance < 0.001:
+		return
+
+	var distance_along: float = 0.0
 	for i in range(_points.size()):
 		var raw_point: Vector2 = _points[i]
 		var point: Vector2 = _get_animated_trail_point(i)
-		var tangent: Vector2
+		if i > 0:
+			distance_along += _points[i - 1].distance_to(_points[i])
 
+		var tangent: Vector2
 		if i < _points.size() - 1:
 			tangent = raw_point - _points[i + 1]
 		else:
@@ -297,13 +307,40 @@ func _update_wisp_line(
 
 		tangent = tangent.normalized()
 		var perpendicular := Vector2(-tangent.y, tangent.x)
-		var t: float = float(i) / denominator
-		var envelope: float = smoothstep(0.0, 0.24, t)
-		var sway: float = sin(_trail_time * 0.75 + t * 5.8 + phase)
-		# Keep each wisp on its own side while varying its offset, rather than
-		# allowing rapid oscillation to make the wisps swap sides.
-		var drift: float = (4.0 + amplitude * 0.35 * (1.0 + sway)) * envelope * t
-		var offset: Vector2 = perpendicular * side * drift * wisp_strength
+		var progress: float = distance_along / total_distance
+		var envelope: float = smoothstep(0.015, 0.18, progress)
+		var sway: float = sin(_trail_time * 0.75 + progress * 6.7 + phase)
+		var flutter: float = sin(_trail_time * 1.10 + progress * 10.5 + phase * 1.6)
+
+		var width_factor: float = 1.0
+		if _trail_aura.width_curve != null:
+			width_factor = _trail_aura.width_curve.sample_baked(progress)
+		var trail_half_width: float = _trail_aura.width * width_factor * 0.5
+		var root_blend: float = 1.0 - smoothstep(
+			0.0,
+			UNIFIED_ROOT_BLEND_DISTANCE,
+			distance_along
+		)
+		var silhouette_half_width: float = lerp(
+			trail_half_width,
+			UNIFIED_HEAD_RADIUS,
+			root_blend
+		)
+
+		# The widening clearance makes the wisp emerge from the orb's trailing
+		# edge, then track just outside the narrowing body. Flutter occasionally
+		# lets it dip back over the contour so it feels like living energy,
+		# rather than a pair of rigid parallel wires.
+		var clearance: float = (
+			1.5 + amplitude * 0.08 * (1.0 + sway)
+		) * wisp_strength
+		var lateral_flutter: float = flutter * (1.5 + amplitude * 0.08) * wisp_strength * 0.75
+		var target_offset: float = max(
+			silhouette_half_width * 0.80 + clearance + lateral_flutter,
+			silhouette_half_width * 0.48
+		)
+		var drift: float = target_offset * envelope
+		var offset: Vector2 = perpendicular * side * drift
 
 		line.add_point(line.to_local(point + offset))
 
