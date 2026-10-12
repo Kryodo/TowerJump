@@ -86,9 +86,12 @@ void fragment() {
 		smoothstep(0.956, 0.982, d);
 	// Soften the orb contour at the rearward trail exit. A reduced rim remains
 	// so the connection dissolves into the trail instead of creating a hard gap.
-	float trail_alignment = dot(normalize(p), normalize(trail_direction));
-	float trail_exit_fade = smoothstep(0.70, 0.98, trail_alignment);
-	float ring_visibility = mix(1.0, 0.42, trail_exit_fade);
+	vec2 radial_direction = p / max(d, 0.001);
+	vec2 normalized_trail_direction = trail_direction / max(length(trail_direction), 0.001);
+	float trail_alignment = dot(radial_direction, normalized_trail_direction);
+	// A wider, more decisive feather lets the orb's rim dissolve into the tail.
+	float trail_exit_fade = smoothstep(0.45, 0.92, trail_alignment);
+	float ring_visibility = mix(1.0, 0.12, trail_exit_fade);
 	color += ring_color * outer_ring * aura_breath * ring_visibility;
 
 	// The luminous centre gently pulses, but its edge is deliberately organic:
