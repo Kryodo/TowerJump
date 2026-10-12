@@ -3,6 +3,7 @@ shader_type canvas_item;
 // 0 = saturated electric blue, 1 = rich violet.
 // The trail controller sets this so orb and trail share one palette.
 uniform int palette_mode = 0;
+uniform vec2 trail_direction = vec2(0.0, 1.0);
 
 void fragment() {
 	vec2 p = UV * 2.0 - 1.0;
@@ -83,7 +84,12 @@ void fragment() {
 		smoothstep(0.90, 0.93, d)
 		-
 		smoothstep(0.956, 0.982, d);
-	color += ring_color * outer_ring * aura_breath;
+	// Soften the orb contour at the rearward trail exit. A reduced rim remains
+	// so the connection dissolves into the trail instead of creating a hard gap.
+	float trail_alignment = dot(normalize(p), normalize(trail_direction));
+	float trail_exit_fade = smoothstep(0.70, 0.98, trail_alignment);
+	float ring_visibility = mix(1.0, 0.42, trail_exit_fade);
+	color += ring_color * outer_ring * aura_breath * ring_visibility;
 
 	// The luminous centre gently pulses, but its edge is deliberately organic:
 	// low-frequency angular waves break the perfect circular silhouette.

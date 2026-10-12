@@ -1,5 +1,7 @@
 extends Node2D
 
+const PARTICLE_EMISSION_OFFSET: float = 28.0
+
 ## Visual energy trail for the player ball.
 ## The trail is layered: a soft outer aura, a turbulent inner stream, two
 ## independently drifting wisps, and a restrained geometric fragment field.
@@ -9,7 +11,7 @@ extends Node2D
 @export var max_points: int = 27
 @export var min_distance: float = 2.0
 @export var max_segment_distance: float = 120.0
-@export_range(0.0, 40.0, 1.0) var trail_head_offset: float = 28.0
+@export_range(0.0, 40.0, 1.0) var trail_head_offset: float = 20.0
 
 @export_category("Visual Palette")
 @export_enum("Electric Blue", "Rich Violet") var visual_palette: int = 0
@@ -69,6 +71,7 @@ func _process(delta: float) -> void:
 
 	_update_trail_lines()
 	_update_particle_emitters(current_world_position, movement, distance_from_trail)
+	_update_rim_direction(ball)
 	_previous_ball_position = current_world_position
 
 
@@ -173,7 +176,7 @@ func _update_particle_emitters(
 	# Spawn geometric fragments from the back of the orb, not its centre, so
 	# they appear to break away from the comet tail rather than through the ball.
 	var emission_position: Vector2 = (
-		current_world_position + _last_emission_direction * trail_head_offset
+		current_world_position + _last_emission_direction * PARTICLE_EMISSION_OFFSET
 	)
 	for emitter in _particle_emitters:
 		emitter.global_position = emission_position
@@ -184,6 +187,28 @@ func _update_particle_emitters(
 				_last_emission_direction.y,
 				0.0
 			)
+
+
+func _update_rim_direction(ball: CharacterBody2D) -> void:
+	# Convert the trail's rearward direction into the ball's local space so
+	# the rim opening follows the trail as the ball changes direction.
+	var local_trail_direction: Vector2 = (
+		ball.to_local(ball.global_position + _last_emission_direction)
+		- ball.to_local(ball.global_position)
+	)
+	if local_trail_direction.length_squared() < 0.001:
+		local_trail_direction = Vector2.DOWN
+	else:
+		local_trail_direction = local_trail_direction.normalized()
+
+	var orb_material := _ball_visual.material as ShaderMaterial
+	if orb_material != null:
+		orb_material.set_shader_parameter("trail_direction", local_trail_direction)
+
+	if _rim_aura != null:
+		var rim_material := _rim_aura.material as ShaderMaterial
+		if rim_material != null:
+			rim_material.set_shader_parameter("trail_direction", local_trail_direction)
 
 
 func _apply_visual_palette() -> void:
