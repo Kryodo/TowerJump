@@ -355,20 +355,20 @@ func _build_upper_contour_wisp(
 		var silhouette_half_width: float = _get_silhouette_half_width(
 			trail_progress, total_distance
 		)
-		# The strand first rides the contour edge, then eases away over its
-		# length. Most of the curve stays nearly parallel; only the final section
-		# gets a small outward tip bend, never a sharp elbow.
-		var branch_separation: float = 1.9 * smoothstep(
-			0.0, 1.0, local_progress
+		# Keep a readable air gap from the shared contour. The old 1.15 px
+		# clearance let the 3.4 px filament merge into the 1.8 px contour stroke.
+		# A steady offset makes this read as a contour-born streamer, not an arm.
+		var branch_separation: float = 1.6 * smoothstep(
+			0.12, 0.94, local_progress
 		)
-		var tip_peel: float = 1.4 * smoothstep(
-			0.78, 1.0, local_progress
+		var tip_peel: float = 1.0 * smoothstep(
+			0.80, 1.0, local_progress
 		)
 		var subtle_flow: float = sin(
 			_trail_time * 0.62 + trail_progress * 7.0 + 0.45
-		) * 0.22 * sin(PI * local_progress)
+		) * 0.18 * sin(PI * local_progress)
 		var lateral_offset: float = (
-			silhouette_half_width + 1.15
+			silhouette_half_width + 4.0
 			+ branch_separation + tip_peel + subtle_flow
 		)
 		var world_point: Vector2 = center + normal * lateral_offset
