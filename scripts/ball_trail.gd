@@ -245,16 +245,6 @@ func _update_unified_comet_shape() -> void:
 		)
 		_unified_contour.points = contour_points
 
-	# Drive the orb shader's rim blend from the shared silhouette's direction.
-	var ball := get_parent() as CharacterBody2D
-	if ball != null:
-		var local_tail_direction: Vector2 = (
-			ball.to_local(ball.global_position + root_direction)
-			- ball.to_local(ball.global_position)
-		).normalized()
-		var orb_material := _ball_visual.material as ShaderMaterial
-		if orb_material != null:
-			orb_material.set_shader_parameter("trail_direction", local_tail_direction)
 
 
 func _update_particle_emitters(
