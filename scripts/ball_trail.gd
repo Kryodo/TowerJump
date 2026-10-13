@@ -413,6 +413,21 @@ func _update_unified_comet_shape() -> void:
 				)
 		_unified_contour.points = contour_points
 
+	# Pass the live tail direction to the orb shader so the rim opening and
+	# incoming energy stay aligned with the actual trail while the ball turns.
+	var ball := get_parent() as CharacterBody2D
+	if ball != null:
+		var ball_local_origin: Vector2 = ball.to_local(ball.global_position)
+		var ball_local_tail_point: Vector2 = ball.to_local(
+			ball.global_position + root_direction
+		)
+		var local_trail_direction: Vector2 = ball_local_tail_point - ball_local_origin
+		if local_trail_direction.length_squared() > 0.001:
+			var orb_material := _ball_visual.material as ShaderMaterial
+			if orb_material != null:
+				orb_material.set_shader_parameter(
+					"trail_direction", local_trail_direction.normalized()
+				)
 
 
 func _update_particle_emitters(
