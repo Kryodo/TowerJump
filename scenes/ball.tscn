@@ -190,7 +190,6 @@ texture = ExtResource("3_f7cbr")
 z_index = -1
 script = ExtResource("2_4dx81")
 visual_palette = 1
-wisp_strength = 2.0
 
 [node name="UnifiedCometShape" type="Polygon2D" parent="TrailVisual" unique_id=1770062203]
 material = SubResource("ShaderMaterial_unified_comet")
