@@ -41,8 +41,8 @@ _data = [Vector2(0, 0.015), 0.0, 3.5, 0, 1, Vector2(0.06, 0.49), 3.5, 1.3, 1, 1,
 point_count = 7
 
 [sub_resource type="Gradient" id="Gradient_wisp_head"]
-offsets = PackedFloat32Array(0, 0.08, 0.22, 0.52, 0.76, 0.93, 1)
-colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 0.12, 1, 1, 1, 0.48, 1, 1, 1, 0.62, 1, 1, 1, 0.36, 1, 1, 1, 0.10, 1, 1, 1, 0)
+offsets = PackedFloat32Array(0, 0.10, 0.24, 0.54, 0.76, 0.92, 1)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 0.06, 1, 1, 1, 0.29, 1, 1, 1, 0.42, 1, 1, 1, 0.30, 1, 1, 1, 0.09, 1, 1, 1, 0)
 
 [sub_resource type="Gradient" id="Gradient_wisp_streamer"]
 offsets = PackedFloat32Array(0, 0.10, 0.27, 0.52, 0.72, 0.90, 1)
@@ -236,7 +236,7 @@ antialiased = true
 
 [node name="WispHead" type="Line2D" parent="TrailVisual" unique_id=1841021001]
 z_index = 1
-width = 4.5
+width = 3.4
 width_curve = SubResource("Curve_4dx81")
 gradient = SubResource("Gradient_wisp_head")
 joint_mode = 2
