@@ -11,9 +11,7 @@ extends Node2D
 @export var max_segment_distance: float = 120.0
 @export_range(0.0, 40.0, 1.0) var trail_head_offset: float = 28.0
 
-const UNIFIED_HEAD_RADIUS: float = 31.0
-const UNIFIED_ROOT_BLEND_DISTANCE: float = 38.0
-const UNIFIED_HEAD_ARC_SEGMENTS: int = 20
+const UNIFIED_HEAD_ARC_SEGMENTS: int = 32
 
 @export_category("Visual Palette")
 @export_enum("Electric Blue", "Rich Violet") var visual_palette: int = 0
@@ -29,11 +27,13 @@ var _particle_emitters: Array[GPUParticles2D] = []
 var _previous_ball_position: Vector2 = Vector2.ZERO
 var _trail_time: float = 0.0
 var _last_emission_direction: Vector2 = Vector2.DOWN
+var _ball_surface_radius: float = 0.0
 
 
 func _ready() -> void:
 	z_index = -1
 	_previous_ball_position = global_position
+	_ball_surface_radius = _measure_ball_surface_radius()
 
 	for node_name in [
 		"TrailParticles",
@@ -47,6 +47,117 @@ func _ready() -> void:
 
 	_apply_visual_palette()
 	_update_trail_lines()
+
+
+func _measure_ball_surface_radius() -> float:
+	if _ball_visual == null or _ball_visual.texture == null:
+		return 30.0
+
+	var texture_image: Image = _ball_visual.texture.get_image()
+	if texture_image == null or texture_image.is_empty():
+		var texture_size: Vector2 = _ball_visual.texture.get_size()
+		var scale_x: float = absf(_ball_visual.global_scale.x)
+		var scale_y: float = absf(_ball_visual.global_scale.y)
+		return minf(texture_size.x * scale_x, texture_size.y * scale_y) * 0.5
+
+	var image_size: Vector2i = texture_image.get_size()
+	var image_center := Vector2(
+		(float(image_size.x) - 1.0) * 0.5,
+		(float(image_size.y) - 1.0) * 0.5
+	)
+	var max_radius: float = minf(image_size.x, image_size.y) * 0.5
+	var step_size: float = 0.25
+	var sample_count: int = int(ceil(max_radius / step_size))
+	var angle_count: int = 256
+	var radius_sum: float = 0.0
+	var measured_rays: int = 0
+
+	# Measure the alpha=0.5 boundary radially so transparent padding in the
+	# mask texture does not inflate the ball radius used by the shared contour.
+	for angle_index in range(angle_count):
+		var angle: float = TAU * float(angle_index) / float(angle_count)
+		var direction := Vector2(cos(angle), sin(angle))
+		var previous_radius: float = 0.0
+		var previous_alpha: float = _sample_image_alpha_bilinear(texture_image, image_center)
+		var crossing_radius: float = max_radius
+		var found_edge: bool = false
+
+		for sample_index in range(1, sample_count + 1):
+			var current_radius: float = minf(float(sample_index) * step_size, max_radius)
+			var sample_position: Vector2 = image_center + direction * current_radius
+			var current_alpha: float = _sample_image_alpha_bilinear(texture_image, sample_position)
+			if current_alpha < 0.5:
+				var alpha_span: float = previous_alpha - current_alpha
+				var crossing_t: float = 0.0
+				if alpha_span > 0.001:
+					crossing_t = clampf((previous_alpha - 0.5) / alpha_span, 0.0, 1.0)
+				crossing_radius = lerp(previous_radius, current_radius, crossing_t)
+				found_edge = true
+				break
+			previous_radius = current_radius
+			previous_alpha = current_alpha
+
+		if found_edge:
+			radius_sum += crossing_radius
+			measured_rays += 1
+
+	if measured_rays == 0:
+		var fallback_size: Vector2 = _ball_visual.texture.get_size()
+		var fallback_scale_x: float = absf(_ball_visual.global_scale.x)
+		var fallback_scale_y: float = absf(_ball_visual.global_scale.y)
+		return minf(fallback_size.x * fallback_scale_x, fallback_size.y * fallback_scale_y) * 0.5
+
+	var texture_radius: float = radius_sum / float(measured_rays)
+	var world_scale: float = (
+		absf(_ball_visual.global_scale.x) + absf(_ball_visual.global_scale.y)
+	) * 0.5
+	return texture_radius * world_scale
+
+
+func _sample_image_alpha_bilinear(texture_image: Image, position: Vector2) -> float:
+	var max_x: float = float(texture_image.get_width() - 1)
+	var max_y: float = float(texture_image.get_height() - 1)
+	var x: float = clampf(position.x, 0.0, max_x)
+	var y: float = clampf(position.y, 0.0, max_y)
+	var x0: int = int(floor(x))
+	var y0: int = int(floor(y))
+	var x1: int = mini(x0 + 1, texture_image.get_width() - 1)
+	var y1: int = mini(y0 + 1, texture_image.get_height() - 1)
+	var tx: float = x - float(x0)
+	var ty: float = y - float(y0)
+	var top_alpha: float = lerp(
+		texture_image.get_pixel(x0, y0).a,
+		texture_image.get_pixel(x1, y0).a,
+		tx
+	)
+	var bottom_alpha: float = lerp(
+		texture_image.get_pixel(x0, y1).a,
+		texture_image.get_pixel(x1, y1).a,
+		tx
+	)
+	return lerp(top_alpha, bottom_alpha, ty)
+
+
+func _get_contour_surface_radius() -> float:
+	if _unified_contour == null:
+		return _ball_surface_radius
+	var contour_scale: float = (
+		absf(_unified_contour.global_scale.x) + absf(_unified_contour.global_scale.y)
+	) * 0.5
+	var half_stroke: float = _unified_contour.width * contour_scale * 0.5
+	return maxf(_ball_surface_radius - half_stroke, 0.1)
+
+
+func _fit_contour_point_to_orb_surface(
+	point: Vector2,
+	ball_center: Vector2,
+	contour_radius: float
+) -> Vector2:
+	var offset: Vector2 = point - ball_center
+	var distance: float = offset.length()
+	if distance > 0.001 and distance <= _ball_surface_radius + 0.25:
+		return ball_center + offset * (contour_radius / distance)
+	return point
 
 
 func _process(delta: float) -> void:
@@ -179,12 +290,18 @@ func _update_unified_comet_shape() -> void:
 		if _trail_aura.width_curve != null:
 			width_factor = _trail_aura.width_curve.sample_baked(progress)
 		var line_half_width: float = _trail_aura.width * width_factor * 0.5
-		var root_blend: float = 1.0 - smoothstep(
-			0.0,
-			UNIFIED_ROOT_BLEND_DISTANCE,
-			cumulative_distances[i]
-		)
-		half_widths.append(lerp(line_half_width, UNIFIED_HEAD_RADIUS, root_blend))
+		var distance_from_ball: float = path[i].distance_to(path[0])
+		var hood_half_width: float = 0.0
+		if distance_from_ball < _ball_surface_radius:
+			# Cross-section of the orb's circle at this distance along the hood:
+			# x*x + y*y = r*r, therefore y = sqrt(r*r - x*x).
+			var radius_squared: float = _ball_surface_radius * _ball_surface_radius
+			var distance_squared: float = distance_from_ball * distance_from_ball
+			hood_half_width = sqrt(maxf(radius_squared - distance_squared, 0.0))
+		# The larger of the orb's circular envelope and the regular trail width
+		# forms the geometric union; their intersection determines where the
+		# hood naturally becomes the free trail instead of using a fixed blend.
+		half_widths.append(maxf(line_half_width, hood_half_width))
 
 	var polygon_points := PackedVector2Array()
 	var polygon_uvs := PackedVector2Array()
@@ -198,8 +315,8 @@ func _update_unified_comet_shape() -> void:
 		var angle: float = PI * 0.5 + PI * arc_t
 		var world_point: Vector2 = (
 			path[0]
-			+ root_direction * UNIFIED_HEAD_RADIUS * cos(angle)
-			+ root_normal * UNIFIED_HEAD_RADIUS * sin(angle)
+			+ root_direction * _ball_surface_radius * cos(angle)
+			+ root_normal * _ball_surface_radius * sin(angle)
 		)
 		polygon_points.append(_unified_shape.to_local(world_point))
 		polygon_uvs.append(Vector2(0.0, arc_t))
@@ -223,26 +340,43 @@ func _update_unified_comet_shape() -> void:
 	_unified_shape.polygon = polygon_points
 	_unified_shape.uv = polygon_uvs
 
-	# Draw only the exposed silhouette: begin at one shoulder, follow that
-	# side of the shared body to the tip, then return along the opposite side.
-	# The front head arc is deliberately omitted; the orb supplies that contour.
+	# Build one closed outer boundary: upper hood edge -> tail tip -> lower hood
+	# edge -> the exposed half of the orb. The contour centreline is inset by
+	# half its stroke width so its outside edge matches the mask's alpha boundary.
 	if _unified_contour != null:
 		var contour_points := PackedVector2Array()
+		var contour_radius: float = _get_contour_surface_radius()
 		contour_points.append(
-			_unified_shape.to_local(path[0] + root_normal * UNIFIED_HEAD_RADIUS)
+			_unified_shape.to_local(path[0] + root_normal * contour_radius)
 		)
 		for i in range(1, path.size() - 1):
-			contour_points.append(
-				_unified_shape.to_local(path[i] + normals[i] * half_widths[i])
+			var upper_edge: Vector2 = path[i] + normals[i] * half_widths[i]
+			upper_edge = _fit_contour_point_to_orb_surface(
+				upper_edge, path[0], contour_radius
 			)
+			contour_points.append(_unified_shape.to_local(upper_edge))
 		contour_points.append(_unified_shape.to_local(path[path.size() - 1]))
 		for i in range(path.size() - 2, 0, -1):
-			contour_points.append(
-				_unified_shape.to_local(path[i] - normals[i] * half_widths[i])
+			var lower_edge: Vector2 = path[i] - normals[i] * half_widths[i]
+			lower_edge = _fit_contour_point_to_orb_surface(
+				lower_edge, path[0], contour_radius
 			)
+			contour_points.append(_unified_shape.to_local(lower_edge))
 		contour_points.append(
-			_unified_shape.to_local(path[0] - root_normal * UNIFIED_HEAD_RADIUS)
+			_unified_shape.to_local(path[0] - root_normal * contour_radius)
 		)
+
+		# Close the contour through the exposed/front hemisphere. The opposite
+		# hemisphere is supplied by the two hood flanks as they leave the orb.
+		for arc_index in range(1, UNIFIED_HEAD_ARC_SEGMENTS + 1):
+			var arc_t: float = float(arc_index) / float(UNIFIED_HEAD_ARC_SEGMENTS)
+			var angle: float = PI * 1.5 - PI * arc_t
+			var arc_point: Vector2 = (
+				path[0]
+				+ root_direction * contour_radius * cos(angle)
+				+ root_normal * contour_radius * sin(angle)
+			)
+			contour_points.append(_unified_shape.to_local(arc_point))
 		_unified_contour.points = contour_points
 
 
