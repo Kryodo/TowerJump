@@ -84,14 +84,15 @@ void fragment() {
 		smoothstep(0.90, 0.93, d)
 		-
 		smoothstep(0.956, 0.982, d);
-	// The shared comet silhouette continues under the rear contour into the tail.
+	// The shared trail contour joins the orb at its two lateral shoulders.
+	// Fade the independent orb rim precisely at those joins so both read as
+	// one continuous boundary instead of two bright outlines sitting together.
 	vec2 radial_direction = p / max(d, 0.001);
-	vec2 tail_direction_normalized = trail_direction / max(length(trail_direction), 0.001);
-	float tail_alignment = dot(radial_direction, tail_direction_normalized);
-	float shared_join = smoothstep(0.42, 0.90, tail_alignment);
-	// Preserve more of the orb's rim where the shared comet contour takes over.
-	// The trail-facing rim remains slightly subdued, but no longer drops away.
-	float ring_visibility = mix(1.0, 0.56, shared_join);
+	vec2 trail_direction_normalized = trail_direction / max(length(trail_direction), 0.001);
+	float trail_alignment = dot(radial_direction, trail_direction_normalized);
+	float shoulder_alignment = 1.0 - abs(trail_alignment);
+	float shared_join = smoothstep(0.24, 0.72, shoulder_alignment);
+	float ring_visibility = 1.0 - shared_join;
 	color += ring_color * outer_ring * aura_breath * ring_visibility;
 
 	// The luminous centre gently pulses, but its edge is deliberately organic:
