@@ -266,7 +266,8 @@ func _update_unified_comet_shape() -> void:
 
 	var tangents: Array[Vector2] = []
 	var normals: Array[Vector2] = []
-	var half_widths: Array[float] = []
+	var positive_half_widths: Array[float] = []
+	var negative_half_widths: Array[float] = []
 	for i in range(path.size()):
 		var tangent: Vector2
 		if i == 0:
@@ -290,18 +291,32 @@ func _update_unified_comet_shape() -> void:
 		if _trail_aura.width_curve != null:
 			width_factor = _trail_aura.width_curve.sample_baked(progress)
 		var line_half_width: float = _trail_aura.width * width_factor * 0.5
-		var distance_from_ball: float = path[i].distance_to(path[0])
-		var hood_half_width: float = 0.0
-		if distance_from_ball < _ball_surface_radius:
-			# Cross-section of the orb's circle at this distance along the hood:
-			# x*x + y*y = r*r, therefore y = sqrt(r*r - x*x).
-			var radius_squared: float = _ball_surface_radius * _ball_surface_radius
-			var distance_squared: float = distance_from_ball * distance_from_ball
-			hood_half_width = sqrt(maxf(radius_squared - distance_squared, 0.0))
-		# The larger of the orb's circular envelope and the regular trail width
-		# forms the geometric union; their intersection determines where the
-		# hood naturally becomes the free trail instead of using a fixed blend.
-		half_widths.append(maxf(line_half_width, hood_half_width))
+		var positive_half_width: float = line_half_width
+		var negative_half_width: float = line_half_width
+		var head_offset: Vector2 = path[i] - path[0]
+		var head_offset_squared: float = head_offset.length_squared()
+		var radius_squared: float = _ball_surface_radius * _ball_surface_radius
+
+		if head_offset_squared < radius_squared:
+			# Intersect this trail cross-section with the actual orb circle.
+			# For P +/- normal*w, |P +/- normal*w|^2 = r^2 gives the two
+			# exact surface distances, even when the trail bends or drifts laterally.
+			var normal_projection: float = head_offset.dot(normal)
+			var discriminant: float = maxf(
+				normal_projection * normal_projection + radius_squared - head_offset_squared,
+				0.0
+			)
+			var circle_reach: float = sqrt(discriminant)
+			var positive_circle_width: float = -normal_projection + circle_reach
+			var negative_circle_width: float = normal_projection + circle_reach
+
+			# The larger cross-section defines the union of orb and trail. Where
+			# the trail width overtakes the circle, its own edge becomes the contour.
+			positive_half_width = maxf(line_half_width, positive_circle_width)
+			negative_half_width = maxf(line_half_width, negative_circle_width)
+
+		positive_half_widths.append(positive_half_width)
+		negative_half_widths.append(negative_half_width)
 
 	var polygon_points := PackedVector2Array()
 	var polygon_uvs := PackedVector2Array()
@@ -323,7 +338,7 @@ func _update_unified_comet_shape() -> void:
 
 	# Right edge follows the same historical trajectory as the trail lines.
 	for i in range(1, path.size() - 1):
-		var right_point: Vector2 = path[i] - normals[i] * half_widths[i]
+		var right_point: Vector2 = path[i] - normals[i] * negative_half_widths[i]
 		polygon_points.append(_unified_shape.to_local(right_point))
 		polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 1.0))
 
@@ -333,7 +348,7 @@ func _update_unified_comet_shape() -> void:
 
 	# Return along the left edge and close against the orb's rear contour.
 	for i in range(path.size() - 2, 0, -1):
-		var left_point: Vector2 = path[i] + normals[i] * half_widths[i]
+		var left_point: Vector2 = path[i] + normals[i] * positive_half_widths[i]
 		polygon_points.append(_unified_shape.to_local(left_point))
 		polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 0.0))
 
@@ -350,14 +365,14 @@ func _update_unified_comet_shape() -> void:
 			_unified_shape.to_local(path[0] + root_normal * contour_radius)
 		)
 		for i in range(1, path.size() - 1):
-			var upper_edge: Vector2 = path[i] + normals[i] * half_widths[i]
+			var upper_edge: Vector2 = path[i] + normals[i] * positive_half_widths[i]
 			upper_edge = _fit_contour_point_to_orb_surface(
 				upper_edge, path[0], contour_radius
 			)
 			contour_points.append(_unified_shape.to_local(upper_edge))
 		contour_points.append(_unified_shape.to_local(path[path.size() - 1]))
 		for i in range(path.size() - 2, 0, -1):
-			var lower_edge: Vector2 = path[i] - normals[i] * half_widths[i]
+			var lower_edge: Vector2 = path[i] - normals[i] * negative_half_widths[i]
 			lower_edge = _fit_contour_point_to_orb_surface(
 				lower_edge, path[0], contour_radius
 			)
