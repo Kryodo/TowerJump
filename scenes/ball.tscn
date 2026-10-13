@@ -185,7 +185,7 @@ material = SubResource("ShaderMaterial_unified_comet")
 z_index = -1
 
 [node name="UnifiedCometContour" type="Line2D" parent="TrailVisual" unique_id=1770062204]
-z_index = 1
+z_index = 2
 width = 2.0
 gradient = SubResource("Gradient_unified_contour")
 joint_mode = 2
