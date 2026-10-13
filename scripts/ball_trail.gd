@@ -254,10 +254,14 @@ func _update_trail_lines() -> void:
 	# Rebuild the stream every frame with a tiny animated lateral drift.
 	# This keeps the energy alive at the jump apex even when the ball itself
 	# has almost no velocity and no new trail samples are being collected.
+	# Keep the inner energy line's recessed head, but give the translucent aura
+	# the same centreline as the unified skin and contour so their outer edges
+	# stay aligned through the narrow neck directly below the orb.
 	for i in range(_points.size()):
 		var point: Vector2 = _get_animated_trail_point(i)
 		_energy_line.add_point(_energy_line.to_local(point))
-		_trail_aura.add_point(_trail_aura.to_local(point))
+		var aura_point: Vector2 = _get_animated_trail_point(i, false)
+		_trail_aura.add_point(_trail_aura.to_local(aura_point))
 
 	_update_unified_comet_shape()
 
@@ -413,21 +417,6 @@ func _update_unified_comet_shape() -> void:
 				)
 		_unified_contour.points = contour_points
 
-	# Pass the live tail direction to the orb shader so the rim opening and
-	# incoming energy stay aligned with the actual trail while the ball turns.
-	var ball := get_parent() as CharacterBody2D
-	if ball != null:
-		var ball_local_origin: Vector2 = ball.to_local(ball.global_position)
-		var ball_local_tail_point: Vector2 = ball.to_local(
-			ball.global_position + root_direction
-		)
-		var local_trail_direction: Vector2 = ball_local_tail_point - ball_local_origin
-		if local_trail_direction.length_squared() > 0.001:
-			var orb_material := _ball_visual.material as ShaderMaterial
-			if orb_material != null:
-				orb_material.set_shader_parameter(
-					"trail_direction", local_trail_direction.normalized()
-				)
 
 
 func _update_particle_emitters(
