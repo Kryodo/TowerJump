@@ -23,7 +23,6 @@ const UNIFIED_HEAD_ARC_SEGMENTS: int = 20
 @onready var _unified_shape: Polygon2D = get_node_or_null("UnifiedCometShape") as Polygon2D
 @onready var _unified_contour: Line2D = get_node_or_null("UnifiedCometContour") as Line2D
 @onready var _ball_visual: Sprite2D = get_parent().get_node("Visual") as Sprite2D
-@onready var _rim_aura: Sprite2D = get_parent().get_node_or_null("RimAura") as Sprite2D
 
 var _points: Array[Vector2] = []
 var _particle_emitters: Array[GPUParticles2D] = []
@@ -246,8 +245,7 @@ func _update_unified_comet_shape() -> void:
 		)
 		_unified_contour.points = contour_points
 
-	# The same direction drives both rim shaders, tying their contour treatment
-	# to the actual shared silhouette instead of fading an independent effect.
+	# Drive the orb shader's rim blend from the shared silhouette's direction.
 	var ball := get_parent() as CharacterBody2D
 	if ball != null:
 		var local_tail_direction: Vector2 = (
@@ -257,10 +255,6 @@ func _update_unified_comet_shape() -> void:
 		var orb_material := _ball_visual.material as ShaderMaterial
 		if orb_material != null:
 			orb_material.set_shader_parameter("trail_direction", local_tail_direction)
-		if _rim_aura != null:
-			var rim_material := _rim_aura.material as ShaderMaterial
-			if rim_material != null:
-				rim_material.set_shader_parameter("trail_direction", local_tail_direction)
 
 
 func _update_particle_emitters(
@@ -325,11 +319,6 @@ func _apply_visual_palette() -> void:
 		orb_material = orb_material.duplicate() as ShaderMaterial
 		orb_material.set_shader_parameter("palette_mode", visual_palette)
 		_ball_visual.material = orb_material
-
-	if _rim_aura != null:
-		var rim_aura_material := _rim_aura.material as ShaderMaterial
-		if rim_aura_material != null:
-			rim_aura_material.set_shader_parameter("palette_mode", visual_palette)
 
 	if _unified_shape != null:
 		var unified_material := _unified_shape.material as ShaderMaterial
