@@ -156,7 +156,7 @@ void fragment() {
 			+ sin(flow_side * 8.0 + time * 1.1) * 0.45
 		)
 	);
-	float flow_forward_fade = 1.0 - smoothstep(-0.40, -0.18, flow_along);
+	float flow_forward_fade = smoothstep(-0.40, -0.18, flow_along);
 	float flow_surface_fade = 1.0 - smoothstep(0.99, 1.06, d);
 	float flow_core_clearance = smoothstep(
 		core_radius * 1.08,
