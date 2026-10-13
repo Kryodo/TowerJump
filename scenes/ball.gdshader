@@ -135,9 +135,10 @@ void fragment() {
 		orbit_radius * orbit_radius - orbit_along * orbit_along,
 		0.0
 	));
-	branch_offset *= smoothstep(-0.42, -0.16, flow_along);
-	float branch_wobble =
-		0.014 * sin(time * 2.1 - flow_along * 7.0 + abs(flow_side) * 5.0);
+	float spread_amount = smoothstep(0.0, 0.20, orbit_radius - flow_along);
+	float branch_wobble = spread_amount * (
+		0.014 * sin(time * 2.1 - flow_along * 7.0 + abs(flow_side) * 5.0)
+	);
 	float branch_distance = abs(
 		abs(flow_side) - max(branch_offset + branch_wobble, 0.0)
 	);
