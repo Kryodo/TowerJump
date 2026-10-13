@@ -7,12 +7,7 @@
 [ext_resource type="Texture2D" uid="uid://bdjibaetopyy2" path="res://Assets/ball_mask.png" id="3_f7cbr"]
 [ext_resource type="Texture2D" uid="uid://cxkt5pn1abx0k" path="res://Assets/soft_energy_particle.png" id="4_jj7gd"]
 [ext_resource type="Texture2D" uid="uid://x4vri0ghb2xn" path="res://Assets/energy_particle_atlas.png" id="5_energy_atlas"]
-[ext_resource type="Shader" uid="uid://bundg76shhx4v" path="res://scenes/ball_rim_aura.gdshader" id="6_rim_aura"]
 [ext_resource type="Shader" path="res://scenes/unified_comet.gdshader" id="7_unified_comet"]
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_rim_aura"]
-shader = ExtResource("6_rim_aura")
-shader_parameter/palette_mode = 1
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_unified_comet"]
 shader = ExtResource("7_unified_comet")
@@ -179,12 +174,6 @@ shader_parameter/palette_mode = 0
 script = ExtResource("1_ball")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1403364382]
-
-[node name="RimAura" type="Sprite2D" parent="." unique_id=2025838926]
-z_index = -1
-material = SubResource("ShaderMaterial_rim_aura")
-scale = Vector2(0.492, 0.492)
-texture = ExtResource("3_f7cbr")
 
 [node name="TrailVisual" type="Node2D" parent="." unique_id=2025838925]
 z_index = -1
