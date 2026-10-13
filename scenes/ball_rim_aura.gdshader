@@ -26,7 +26,9 @@ void fragment() {
 	vec2 tail_direction_normalized = trail_direction / max(length(trail_direction), 0.001);
 	float tail_alignment = dot(radial_direction, tail_direction_normalized);
 	float shared_join = smoothstep(0.38, 0.88, tail_alignment);
-	outer_rim *= mix(1.0, 0.10, shared_join);
+	// The secondary halo should softly support the contour at the neck rather
+	// than vanish completely where the ball transitions into the tail.
+	outer_rim *= mix(1.0, 0.24, shared_join);
 
 	float travelling_energy =
 		0.72
@@ -41,6 +43,6 @@ void fragment() {
 		rim_color = vec3(0.26, 1.42, 2.5);
 	}
 
-	float alpha = outer_rim * travelling_energy * mix(0.055, 0.105, breathing);
+	float alpha = outer_rim * travelling_energy * mix(0.065, 0.112, breathing);
 	COLOR = vec4(rim_color * travelling_energy, alpha);
 }
