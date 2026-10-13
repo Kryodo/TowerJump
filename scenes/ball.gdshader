@@ -3,6 +3,8 @@ shader_type canvas_item;
 // 0 = saturated electric blue, 1 = rich violet.
 // The trail controller sets this so orb and trail share one palette.
 uniform int palette_mode = 0;
+// Shared with the trail contour so both sides pulse in sync.
+uniform float rim_breath = 1.0;
 
 void fragment() {
 	vec2 p = UV * 2.0 - 1.0;
@@ -18,6 +20,7 @@ void fragment() {
 	vec3 moving_energy;
 	vec3 inner_energy_color;
 	vec3 transition_color;
+	vec3 ring_color;
 	vec3 core_color;
 	vec3 aura_color;
 	vec3 highlight_color;
@@ -29,6 +32,7 @@ void fragment() {
 		moving_energy = vec3(0.52, 0.12, 1.25);
 		inner_energy_color = vec3(0.58, 0.10, 1.5);
 		transition_color = vec3(0.34, 0.045, 0.78);
+		ring_color = vec3(2.7, 0.55, 5.2);
 		core_color = vec3(4.0, 3.25, 6.2);
 		aura_color = vec3(1.45, 0.22, 3.1);
 		highlight_color = vec3(1.0, 0.72, 1.5);
@@ -39,6 +43,7 @@ void fragment() {
 		moving_energy = vec3(0.04, 0.48, 1.25);
 		inner_energy_color = vec3(0.025, 0.32, 1.05);
 		transition_color = vec3(0.025, 0.20, 0.68);
+		ring_color = vec3(0.18, 2.15, 5.2);
 		core_color = vec3(3.2, 5.1, 6.3);
 		aura_color = vec3(0.04, 1.25, 3.0);
 		highlight_color = vec3(0.65, 1.45, 2.25);
@@ -75,6 +80,13 @@ void fragment() {
 	float outer_transition = 1.0 - smoothstep(0.36, 0.99, d);
 	color += transition_color * outer_transition * 0.18;
 
+	// Restore the full orb rim. It is no longer directionally faded, so the
+	// trail cannot cut accidental gaps into the left or right sides.
+	float outer_ring =
+		smoothstep(0.90, 0.93, d)
+		-
+		smoothstep(0.956, 0.982, d);
+	color += ring_color * outer_ring * rim_breath;
 
 	// The luminous centre gently pulses, but its edge is deliberately organic:
 	// low-frequency angular waves break the perfect circular silhouette.
