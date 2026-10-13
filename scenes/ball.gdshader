@@ -3,7 +3,6 @@ shader_type canvas_item;
 // 0 = saturated electric blue, 1 = rich violet.
 // The trail controller sets this so orb and trail share one palette.
 uniform int palette_mode = 0;
-uniform vec2 trail_direction = vec2(0.0, 1.0);
 
 void fragment() {
 	vec2 p = UV * 2.0 - 1.0;
@@ -19,7 +18,6 @@ void fragment() {
 	vec3 moving_energy;
 	vec3 inner_energy_color;
 	vec3 transition_color;
-	vec3 ring_color;
 	vec3 core_color;
 	vec3 aura_color;
 	vec3 highlight_color;
@@ -31,7 +29,6 @@ void fragment() {
 		moving_energy = vec3(0.52, 0.12, 1.25);
 		inner_energy_color = vec3(0.58, 0.10, 1.5);
 		transition_color = vec3(0.34, 0.045, 0.78);
-		ring_color = vec3(2.7, 0.55, 5.2);
 		core_color = vec3(4.0, 3.25, 6.2);
 		aura_color = vec3(1.45, 0.22, 3.1);
 		highlight_color = vec3(1.0, 0.72, 1.5);
@@ -42,7 +39,6 @@ void fragment() {
 		moving_energy = vec3(0.04, 0.48, 1.25);
 		inner_energy_color = vec3(0.025, 0.32, 1.05);
 		transition_color = vec3(0.025, 0.20, 0.68);
-		ring_color = vec3(0.18, 2.15, 5.2);
 		core_color = vec3(3.2, 5.1, 6.3);
 		aura_color = vec3(0.04, 1.25, 3.0);
 		highlight_color = vec3(0.65, 1.45, 2.25);
@@ -79,21 +75,6 @@ void fragment() {
 	float outer_transition = 1.0 - smoothstep(0.36, 0.99, d);
 	color += transition_color * outer_transition * 0.18;
 
-	// A thinner luminous contour reads as an aura outline, not a hard border.
-	float outer_ring =
-		smoothstep(0.90, 0.93, d)
-		-
-		smoothstep(0.956, 0.982, d);
-	// The shared trail contour joins the orb at its two lateral shoulders.
-	// Fade the independent orb rim precisely at those joins so both read as
-	// one continuous boundary instead of two bright outlines sitting together.
-	vec2 radial_direction = p / max(d, 0.001);
-	vec2 trail_direction_normalized = trail_direction / max(length(trail_direction), 0.001);
-	float trail_alignment = dot(radial_direction, trail_direction_normalized);
-	float shoulder_alignment = 1.0 - abs(trail_alignment);
-	float shared_join = smoothstep(0.24, 0.72, shoulder_alignment);
-	float ring_visibility = 1.0 - shared_join;
-	color += ring_color * outer_ring * aura_breath * ring_visibility;
 
 	// The luminous centre gently pulses, but its edge is deliberately organic:
 	// low-frequency angular waves break the perfect circular silhouette.
