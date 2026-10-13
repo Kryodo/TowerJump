@@ -17,6 +17,10 @@ const ORB_RIM_CENTER_RADIUS_RATIO: float = 0.93
 @export_category("Visual Palette")
 @export_enum("Electric Blue", "Rich Violet") var visual_palette: int = 0
 
+@export_category("Comet Shedding")
+@export var shedding_enabled: bool = true
+@export_range(0.06, 0.5, 0.01) var shed_fragment_interval: float = 0.14
+
 @onready var _energy_line: Line2D = $EnergyLine
 @onready var _trail_aura: Line2D = $TrailAura
 @onready var _unified_shape: Polygon2D = get_node_or_null("UnifiedCometShape") as Polygon2D
@@ -29,6 +33,9 @@ var _previous_ball_position: Vector2 = Vector2.ZERO
 var _trail_time: float = 0.0
 var _last_emission_direction: Vector2 = Vector2.DOWN
 var _ball_surface_radius: float = 29.9
+var _shed_spawn_clock: float = 0.0
+var _shed_sequence: int = 0
+var _detached_shed_fragments: Array[Dictionary] = []
 
 
 func _ready() -> void:
@@ -206,6 +213,8 @@ func _process(delta: float) -> void:
 		return
 
 	_trail_time += delta
+	if shedding_enabled:
+		_shed_spawn_clock += delta
 	var current_world_position: Vector2 = ball.global_position
 	var movement: Vector2 = current_world_position - _previous_ball_position
 	var distance_from_trail: float = movement.length()
@@ -221,6 +230,7 @@ func _process(delta: float) -> void:
 			_points.pop_back()
 
 	_update_trail_lines()
+	_update_detached_shed_fragments(delta)
 	_update_rim_breath()
 	_update_particle_emitters(current_world_position, movement, distance_from_trail)
 	_previous_ball_position = current_world_position
@@ -417,6 +427,116 @@ func _update_unified_comet_shape() -> void:
 				)
 		_unified_contour.points = contour_points
 
+	# Emit one actual polygon shard from the lower trail at intervals. Shader
+	# fractures remove material from the parent trail while these pieces drift
+	# independently, so the breakup reads as shed geometry rather than sparks.
+	if shedding_enabled and _shed_spawn_clock >= shed_fragment_interval:
+		_shed_spawn_clock = 0.0
+		_spawn_shed_fragment(
+			path, cumulative_distances, total_distance, tangents, normals, half_widths
+		)
+
+
+func _spawn_shed_fragment(
+	path: Array[Vector2],
+	cumulative_distances: Array[float],
+	total_distance: float,
+	tangents: Array[Vector2],
+	normals: Array[Vector2],
+	half_widths: Array[float]
+) -> void:
+	if path.size() < 16 or total_distance < 105.0 or _detached_shed_fragments.size() >= 14:
+		return
+
+	var progress_slots: Array[float] = [0.50, 0.62, 0.74, 0.84, 0.92]
+	var source_progress: float = progress_slots[_shed_sequence % progress_slots.size()]
+	var source_index: int = 0
+	var closest_error: float = 10.0
+	for i in range(path.size()):
+		var progress: float = cumulative_distances[i] / total_distance
+		var error: float = absf(progress - source_progress)
+		if error < closest_error:
+			closest_error = error
+			source_index = i
+
+	var sequence_value: float = float(_shed_sequence)
+	var seed_value: float = absf(sin(sequence_value * 17.13 + 2.7))
+	var side: float = -1.0 if _shed_sequence % 2 == 0 else 1.0
+	var shard_size: float = lerpf(3.2, 7.0, seed_value)
+	var shard := Polygon2D.new()
+	shard.name = "DetachedCometShard"
+	shard.z_as_relative = false
+	shard.z_index = -2
+	shard.color = (
+		Color(0.56, 0.17, 1.30, 0.92)
+		if visual_palette == 1
+		else Color(0.10, 0.44, 1.28, 0.92)
+	)
+	shard.polygon = PackedVector2Array([
+		Vector2(-shard_size, -shard_size * 0.18 * side),
+		Vector2(shard_size * 0.16, -shard_size * 0.34 * side),
+		Vector2(shard_size * 0.92, shard_size * 0.06 * side),
+		Vector2(shard_size * 0.27, shard_size * 0.78 * side),
+		Vector2(-shard_size * 0.30, shard_size * 0.46 * side)
+	])
+
+	var source_position: Vector2 = (
+		path[source_index]
+		+ normals[source_index] * half_widths[source_index] * side * 0.68
+	)
+	var world_root: Node = get_tree().current_scene
+	if world_root == null:
+		world_root = get_parent()
+	world_root.add_child(shard)
+	shard.global_position = source_position
+	shard.global_rotation = tangents[source_index].angle()
+
+	var outward_speed: float = lerpf(22.0, 48.0, seed_value)
+	var drift_speed: float = lerpf(8.0, 24.0, 1.0 - seed_value)
+	var lifetime: float = lerpf(0.34, 0.62, seed_value)
+	var angular_velocity: float = lerpf(-3.4, 3.4, absf(sin(sequence_value * 8.31 + 0.9)))
+	var velocity: Vector2 = (
+		normals[source_index] * side * outward_speed
+		+ tangents[source_index] * drift_speed
+	)
+	_detached_shed_fragments.append({
+		"node": shard,
+		"velocity": velocity,
+		"age": 0.0,
+		"lifetime": lifetime,
+		"angular_velocity": angular_velocity,
+		"base_alpha": 0.92
+	})
+	_shed_sequence += 1
+
+
+func _update_detached_shed_fragments(delta: float) -> void:
+	for fragment_index in range(_detached_shed_fragments.size() - 1, -1, -1):
+		var fragment: Dictionary = _detached_shed_fragments[fragment_index]
+		var shard := fragment.get("node") as Polygon2D
+		if not is_instance_valid(shard):
+			_detached_shed_fragments.remove_at(fragment_index)
+			continue
+
+		var age: float = float(fragment["age"]) + delta
+		var lifetime: float = float(fragment["lifetime"])
+		var velocity: Vector2 = fragment["velocity"]
+		velocity.y += 10.0 * delta
+		velocity *= maxf(0.0, 1.0 - delta * 0.8)
+		shard.global_position += velocity * delta
+		shard.rotation += float(fragment["angular_velocity"]) * delta
+		var fade: float = 1.0 - smoothstep(lifetime * 0.18, lifetime, age)
+		var tint: Color = shard.modulate
+		tint.a = float(fragment["base_alpha"]) * fade
+		shard.modulate = tint
+
+		fragment["age"] = age
+		fragment["velocity"] = velocity
+		if age >= lifetime:
+			shard.queue_free()
+			_detached_shed_fragments.remove_at(fragment_index)
+		else:
+			_detached_shed_fragments[fragment_index] = fragment
 
 
 func _update_particle_emitters(
@@ -487,12 +607,14 @@ func _apply_visual_palette() -> void:
 		if unified_material != null:
 			unified_material = unified_material.duplicate() as ShaderMaterial
 			unified_material.set_shader_parameter("palette_mode", visual_palette)
+			unified_material.set_shader_parameter("shedding_amount", 1.0 if shedding_enabled else 0.0)
 			_unified_shape.material = unified_material
 
 	var energy_material := _energy_line.material as ShaderMaterial
 	if energy_material != null:
 		energy_material = energy_material.duplicate() as ShaderMaterial
 		energy_material.set_shader_parameter("palette_mode", visual_palette)
+		energy_material.set_shader_parameter("shedding_amount", 1.0 if shedding_enabled else 0.0)
 		_energy_line.material = energy_material
 
 	_set_line_gradient(_energy_line, energy_head, energy_tail)
