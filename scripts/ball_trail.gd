@@ -296,12 +296,10 @@ func _update_wisp_lines() -> void:
 	if total_distance < 0.001:
 		return
 
-	# Short head-born filament: partially hidden by the orb, then it peels out
-	# and fades around the upper-middle of the comet instead of running its length.
-	_build_wisp_curve(
-		_wisp_head, path, cumulative_distances, total_distance,
-		0.0, 0.47, 1.0, 0.12, 1.52, 0.44, 0.35, 1.65, 1.25
-	)
+	# Upper filament grows directly from the contour shoulder near its widest
+	# point. It follows the tail almost straight and only curls outward gently
+	# near its fading tip—no large offset ramp or elbow-shaped bend.
+	_build_upper_contour_wisp(path, cumulative_distances, total_distance)
 
 	# A separate streamer grows out of the existing flow part-way down the body.
 	# It continues toward the tail but stays finer and less prominent than the core.
@@ -313,6 +311,63 @@ func _update_wisp_lines() -> void:
 	# Fork the longer streamer near its end. The first branch point is copied
 	# from the actual streamer point to guarantee a joined Y rather than a gap.
 	_build_wisp_fork(path, cumulative_distances, total_distance)
+
+
+func _build_upper_contour_wisp(
+	path: Array[Vector2],
+	cumulative_distances: Array[float],
+	total_distance: float
+) -> void:
+	_wisp_head.clear_points()
+	if path.size() < 2 or total_distance < 0.001:
+		return
+
+	# Start around the wide shoulder, not at the orb. This makes the filament
+	# read as a branch of the shared contour rather than an arm attached to the ball.
+	const START_PROGRESS: float = 0.18
+	const END_PROGRESS: float = 0.59
+
+	for sample_index in range(WISP_CURVE_SAMPLES):
+		var local_progress: float = (
+			float(sample_index) / float(WISP_CURVE_SAMPLES - 1)
+		)
+		var trail_progress: float = lerp(
+			START_PROGRESS, END_PROGRESS, local_progress
+		)
+		var center: Vector2 = _sample_trail_path(
+			path, cumulative_distances, total_distance, trail_progress
+		)
+		var before: Vector2 = _sample_trail_path(
+			path, cumulative_distances, total_distance,
+			max(0.0, trail_progress - 0.006)
+		)
+		var after: Vector2 = _sample_trail_path(
+			path, cumulative_distances, total_distance,
+			min(1.0, trail_progress + 0.006)
+		)
+		var tangent: Vector2 = after - before
+		if tangent.length_squared() < 0.001:
+			tangent = Vector2.DOWN
+		else:
+			tangent = tangent.normalized()
+		var normal := Vector2(-tangent.y, tangent.x)
+
+		var silhouette_half_width: float = _get_silhouette_half_width(
+			trail_progress, total_distance
+		)
+		# Sit right beside the contour instead of ramping far away from it.
+		# Only the last section gently peels outward; the bend stays continuous.
+		var tip_peel: float = 3.2 * smoothstep(
+			0.68, 1.0, local_progress
+		)
+		var subtle_flow: float = sin(
+			_trail_time * 0.62 + trail_progress * 7.0 + 0.45
+		) * 0.45 * sin(PI * local_progress)
+		var lateral_offset: float = (
+			silhouette_half_width + 1.25 + tip_peel + subtle_flow
+		)
+		var world_point: Vector2 = center + normal * lateral_offset
+		_wisp_head.add_point(_wisp_head.to_local(world_point))
 
 
 func _build_wisp_curve(
@@ -543,10 +598,6 @@ func _apply_visual_palette() -> void:
 	var energy_tail: Color
 	var aura_head: Color
 	var aura_tail: Color
-	var left_wisp_head: Color
-	var left_wisp_tail: Color
-	var right_wisp_head: Color
-	var right_wisp_tail: Color
 	var soft_particle_tint: Color
 	var diamond_tint: Color
 	var square_tint: Color
@@ -558,10 +609,6 @@ func _apply_visual_palette() -> void:
 		energy_tail = Color(0.34, 0.045, 0.82, 1.0)
 		aura_head = Color(0.72, 0.22, 1.0, 1.0)
 		aura_tail = Color(0.13, 0.02, 0.38, 1.0)
-		left_wisp_head = Color(1.0, 0.60, 1.0, 1.0)
-		left_wisp_tail = Color(0.42, 0.06, 0.88, 1.0)
-		right_wisp_head = Color(0.74, 0.38, 1.0, 1.0)
-		right_wisp_tail = Color(0.20, 0.035, 0.62, 1.0)
 		soft_particle_tint = Color(0.58, 0.32, 0.90, 0.76)
 		diamond_tint = Color(0.98, 0.52, 1.20, 1.0)
 		square_tint = Color(0.58, 0.20, 1.12, 0.96)
@@ -572,10 +619,6 @@ func _apply_visual_palette() -> void:
 		energy_tail = Color(0.035, 0.16, 0.82, 1.0)
 		aura_head = Color(0.12, 0.58, 1.0, 1.0)
 		aura_tail = Color(0.008, 0.035, 0.25, 1.0)
-		left_wisp_head = Color(0.70, 0.96, 1.0, 1.0)
-		left_wisp_tail = Color(0.035, 0.20, 0.95, 1.0)
-		right_wisp_head = Color(0.25, 0.62, 1.0, 1.0)
-		right_wisp_tail = Color(0.015, 0.08, 0.55, 1.0)
 		soft_particle_tint = Color(0.18, 0.48, 0.82, 0.72)
 		diamond_tint = Color(0.40, 0.78, 1.25, 1.0)
 		square_tint = Color(0.12, 0.42, 1.18, 0.96)
@@ -609,9 +652,11 @@ func _apply_visual_palette() -> void:
 
 	_set_line_gradient(_energy_line, energy_head, energy_tail)
 	_set_line_gradient(_trail_aura, aura_head, aura_tail)
-	_set_line_gradient(_wisp_head, left_wisp_head, left_wisp_tail)
-	_set_line_gradient(_wisp_streamer, right_wisp_head, right_wisp_tail)
-	_set_line_gradient(_wisp_fork, right_wisp_head, right_wisp_tail)
+	# All filaments share the contour hue; each strand's own gradient retains
+	# its lower opacity so the lines feel grown from the same outer energy.
+	_set_line_gradient(_wisp_head, contour_color, contour_color)
+	_set_line_gradient(_wisp_streamer, contour_color, contour_color)
+	_set_line_gradient(_wisp_fork, contour_color, contour_color)
 	if _unified_contour != null:
 		# Same hue on both flanks; the gradient's alpha profile fades toward
 		# the tip symmetrically instead of making one side darker than the other.
