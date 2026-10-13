@@ -11,8 +11,8 @@ extends Node2D
 @export var max_segment_distance: float = 120.0
 @export_range(0.0, 40.0, 1.0) var trail_head_offset: float = 28.0
 
-const UNIFIED_ROOT_BLEND_DISTANCE: float = 38.0
 const UNIFIED_HEAD_ARC_SEGMENTS: int = 20
+const ORB_RIM_CENTER_RADIUS_RATIO: float = 0.93
 
 @export_category("Visual Palette")
 @export_enum("Electric Blue", "Rich Violet") var visual_palette: int = 0
@@ -138,6 +138,66 @@ func _sample_image_alpha_bilinear(texture_image: Image, position: Vector2) -> fl
 		tx
 	)
 	return lerp(top_alpha, bottom_alpha, ty)
+
+
+func _get_exposed_flank_points(
+	edge_points: Array[Vector2],
+	ball_center: Vector2,
+	contour_radius: float
+) -> Array[Vector2]:
+	var exposed_points: Array[Vector2] = []
+	if edge_points.size() < 2:
+		return exposed_points
+
+	var radius_squared: float = contour_radius * contour_radius
+	var first_offset: Vector2 = edge_points[0] - ball_center
+	if first_offset.length_squared() >= radius_squared:
+		# Defensive fallback if a future trail profile begins outside the orb.
+		exposed_points.append(edge_points[0])
+		for point_index in range(1, edge_points.size()):
+			exposed_points.append(edge_points[point_index])
+		return exposed_points
+
+	# Hide the contour while its real trail edge lies inside the orb. Its first
+	# visible point is the exact segment/circle intersection with the rim ridge.
+	for point_index in range(1, edge_points.size()):
+		var segment_start: Vector2 = edge_points[point_index - 1]
+		var segment_end: Vector2 = edge_points[point_index]
+		var start_offset: Vector2 = segment_start - ball_center
+		var end_offset: Vector2 = segment_end - ball_center
+		var start_inside: bool = start_offset.length_squared() < radius_squared
+		var end_inside: bool = end_offset.length_squared() < radius_squared
+
+		if start_inside and not end_inside:
+			exposed_points.append(
+				_segment_circle_exit_intersection(
+					segment_start, segment_end, ball_center, contour_radius
+				)
+			)
+			for remaining_index in range(point_index, edge_points.size()):
+				exposed_points.append(edge_points[remaining_index])
+			return exposed_points
+
+	return exposed_points
+
+
+func _segment_circle_exit_intersection(
+	segment_start: Vector2,
+	segment_end: Vector2,
+	circle_center: Vector2,
+	circle_radius: float
+) -> Vector2:
+	var segment: Vector2 = segment_end - segment_start
+	var offset: Vector2 = segment_start - circle_center
+	var a: float = segment.length_squared()
+	if a < 0.0001:
+		return segment_start
+
+	var b: float = 2.0 * offset.dot(segment)
+	var c_value: float = offset.length_squared() - circle_radius * circle_radius
+	var discriminant: float = maxf(b * b - 4.0 * a * c_value, 0.0)
+	var t: float = (-b + sqrt(discriminant)) / (2.0 * a)
+	return segment_start + segment * clampf(t, 0.0, 1.0)
 
 
 func _process(delta: float) -> void:
@@ -281,13 +341,17 @@ func _update_unified_comet_shape() -> void:
 		var width_factor: float = 1.0
 		if _trail_aura.width_curve != null:
 			width_factor = _trail_aura.width_curve.sample_baked(progress)
+		# Keep the real trail width at the root. The contour will be clipped to
+		# the ball's rim at the exact edge intersections below, not widened to
+		# the ball radius at its left and right sides.
 		var line_half_width: float = _trail_aura.width * width_factor * 0.5
-		var root_blend: float = 1.0 - smoothstep(
-			0.0,
-			UNIFIED_ROOT_BLEND_DISTANCE,
-			cumulative_distances[i]
-		)
-		half_widths.append(lerp(line_half_width, _ball_surface_radius, root_blend))
+		half_widths.append(line_half_width)
+
+	var upper_edge_points: Array[Vector2] = []
+	var lower_edge_points: Array[Vector2] = []
+	for i in range(path.size()):
+		upper_edge_points.append(path[i] + normals[i] * half_widths[i])
+		lower_edge_points.append(path[i] - normals[i] * half_widths[i])
 
 	var polygon_points := PackedVector2Array()
 	var polygon_uvs := PackedVector2Array()
@@ -326,26 +390,27 @@ func _update_unified_comet_shape() -> void:
 	_unified_shape.polygon = polygon_points
 	_unified_shape.uv = polygon_uvs
 
-	# Draw only the exposed silhouette: begin at one shoulder, follow that
-	# side of the shared body to the tip, then return along the opposite side.
-	# The front head arc is deliberately omitted; the orb supplies that contour.
+	# Draw only the part of each flank that is outside the orb. Both ends begin
+	# at true circle intersections on the bright rim ridge, not at the ball's
+	# left/right equator and not under the ball sprite.
 	if _unified_contour != null:
+		var contour_radius: float = _ball_surface_radius * ORB_RIM_CENTER_RADIUS_RATIO
+		var exposed_upper: Array[Vector2] = _get_exposed_flank_points(
+			upper_edge_points, path[0], contour_radius
+		)
+		var exposed_lower: Array[Vector2] = _get_exposed_flank_points(
+			lower_edge_points, path[0], contour_radius
+		)
 		var contour_points := PackedVector2Array()
-		contour_points.append(
-			_unified_shape.to_local(path[0] + root_normal * _ball_surface_radius)
-		)
-		for i in range(1, path.size() - 1):
-			contour_points.append(
-				_unified_shape.to_local(path[i] + normals[i] * half_widths[i])
-			)
-		contour_points.append(_unified_shape.to_local(path[path.size() - 1]))
-		for i in range(path.size() - 2, 0, -1):
-			contour_points.append(
-				_unified_shape.to_local(path[i] - normals[i] * half_widths[i])
-			)
-		contour_points.append(
-			_unified_shape.to_local(path[0] - root_normal * _ball_surface_radius)
-		)
+		if exposed_upper.size() >= 2 and exposed_lower.size() >= 2:
+			for point in exposed_upper:
+				contour_points.append(_unified_shape.to_local(point))
+			# The upper flank already contributes the tail tip; return along the
+			# lower flank without duplicating that shared tip vertex.
+			for point_index in range(exposed_lower.size() - 2, -1, -1):
+				contour_points.append(
+					_unified_shape.to_local(exposed_lower[point_index])
+				)
 		_unified_contour.points = contour_points
 
 
