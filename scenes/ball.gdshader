@@ -23,6 +23,7 @@ void fragment() {
 	vec3 ring_color;
 	vec3 core_color;
 	vec3 aura_color;
+	vec3 outer_core_color;
 	vec3 highlight_color;
 	vec3 glint_color;
 
@@ -35,6 +36,7 @@ void fragment() {
 		ring_color = vec3(2.7, 0.55, 5.2);
 		core_color = vec3(4.0, 3.25, 6.2);
 		aura_color = vec3(1.45, 0.22, 3.1);
+		outer_core_color = vec3(1.35, 0.18, 3.0);
 		highlight_color = vec3(1.0, 0.72, 1.5);
 		glint_color = vec3(2.0, 1.55, 2.8);
 	} else {
@@ -46,6 +48,7 @@ void fragment() {
 		ring_color = vec3(0.18, 2.15, 5.2);
 		core_color = vec3(3.2, 5.1, 6.3);
 		aura_color = vec3(0.04, 1.25, 3.0);
+		outer_core_color = vec3(0.06, 1.28, 3.15);
 		highlight_color = vec3(0.65, 1.45, 2.25);
 		glint_color = vec3(1.5, 2.5, 3.2);
 	}
@@ -91,7 +94,17 @@ void fragment() {
 	// The luminous centre gently pulses, but its edge is deliberately organic:
 	// low-frequency angular waves break the perfect circular silhouette.
 	float core_pulse = 0.5 + 0.5 * sin(time * 2.2);
-	float core_radius = mix(0.245, 0.305, core_pulse);
+	// Keep the central plasma core slightly smaller so a wider, circular
+	// outer core can glow behind it without competing with its bright centre.
+	float core_radius = mix(0.23, 0.285, core_pulse);
+
+	// A smooth, perfectly circular outer core sits behind the organic centre.
+	// Its inner fade overlaps the centre so both colors melt together instead
+	// of reading as two separate rings. Use d rather than core_distance so the
+	// larger glow stays circular while the foreground plasma keeps its wobble.
+	float outer_core = 1.0 - smoothstep(core_radius * 0.72, core_radius * 2.05, d);
+	color += outer_core_color * outer_core * 0.38 * aura_breath;
+
 	float core_wobble =
 		1.0
 		+ 0.10 * sin(angle * 3.0 + time * 0.72)
