@@ -459,7 +459,7 @@ func _apply_visual_palette() -> void:
 		diamond_tint = Color(0.98, 0.52, 1.20, 1.0)
 		square_tint = Color(0.58, 0.20, 1.12, 0.96)
 		shard_tint = Color(1.0, 0.70, 1.25, 1.0)
-		contour_color = Color(2.7, 0.55, 5.2, 1.0)
+		contour_color = Color(3.0, 0.61, 5.8, 1.0)
 	else:
 		energy_head = Color(0.72, 0.94, 1.0, 1.0)
 		energy_tail = Color(0.035, 0.16, 0.82, 1.0)
@@ -469,7 +469,7 @@ func _apply_visual_palette() -> void:
 		diamond_tint = Color(0.40, 0.78, 1.25, 1.0)
 		square_tint = Color(0.12, 0.42, 1.18, 0.96)
 		shard_tint = Color(0.62, 0.90, 1.30, 1.0)
-		contour_color = Color(0.18, 2.15, 5.2, 1.0)
+		contour_color = Color(0.20, 2.4, 5.8, 1.0)
 
 	# Duplicate materials locally so palette changes don't mutate shared resources.
 	var orb_material := _ball_visual.material as ShaderMaterial
