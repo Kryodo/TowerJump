@@ -186,7 +186,7 @@ z_index = -1
 
 [node name="UnifiedCometContour" type="Line2D" parent="TrailVisual" unique_id=1770062204]
 z_index = 1
-width = 1.8
+width = 2.0
 gradient = SubResource("Gradient_unified_contour")
 joint_mode = 2
 begin_cap_mode = 2
