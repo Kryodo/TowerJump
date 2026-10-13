@@ -89,7 +89,9 @@ void fragment() {
 	vec2 tail_direction_normalized = trail_direction / max(length(trail_direction), 0.001);
 	float tail_alignment = dot(radial_direction, tail_direction_normalized);
 	float shared_join = smoothstep(0.42, 0.90, tail_alignment);
-	float ring_visibility = mix(1.0, 0.30, shared_join);
+	// Preserve more of the orb's rim where the shared comet contour takes over.
+	// The trail-facing rim remains slightly subdued, but no longer drops away.
+	float ring_visibility = mix(1.0, 0.56, shared_join);
 	color += ring_color * outer_ring * aura_breath * ring_visibility;
 
 	// The luminous centre gently pulses, but its edge is deliberately organic:
