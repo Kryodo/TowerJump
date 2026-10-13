@@ -459,22 +459,17 @@ func _build_wisp_fork(
 			trail_progress, total_distance
 		)
 
-		var separation_blend: float = smoothstep(0.0, 0.72, branch_progress)
-		var target_base_offset: float = silhouette_half_width * lerp(
-			1.12, 1.30, separation_blend
-		) + 2.75 * min(wisp_strength, 1.5)
-		var continuity_blend: float = smoothstep(0.0, 0.24, branch_progress)
-		var base_offset: float = lerp(
-			starting_offset, target_base_offset, continuity_blend
-		)
-		var fork_separation: float = 4.2 * smoothstep(
+		# Continue from the streamer's existing offset, then let the branch
+		# separate from it. Do not shrink the offset with the contour width; that
+		# would make the fork bend inward precisely where the tail tapers.
+		var fork_separation: float = 3.8 * smoothstep(
 			0.0, 0.74, branch_progress
 		)
 		var fine_drift: float = sin(
 			_trail_time * 0.80 + branch_progress * 4.4 + 0.9
 		) * 0.45 * sin(PI * branch_progress)
 		var world_point: Vector2 = (
-			center + branch_normal * side * (base_offset + fork_separation + fine_drift)
+			center + branch_normal * side * (starting_offset + fork_separation + fine_drift)
 		)
 		_wisp_fork.add_point(_wisp_fork.to_local(world_point))
 
