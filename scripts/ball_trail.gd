@@ -324,15 +324,15 @@ func _build_upper_contour_wisp(
 
 	# Start around the wide shoulder, not at the orb. This makes the filament
 	# read as a branch of the shared contour rather than an arm attached to the ball.
-	const START_PROGRESS: float = 0.18
-	const END_PROGRESS: float = 0.59
+	var start_progress: float = 0.18
+	var end_progress: float = 0.59
 
 	for sample_index in range(WISP_CURVE_SAMPLES):
 		var local_progress: float = (
 			float(sample_index) / float(WISP_CURVE_SAMPLES - 1)
 		)
 		var trail_progress: float = lerp(
-			START_PROGRESS, END_PROGRESS, local_progress
+			start_progress, end_progress, local_progress
 		)
 		var center: Vector2 = _sample_trail_path(
 			path, cumulative_distances, total_distance, trail_progress
@@ -355,16 +355,21 @@ func _build_upper_contour_wisp(
 		var silhouette_half_width: float = _get_silhouette_half_width(
 			trail_progress, total_distance
 		)
-		# Sit right beside the contour instead of ramping far away from it.
-		# Only the last section gently peels outward; the bend stays continuous.
-		var tip_peel: float = 3.2 * smoothstep(
-			0.68, 1.0, local_progress
+		# The strand first rides the contour edge, then eases away over its
+		# length. Most of the curve stays nearly parallel; only the final section
+		# gets a small outward tip bend, never a sharp elbow.
+		var branch_separation: float = 1.9 * smoothstep(
+			0.0, 1.0, local_progress
+		)
+		var tip_peel: float = 1.4 * smoothstep(
+			0.78, 1.0, local_progress
 		)
 		var subtle_flow: float = sin(
 			_trail_time * 0.62 + trail_progress * 7.0 + 0.45
-		) * 0.45 * sin(PI * local_progress)
+		) * 0.22 * sin(PI * local_progress)
 		var lateral_offset: float = (
-			silhouette_half_width + 1.25 + tip_peel + subtle_flow
+			silhouette_half_width + 1.15
+			+ branch_separation + tip_peel + subtle_flow
 		)
 		var world_point: Vector2 = center + normal * lateral_offset
 		_wisp_head.add_point(_wisp_head.to_local(world_point))
