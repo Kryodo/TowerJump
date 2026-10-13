@@ -300,14 +300,14 @@ func _update_wisp_lines() -> void:
 	# and fades around the upper-middle of the comet instead of running its length.
 	_build_wisp_curve(
 		_wisp_head, path, cumulative_distances, total_distance,
-		0.0, 0.47, 1.0, 0.12, 1.04, 0.35, 1.15, 1.25
+		0.0, 0.47, 1.0, 0.12, 1.52, 0.44, 0.35, 1.65, 1.25
 	)
 
 	# A separate streamer grows out of the existing flow part-way down the body.
 	# It continues toward the tail but stays finer and less prominent than the core.
 	_build_wisp_curve(
 		_wisp_streamer, path, cumulative_distances, total_distance,
-		0.29, 0.985, -1.0, 0.24, 1.12, 1.9, 2.75, 0.95
+		0.29, 0.985, -1.0, 0.24, 1.30, 0.62, 1.9, 3.2, 0.95
 	)
 
 	# Fork the longer streamer near its end. The first branch point is copied
@@ -325,6 +325,7 @@ func _build_wisp_curve(
 	side: float,
 	start_spread: float,
 	end_spread: float,
+	spread_finish: float,
 	phase: float,
 	clearance: float,
 	bend_strength: float
@@ -363,7 +364,7 @@ func _build_wisp_curve(
 		var silhouette_half_width: float = _get_silhouette_half_width(
 			trail_progress, total_distance
 		)
-		var spread_blend: float = smoothstep(0.0, 0.68, local_progress)
+		var spread_blend: float = smoothstep(0.0, spread_finish, local_progress)
 		var spread_ratio: float = lerp(
 			start_spread, end_spread, spread_blend
 		)
@@ -462,7 +463,7 @@ func _build_wisp_fork(
 		# Continue from the streamer's existing offset, then let the branch
 		# separate from it. Do not shrink the offset with the contour width; that
 		# would make the fork bend inward precisely where the tail tapers.
-		var fork_separation: float = 3.8 * smoothstep(
+		var fork_separation: float = 5.0 * smoothstep(
 			0.0, 0.74, branch_progress
 		)
 		var fine_drift: float = sin(
