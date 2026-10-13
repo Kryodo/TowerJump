@@ -1,8 +1,8 @@
 extends Node2D
 
 ## Visual energy trail for the player ball.
-## The trail is layered: a soft outer aura, a turbulent inner stream, two
-## independently drifting wisps, and a restrained geometric fragment field.
+## The trail is layered: a soft outer aura, a turbulent inner stream, staggered
+## plasma filaments with a small terminal fork, and geometric energy fragments.
 ## This script only controls visuals; ball movement and collision remain in ball.gd.
 
 @export_category("Trail History")
@@ -14,6 +14,9 @@ extends Node2D
 const UNIFIED_HEAD_RADIUS: float = 31.0
 const UNIFIED_ROOT_BLEND_DISTANCE: float = 38.0
 const UNIFIED_HEAD_ARC_SEGMENTS: int = 20
+const WISP_CURVE_SAMPLES: int = 23
+const WISP_FORK_START_INDEX: int = 15
+const WISP_FORK_SAMPLES: int = 11
 
 @export_category("Visual Palette")
 @export_enum("Electric Blue", "Rich Violet") var visual_palette: int = 0
@@ -23,8 +26,9 @@ const UNIFIED_HEAD_ARC_SEGMENTS: int = 20
 @onready var _trail_aura: Line2D = $TrailAura
 @onready var _unified_shape: Polygon2D = get_node_or_null("UnifiedCometShape") as Polygon2D
 @onready var _unified_contour: Line2D = get_node_or_null("UnifiedCometContour") as Line2D
-@onready var _wisp_left: Line2D = $WispLeft
-@onready var _wisp_right: Line2D = $WispRight
+@onready var _wisp_head: Line2D = $WispHead
+@onready var _wisp_streamer: Line2D = $WispStreamer
+@onready var _wisp_fork: Line2D = $WispFork
 @onready var _ball_visual: Sprite2D = get_parent().get_node("Visual") as Sprite2D
 @onready var _rim_aura: Sprite2D = get_parent().get_node_or_null("RimAura") as Sprite2D
 
@@ -82,8 +86,9 @@ func _update_trail_lines() -> void:
 	if _points.size() < 2:
 		_energy_line.clear_points()
 		_trail_aura.clear_points()
-		_wisp_left.clear_points()
-		_wisp_right.clear_points()
+		_wisp_head.clear_points()
+		_wisp_streamer.clear_points()
+		_wisp_fork.clear_points()
 		if _unified_shape != null:
 			_unified_shape.polygon = PackedVector2Array()
 			_unified_shape.uv = PackedVector2Array()
@@ -102,8 +107,7 @@ func _update_trail_lines() -> void:
 		_energy_line.add_point(_energy_line.to_local(point))
 		_trail_aura.add_point(_trail_aura.to_local(point))
 
-	_update_wisp_line(_wisp_left, 1.0, 11.0, 0.3)
-	_update_wisp_line(_wisp_right, -1.0, 14.0, 2.0)
+	_update_wisp_lines()
 	_update_unified_comet_shape()
 
 
@@ -270,104 +274,248 @@ func _update_unified_comet_shape() -> void:
 				rim_material.set_shader_parameter("trail_direction", local_tail_direction)
 
 
-func _update_wisp_line(
-	line: Line2D,
-	side: float,
-	amplitude: float,
-	phase: float
-) -> void:
-	line.clear_points()
+func _update_wisp_lines() -> void:
+	_wisp_head.clear_points()
+	_wisp_streamer.clear_points()
+	_wisp_fork.clear_points()
 	if _points.size() < 2:
 		return
 
-	# Match the filament spread to the actual silhouette width, then let each
-	# wisp drift a little inside/outside its edge instead of sitting enclosed.
+	# Build the animated centreline once. The wisps sample this shared path by
+	# distance, so their different start/end locations don't depend on point count.
+	var path: Array[Vector2] = []
+	for i in range(_points.size()):
+		path.append(_get_animated_trail_point(i))
+
+	var cumulative_distances: Array[float] = [0.0]
 	var total_distance: float = 0.0
-	for i in range(1, _points.size()):
-		total_distance += _points[i - 1].distance_to(_points[i])
+	for i in range(1, path.size()):
+		total_distance += path[i - 1].distance_to(path[i])
+		cumulative_distances.append(total_distance)
+
 	if total_distance < 0.001:
 		return
 
-	var distance_along: float = 0.0
-	for i in range(_points.size()):
-		var raw_point: Vector2 = _points[i]
-		var point: Vector2 = _get_animated_trail_point(i)
-		if i > 0:
-			distance_along += _points[i - 1].distance_to(_points[i])
+	# Short head-born filament: partially hidden by the orb, then it peels out
+	# and fades around the upper-middle of the comet instead of running its length.
+	_build_wisp_curve(
+		_wisp_head, path, cumulative_distances, total_distance,
+		0.0, 0.47, 1.0, 0.12, 1.04, 0.35, 1.15, 1.25
+	)
 
-		var tangent: Vector2
-		if i < _points.size() - 1:
-			tangent = raw_point - _points[i + 1]
-		else:
-			tangent = _points[i - 1] - raw_point
+	# A separate streamer grows out of the existing flow part-way down the body.
+	# It continues toward the tail but stays finer and less prominent than the core.
+	_build_wisp_curve(
+		_wisp_streamer, path, cumulative_distances, total_distance,
+		0.29, 0.985, -1.0, 0.24, 1.12, 1.9, 2.75, 0.95
+	)
 
+	# Fork the longer streamer near its end. The first branch point is copied
+	# from the actual streamer point to guarantee a joined Y rather than a gap.
+	_build_wisp_fork(path, cumulative_distances, total_distance)
+
+
+func _build_wisp_curve(
+	line: Line2D,
+	path: Array[Vector2],
+	cumulative_distances: Array[float],
+	total_distance: float,
+	start_progress: float,
+	end_progress: float,
+	side: float,
+	start_spread: float,
+	end_spread: float,
+	phase: float,
+	clearance: float,
+	bend_strength: float
+) -> void:
+	line.clear_points()
+	if path.size() < 2 or total_distance < 0.001:
+		return
+
+	for sample_index in range(WISP_CURVE_SAMPLES):
+		var local_progress: float = (
+			float(sample_index) / float(WISP_CURVE_SAMPLES - 1)
+		)
+		var trail_progress: float = lerp(
+			start_progress,
+			end_progress,
+			local_progress
+		)
+		var center: Vector2 = _sample_trail_path(
+			path, cumulative_distances, total_distance, trail_progress
+		)
+		var before: Vector2 = _sample_trail_path(
+			path, cumulative_distances, total_distance,
+			max(0.0, trail_progress - 0.006)
+		)
+		var after: Vector2 = _sample_trail_path(
+			path, cumulative_distances, total_distance,
+			min(1.0, trail_progress + 0.006)
+		)
+		var tangent: Vector2 = after - before
 		if tangent.length_squared() < 0.001:
-			line.add_point(line.to_local(point))
-			continue
+			tangent = Vector2.DOWN
+		else:
+			tangent = tangent.normalized()
+		var normal := Vector2(-tangent.y, tangent.x)
 
-		tangent = tangent.normalized()
-		var perpendicular := Vector2(-tangent.y, tangent.x)
-		var progress: float = distance_along / total_distance
-		# Delay the visible peel-away so the wisps don't appear to sprout from
-		# the seam directly under the orb. Their lateral movement builds smoothly.
-		var envelope: float = smoothstep(0.045, 0.235, progress)
-		var sway: float = sin(_trail_time * 0.75 + progress * 6.7 + phase)
-		var flutter: float = sin(_trail_time * 1.10 + progress * 10.5 + phase * 1.6)
-
-		var width_factor: float = 1.0
-		if _trail_aura.width_curve != null:
-			width_factor = _trail_aura.width_curve.sample_baked(progress)
-		var trail_half_width: float = _trail_aura.width * width_factor * 0.5
-		var root_blend: float = 1.0 - smoothstep(
-			0.0,
-			UNIFIED_ROOT_BLEND_DISTANCE,
-			distance_along
+		var silhouette_half_width: float = _get_silhouette_half_width(
+			trail_progress, total_distance
 		)
-		var silhouette_half_width: float = lerp(
-			trail_half_width,
-			UNIFIED_HEAD_RADIUS,
-			root_blend
+		var spread_blend: float = smoothstep(0.0, 0.68, local_progress)
+		var spread_ratio: float = lerp(
+			start_spread, end_spread, spread_blend
 		)
 
-		# The widening clearance makes the wisp emerge from the orb's trailing
-		# edge, then track just outside the narrowing body. Flutter occasionally
-		# lets it dip back over the contour so it feels like living energy,
-		# rather than a pair of rigid parallel wires.
-		var clearance: float = (
-			1.5 + amplitude * 0.08 * (1.0 + sway)
-		) * wisp_strength
-
-		# Reduce crossings near the neck, where random contour intersections
-		# look messy. Let the lower filaments flutter more freely as they peel out.
-		var flutter_envelope: float = lerp(
-			0.28,
+		# Keep the root subtly inside the flow. The clearance grows as the wisp
+		# peels away, while a small bend gives it life without making long arms.
+		var clearance_blend: float = smoothstep(0.0, 0.62, local_progress)
+		var edge_clearance: float = clearance * min(wisp_strength, 1.5) * clearance_blend
+		var organic_bend: float = (
+			sin(_trail_time * 0.72 + trail_progress * 9.0 + phase)
+			* bend_strength
+			* sin(PI * local_progress)
+			* min(wisp_strength, 1.2)
+		)
+		var lateral_offset: float = max(
 			1.0,
-			smoothstep(0.20, 0.48, progress)
+			silhouette_half_width * spread_ratio + edge_clearance + organic_bend
 		)
-		var lateral_flutter: float = (
-			flutter
-			* (1.2 + amplitude * 0.07)
-			* wisp_strength
-			* 0.62
-			* flutter_envelope
+		var world_point: Vector2 = center + normal * side * lateral_offset
+		line.add_point(line.to_local(world_point))
+
+
+func _build_wisp_fork(
+	path: Array[Vector2],
+	cumulative_distances: Array[float],
+	total_distance: float
+) -> void:
+	_wisp_fork.clear_points()
+	if (
+		_wisp_streamer.points.size() != WISP_CURVE_SAMPLES
+		or _wisp_streamer.points.size() <= WISP_FORK_START_INDEX
+	):
+		return
+
+	var fork_start_index: int = WISP_FORK_START_INDEX
+	var local_progress: float = (
+		float(fork_start_index) / float(WISP_CURVE_SAMPLES - 1)
+	)
+	var fork_start_progress: float = lerp(0.29, 0.985, local_progress)
+	var first_local_point: Vector2 = _wisp_streamer.points[fork_start_index]
+	var first_world_point: Vector2 = _wisp_streamer.to_global(first_local_point)
+	_wisp_fork.add_point(_wisp_fork.to_local(first_world_point))
+
+	var trail_center: Vector2 = _sample_trail_path(
+		path, cumulative_distances, total_distance, fork_start_progress
+	)
+	var before: Vector2 = _sample_trail_path(
+		path, cumulative_distances, total_distance,
+		max(0.0, fork_start_progress - 0.006)
+	)
+	var after: Vector2 = _sample_trail_path(
+		path, cumulative_distances, total_distance,
+		min(1.0, fork_start_progress + 0.006)
+	)
+	var tangent: Vector2 = after - before
+	if tangent.length_squared() < 0.001:
+		tangent = Vector2.DOWN
+	else:
+		tangent = tangent.normalized()
+	var normal := Vector2(-tangent.y, tangent.x)
+	var side: float = -1.0
+	var starting_offset: float = (
+		(first_world_point - trail_center).dot(normal * side)
+	)
+
+	# The branch begins exactly on the streamer, then separates by only a few
+	# pixels as it approaches the tail tip. It is a fine split, not a second arm.
+	for sample_index in range(1, WISP_FORK_SAMPLES):
+		var branch_progress: float = (
+			float(sample_index) / float(WISP_FORK_SAMPLES - 1)
+		)
+		var trail_progress: float = lerp(
+			fork_start_progress, 0.985, branch_progress
+		)
+		var center: Vector2 = _sample_trail_path(
+			path, cumulative_distances, total_distance, trail_progress
+		)
+		var local_before: Vector2 = _sample_trail_path(
+			path, cumulative_distances, total_distance,
+			max(0.0, trail_progress - 0.006)
+		)
+		var local_after: Vector2 = _sample_trail_path(
+			path, cumulative_distances, total_distance,
+			min(1.0, trail_progress + 0.006)
+		)
+		var branch_tangent: Vector2 = local_after - local_before
+		if branch_tangent.length_squared() < 0.001:
+			branch_tangent = Vector2.DOWN
+		else:
+			branch_tangent = branch_tangent.normalized()
+		var branch_normal := Vector2(-branch_tangent.y, branch_tangent.x)
+		var silhouette_half_width: float = _get_silhouette_half_width(
+			trail_progress, total_distance
 		)
 
-		# Gradually increase lateral spread down the tail. This gives the wisps
-		# a gentle diagonal sweep away from the body instead of tracing the
-		# contour at a nearly constant distance.
-		var diagonal_spread: float = lerp(
-			0.0,
-			5.5,
-			smoothstep(0.18, 0.78, progress)
-		) * min(wisp_strength, 1.5)
-		var target_offset: float = max(
-			silhouette_half_width * 0.80 + clearance + lateral_flutter + diagonal_spread,
-			silhouette_half_width * 0.48
+		var separation_blend: float = smoothstep(0.0, 0.72, branch_progress)
+		var target_base_offset: float = silhouette_half_width * lerp(
+			1.12, 1.30, separation_blend
+		) + 2.75 * min(wisp_strength, 1.5)
+		var continuity_blend: float = smoothstep(0.0, 0.24, branch_progress)
+		var base_offset: float = lerp(
+			starting_offset, target_base_offset, continuity_blend
 		)
-		var drift: float = target_offset * envelope
-		var offset: Vector2 = perpendicular * side * drift
+		var fork_separation: float = 4.2 * smoothstep(
+			0.0, 0.74, branch_progress
+		)
+		var fine_drift: float = sin(
+			_trail_time * 0.80 + branch_progress * 4.4 + 0.9
+		) * 0.45 * sin(PI * branch_progress)
+		var world_point: Vector2 = (
+			center + branch_normal * side * (base_offset + fork_separation + fine_drift)
+		)
+		_wisp_fork.add_point(_wisp_fork.to_local(world_point))
 
-		line.add_point(line.to_local(point + offset))
+
+func _sample_trail_path(
+	path: Array[Vector2],
+	cumulative_distances: Array[float],
+	total_distance: float,
+	progress: float
+) -> Vector2:
+	var target_distance: float = clampf(progress, 0.0, 1.0) * total_distance
+	for i in range(cumulative_distances.size() - 1):
+		var segment_end: float = cumulative_distances[i + 1]
+		if target_distance <= segment_end:
+			var segment_start: float = cumulative_distances[i]
+			var segment_length: float = segment_end - segment_start
+			if segment_length < 0.001:
+				return path[i]
+			var segment_progress: float = (
+				(target_distance - segment_start) / segment_length
+			)
+			return path[i].lerp(path[i + 1], segment_progress)
+	return path[path.size() - 1]
+
+
+func _get_silhouette_half_width(
+	progress: float,
+	total_distance: float
+) -> float:
+	var width_factor: float = 1.0
+	if _trail_aura.width_curve != null:
+		width_factor = _trail_aura.width_curve.sample_baked(progress)
+	var trail_half_width: float = _trail_aura.width * width_factor * 0.5
+	var root_blend: float = 1.0 - smoothstep(
+		0.0,
+		UNIFIED_ROOT_BLEND_DISTANCE,
+		progress * total_distance
+	)
+	return lerp(trail_half_width, UNIFIED_HEAD_RADIUS, root_blend)
+
+
 
 
 func _update_particle_emitters(
@@ -465,8 +613,9 @@ func _apply_visual_palette() -> void:
 
 	_set_line_gradient(_energy_line, energy_head, energy_tail)
 	_set_line_gradient(_trail_aura, aura_head, aura_tail)
-	_set_line_gradient(_wisp_left, left_wisp_head, left_wisp_tail)
-	_set_line_gradient(_wisp_right, right_wisp_head, right_wisp_tail)
+	_set_line_gradient(_wisp_head, left_wisp_head, left_wisp_tail)
+	_set_line_gradient(_wisp_streamer, right_wisp_head, right_wisp_tail)
+	_set_line_gradient(_wisp_fork, right_wisp_head, right_wisp_tail)
 	if _unified_contour != null:
 		# Same hue on both flanks; the gradient's alpha profile fades toward
 		# the tip symmetrically instead of making one side darker than the other.
