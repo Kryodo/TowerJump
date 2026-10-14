@@ -1,6 +1,7 @@
 shader_type canvas_item;
 
 uniform int palette_mode = 0;
+uniform float fragment_alpha_boost = 1.0;
 // UV.x follows the shared trail from head (0) to tail (1).
 // UV.y runs across the shape: edge (0/1), centre (0.5).
 void fragment() {
@@ -34,6 +35,7 @@ void fragment() {
 	float body_alpha = translucent_body_alpha;
 	float core_alpha = center_energy * 0.10 * head_energy;
 	float alpha = clamp((body_alpha + core_alpha) * tail_fade, 0.0, 0.94);
+	alpha = clamp(alpha * fragment_alpha_boost, 0.0, 0.94);
 
 	COLOR = vec4(body_color, alpha);
 }

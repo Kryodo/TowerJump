@@ -13,8 +13,11 @@ extends Node2D
 
 const UNIFIED_HEAD_ARC_SEGMENTS: int = 20
 const ORB_RIM_CENTER_RADIUS_RATIO: float = 0.93
-const SHED_BURST_PIECE_COUNT: int = 5
-const SHED_BURST_SPACING: float = 0.035
+const SURFACE_BURST_PIECE_COUNT: int = 4
+const CHEVRON_BURST_PIECE_COUNT: int = 5
+const SURFACE_BURST_SPACING: float = 0.055
+const CHEVRON_BURST_SPACING: float = 0.035
+const AURA_FISSURE_PROGRESS: Array[float] = [0.27, 0.38, 0.49, 0.60]
 
 @export_category("Visual Palette")
 @export_enum("Electric Blue", "Rich Violet") var visual_palette: int = 0
@@ -34,11 +37,16 @@ var _previous_ball_position: Vector2 = Vector2.ZERO
 var _trail_time: float = 0.0
 var _last_emission_direction: Vector2 = Vector2.DOWN
 var _ball_surface_radius: float = 29.9
-var _shed_burst_remaining: int = 0
-var _shed_burst_clock: float = 0.0
+var _surface_burst_remaining: int = 0
+var _surface_burst_clock: float = 0.0
+var _chevron_burst_remaining: int = 0
+var _chevron_burst_clock: float = 0.0
 var _shed_sequence: int = 0
 var _detached_shed_fragments: Array[Dictionary] = []
 var _aura_fragment_material: CanvasItemMaterial
+var _surface_fragment_material: ShaderMaterial
+var _aura_fissure_glow_lines: Array[Line2D] = []
+var _aura_fissure_core_lines: Array[Line2D] = []
 
 func _ready() -> void:
 	z_index = -1
@@ -57,17 +65,116 @@ func _ready() -> void:
 
 	_apply_visual_palette()
 	_initialize_aura_fragment_material()
+	_initialize_aura_fissures()
 	call_deferred("_connect_landing_feedback")
 	_update_trail_lines()
 	_update_rim_breath()
 
 
 func _initialize_aura_fragment_material() -> void:
-	# Use additive blending so the detached aura strips read as luminous energy,
-	# without borrowing the main comet-body shader or changing its geometry.
-	var fragment_material := CanvasItemMaterial.new()
-	fragment_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	_aura_fragment_material = fragment_material
+	# Small chevron flecks use additive blending; broad surface fragments use
+	# the same comet shader as the body, with alpha boosted on the copied mesh.
+	var accent_material := CanvasItemMaterial.new()
+	accent_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	_aura_fragment_material = accent_material
+
+	var body_material := _unified_shape.material as ShaderMaterial
+	if body_material != null:
+		_surface_fragment_material = body_material.duplicate() as ShaderMaterial
+		_surface_fragment_material.set_shader_parameter("fragment_alpha_boost", 2.25)
+
+
+func _initialize_aura_fissures() -> void:
+	var glow_color: Color
+	var cut_color: Color
+	if visual_palette == 1:
+		glow_color = Color(0.92, 0.26, 1.45, 0.62)
+		cut_color = Color(0.025, 0.004, 0.075, 0.98)
+	else:
+		glow_color = Color(0.08, 0.72, 1.65, 0.62)
+		cut_color = Color(0.003, 0.018, 0.085, 0.98)
+
+	# Each fissure is two short chevron notches, one on each outer flank.
+	# They're real Line2D geometry, not dependent on Line2D's shader UV layout.
+	for progress_index in range(AURA_FISSURE_PROGRESS.size()):
+		for side_index in range(2):
+			var glow := Line2D.new()
+			glow.name = "AuraFissureGlow_%02d_%d" % [progress_index, side_index]
+			glow.width = 5.0
+			glow.default_color = glow_color
+			glow.joint_mode = 2
+			glow.begin_cap_mode = 2
+			glow.end_cap_mode = 2
+			glow.antialiased = true
+			glow.z_index = 1
+			add_child(glow)
+			_aura_fissure_glow_lines.append(glow)
+
+			var cut := Line2D.new()
+			cut.name = "AuraFissureCut_%02d_%d" % [progress_index, side_index]
+			cut.width = 2.4
+			cut.default_color = cut_color
+			cut.joint_mode = 2
+			cut.begin_cap_mode = 2
+			cut.end_cap_mode = 2
+			cut.antialiased = true
+			cut.z_index = 2
+			add_child(cut)
+			_aura_fissure_core_lines.append(cut)
+
+
+func _clear_aura_fissures() -> void:
+	for line in _aura_fissure_glow_lines:
+		line.clear_points()
+	for line in _aura_fissure_core_lines:
+		line.clear_points()
+
+
+func _update_aura_fissures(
+	path: Array[Vector2],
+	cumulative_distances: Array[float],
+	total_distance: float,
+	tangents: Array[Vector2],
+	normals: Array[Vector2],
+	half_widths: Array[float]
+) -> void:
+	if total_distance < 30.0 or _aura_fissure_glow_lines.is_empty():
+		_clear_aura_fissures()
+		return
+
+	for line_index in range(_aura_fissure_glow_lines.size()):
+		var progress_index: int = int(line_index / 2)
+		var side: float = -1.0 if line_index % 2 == 0 else 1.0
+		var progress: float = AURA_FISSURE_PROGRESS[progress_index]
+		var section: Dictionary = _sample_trail_cross_section(
+			total_distance * progress, path, cumulative_distances,
+			tangents, normals, half_widths
+		)
+		var center: Vector2 = section["position"]
+		var tangent: Vector2 = section["tangent"]
+		var normal: Vector2 = section["normal"]
+		var half_width: float = float(section["half_width"])
+		if half_width < 7.0:
+			_aura_fissure_glow_lines[line_index].clear_points()
+			_aura_fissure_core_lines[line_index].clear_points()
+			continue
+
+		# This angular bite stays in the outer aura band, beyond the inner energy
+		# ribbon. The dark core makes the crack readable at a glance.
+		var fissure_points: Array[Vector2] = [
+			center - tangent * 5.0 + normal * side * half_width * 0.96,
+			center + tangent * 1.5 + normal * side * half_width * 0.68,
+			center + tangent * 8.0 + normal * side * half_width * 0.92
+		]
+		var glow_line: Line2D = _aura_fissure_glow_lines[line_index]
+		var core_line: Line2D = _aura_fissure_core_lines[line_index]
+		glow_line.clear_points()
+		core_line.clear_points()
+		for world_point in fissure_points:
+			glow_line.add_point(glow_line.to_local(world_point))
+			core_line.add_point(core_line.to_local(world_point))
+
+
 
 
 func _measure_ball_surface_radius() -> float:
@@ -226,8 +333,8 @@ func _process(delta: float) -> void:
 
 	_trail_time += delta
 	if not shedding_enabled:
-		_shed_burst_remaining = 0
-		_shed_burst_clock = 0.0
+		_surface_burst_remaining = 0
+		_surface_burst_clock = 0.0
 	var current_world_position: Vector2 = ball.global_position
 	var movement: Vector2 = current_world_position - _previous_ball_position
 	var distance_from_trail: float = movement.length()
@@ -269,6 +376,7 @@ func _update_trail_lines(delta: float = 0.0) -> void:
 			_unified_shape.uv = PackedVector2Array()
 		if _unified_contour != null:
 			_unified_contour.clear_points()
+		_clear_aura_fissures()
 		return
 
 	_rebuild_trail_lines()
@@ -346,6 +454,7 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 		_unified_shape.uv = PackedVector2Array()
 		if _unified_contour != null:
 			_unified_contour.clear_points()
+		_clear_aura_fissures()
 		return
 
 	var tangents: Array[Vector2] = []
@@ -384,6 +493,8 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 	for i in range(path.size()):
 		upper_edge_points.append(path[i] + normals[i] * half_widths[i])
 		lower_edge_points.append(path[i] - normals[i] * half_widths[i])
+
+	_update_aura_fissures(path, cumulative_distances, total_distance, tangents, normals, half_widths)
 
 	var polygon_points := PackedVector2Array()
 	var polygon_uvs := PackedVector2Array()
@@ -474,10 +585,12 @@ func _on_landing_confirmed(event: LandingEvent) -> void:
 	if ball == null or event.ball != ball:
 		return
 
-	# A confirmed physical landing queues one deliberate burst; no shedding is
-	# driven by elapsed time while the ball is travelling between platforms.
-	_shed_burst_remaining = SHED_BURST_PIECE_COUNT
-	_shed_burst_clock = 0.0
+	# One confirmed landing releases four broad surface pieces plus five smaller
+	# chevrons near the trailing tip. Both are visual copies; the living trail is untouched.
+	_surface_burst_remaining = SURFACE_BURST_PIECE_COUNT
+	_surface_burst_clock = 0.0
+	_chevron_burst_remaining = CHEVRON_BURST_PIECE_COUNT
+	_chevron_burst_clock = 0.0
 
 
 func _process_shed_burst(
@@ -489,33 +602,41 @@ func _process_shed_burst(
 	normals: Array[Vector2],
 	half_widths: Array[float]
 ) -> void:
-	if not shedding_enabled or _shed_burst_remaining <= 0:
+	if not shedding_enabled:
 		return
 
-	if _shed_burst_clock > 0.0:
-		_shed_burst_clock = maxf(_shed_burst_clock - delta, 0.0)
-		if _shed_burst_clock > 0.0:
-			return
+	if _surface_burst_remaining > 0:
+		_surface_burst_clock = maxf(_surface_burst_clock - delta, 0.0)
+		if _surface_burst_clock <= 0.0:
+			var surface_index: int = SURFACE_BURST_PIECE_COUNT - _surface_burst_remaining
+			var previous_surface_count: int = _detached_shed_fragments.size()
+			_spawn_surface_fragment(
+				path, cumulative_distances, total_distance, tangents, normals, half_widths,
+				surface_index
+			)
+			if _detached_shed_fragments.size() == previous_surface_count:
+				_surface_burst_remaining = 0
+			else:
+				_surface_burst_remaining -= 1
+				_surface_burst_clock = SURFACE_BURST_SPACING if _surface_burst_remaining > 0 else 0.0
 
-	var previous_fragment_count: int = _detached_shed_fragments.size()
-	var burst_index: int = SHED_BURST_PIECE_COUNT - _shed_burst_remaining
-	_spawn_shed_fragment(
-		path, cumulative_distances, total_distance, tangents, normals, half_widths,
-		burst_index
-	)
-
-	# Drop a burst when there is not enough trail to make a meaningful aura strip.
-	if _detached_shed_fragments.size() == previous_fragment_count:
-		_shed_burst_remaining = 0
-		_shed_burst_clock = 0.0
-		return
-
-	_shed_burst_remaining -= 1
-	if _shed_burst_remaining > 0:
-		_shed_burst_clock = SHED_BURST_SPACING
+	if _chevron_burst_remaining > 0:
+		_chevron_burst_clock = maxf(_chevron_burst_clock - delta, 0.0)
+		if _chevron_burst_clock <= 0.0:
+			var chevron_index: int = CHEVRON_BURST_PIECE_COUNT - _chevron_burst_remaining
+			var previous_chevron_count: int = _detached_shed_fragments.size()
+			_spawn_shed_fragment(
+				path, cumulative_distances, total_distance, tangents, normals, half_widths,
+				chevron_index
+			)
+			if _detached_shed_fragments.size() == previous_chevron_count:
+				_chevron_burst_remaining = 0
+			else:
+				_chevron_burst_remaining -= 1
+				_chevron_burst_clock = CHEVRON_BURST_SPACING if _chevron_burst_remaining > 0 else 0.0
 
 
-func _spawn_shed_fragment(
+func _spawn_surface_fragment(
 	path: Array[Vector2],
 	cumulative_distances: Array[float],
 	total_distance: float,
@@ -527,35 +648,161 @@ func _spawn_shed_fragment(
 	if (
 		not shedding_enabled
 		or path.size() < 6
+		or total_distance < 70.0
+		or _detached_shed_fragments.size() >= 36
+		or _surface_fragment_material == null
+	):
+		return
+
+	var sequence_value: float = float(_shed_sequence)
+	var burst_progress: float = float(burst_index) / float(maxi(SURFACE_BURST_PIECE_COUNT - 1, 1))
+	var progress: float = clampf(
+		lerpf(0.23, 0.69, burst_progress)
+		+ sin(sequence_value * 8.13 + 1.7) * 0.025,
+		0.18,
+		0.75
+	)
+	var center_distance: float = total_distance * progress
+	var fragment_length: float = lerpf(
+		31.0, 46.0, absf(sin(sequence_value * 5.31 + 1.2))
+	)
+	var start_distance: float = maxf(center_distance - fragment_length * 0.5, 0.5)
+	var end_distance: float = minf(center_distance + fragment_length * 0.5, total_distance * 0.91)
+	if end_distance - start_distance < 12.0:
+		return
+
+	var fragment_distances: Array[float] = [start_distance]
+	for point_index in range(1, path.size() - 1):
+		var sample_distance: float = cumulative_distances[point_index]
+		if sample_distance > start_distance + 0.1 and sample_distance < end_distance - 0.1:
+			fragment_distances.append(sample_distance)
+	fragment_distances.append(end_distance)
+
+	var width_scale: float = lerpf(0.78, 0.91, absf(sin(sequence_value * 4.73 + 0.6)))
+	var outer_edge := PackedVector2Array()
+	var inner_edge := PackedVector2Array()
+	var outer_uvs := PackedVector2Array()
+	var inner_uvs := PackedVector2Array()
+	for sample_index in range(fragment_distances.size()):
+		var sample_distance: float = fragment_distances[sample_index]
+		var section: Dictionary = _sample_trail_cross_section(
+			sample_distance, path, cumulative_distances, tangents, normals, half_widths
+		)
+		var center: Vector2 = section["position"]
+		var tangent: Vector2 = section["tangent"]
+		var normal: Vector2 = section["normal"]
+		var half_width: float = float(section["half_width"]) * width_scale
+		var start_skew: float = 3.8 if sample_index == 0 else 0.0
+		var end_skew: float = -2.8 if sample_index == fragment_distances.size() - 1 else 0.0
+		var distance_skew: float = start_skew + end_skew
+		outer_edge.append(center + normal * half_width + tangent * distance_skew)
+		inner_edge.append(center - normal * half_width - tangent * distance_skew * 0.65)
+		outer_uvs.append(Vector2(sample_distance / total_distance, 1.0))
+		inner_uvs.append(Vector2(sample_distance / total_distance, 0.0))
+
+	var global_vertices: Array[Vector2] = []
+	var fragment_uvs := PackedVector2Array()
+	var centroid_global := Vector2.ZERO
+	for vertex_index in range(outer_edge.size()):
+		global_vertices.append(outer_edge[vertex_index])
+		fragment_uvs.append(outer_uvs[vertex_index])
+		centroid_global += outer_edge[vertex_index]
+	for vertex_index in range(inner_edge.size() - 1, -1, -1):
+		global_vertices.append(inner_edge[vertex_index])
+		fragment_uvs.append(inner_uvs[vertex_index])
+		centroid_global += inner_edge[vertex_index]
+	if global_vertices.size() < 6:
+		return
+	centroid_global /= float(global_vertices.size())
+
+	var fragment_polygon := PackedVector2Array()
+	for vertex in global_vertices:
+		fragment_polygon.append(vertex - centroid_global)
+
+	var shard := Polygon2D.new()
+	shard.name = "DetachedCometSurfaceFragment"
+	shard.z_as_relative = false
+	shard.z_index = -2
+	shard.polygon = fragment_polygon
+	shard.uv = fragment_uvs
+	shard.material = _surface_fragment_material
+	shard.modulate = Color(1.08, 1.12, 1.24, 1.0)
+
+	var world_root: Node2D = get_tree().current_scene as Node2D
+	if world_root == null:
+		world_root = get_parent() as Node2D
+	if world_root == null:
+		shard.queue_free()
+		return
+	world_root.add_child(shard)
+	shard.global_position = centroid_global
+	shard.global_rotation = 0.0
+
+	var source_index: int = _nearest_trail_sample_index(center_distance, cumulative_distances)
+	var side: float = -1.0 if burst_index % 2 == 0 else 1.0
+	var outward_speed: float = lerpf(
+		30.0, 48.0, absf(sin(sequence_value * 17.13 + 2.7))
+	)
+	var drift_speed: float = lerpf(
+		10.0, 21.0, absf(sin(sequence_value * 6.73 + 1.4))
+	)
+	var lifetime: float = lerpf(
+		0.78, 1.08, absf(sin(sequence_value * 3.91 + 0.8))
+	)
+	var angular_velocity: float = sin(sequence_value * 8.31 + 0.9) * 1.7
+	var velocity: Vector2 = (
+		normals[source_index] * side * outward_speed
+		+ tangents[source_index] * drift_speed
+	)
+	_detached_shed_fragments.append({
+		"node": shard,
+		"velocity": velocity,
+		"age": 0.0,
+		"lifetime": lifetime,
+		"angular_velocity": angular_velocity,
+		"base_alpha": 1.0,
+		"fade_start_fraction": 0.56
+	})
+	_shed_sequence += 1
+
+
+func _spawn_shed_fragment(
+	path: Array[Vector2],
+	cumulative_distances: Array[float],
+	total_distance: float,
+	tangents: Array[Vector2],
+	normals: Array[Vector2],
+	half_widths: Array[float],
+	burst_index: int
+) -> void:
+	# Small secondary chevrons cluster near the tail. They accent the larger
+	# surface pieces without pretending to carve holes in the real trail.
+	if (
+		not shedding_enabled
+		or path.size() < 6
 		or total_distance < 55.0
-		or _detached_shed_fragments.size() >= 30
+		or _detached_shed_fragments.size() >= 36
 		or _aura_fragment_material == null
 	):
 		return
 
-	# Spread the groups along the visible trail, with a little deterministic
-	# variation. They are slices of the outside edge of the aura, never the body.
-	var burst_progress: float = (
-		float(burst_index) / float(maxi(SHED_BURST_PIECE_COUNT - 1, 1))
-	)
 	var sequence_value: float = float(_shed_sequence)
+	var burst_progress: float = float(burst_index) / float(maxi(CHEVRON_BURST_PIECE_COUNT - 1, 1))
 	var progress: float = clampf(
-		lerpf(0.22, 0.79, burst_progress)
-		+ sin(sequence_value * 11.7 + 2.4) * 0.026,
-		0.17,
-		0.84
+		lerpf(0.73, 0.90, burst_progress)
+		+ sin(sequence_value * 11.7 + 2.4) * 0.018,
+		0.68,
+		0.93
 	)
 	var center_distance: float = total_distance * progress
 	var fragment_length: float = lerpf(
-		18.0, 29.0, absf(sin(sequence_value * 5.31 + 1.2))
+		15.0, 23.0, absf(sin(sequence_value * 5.31 + 1.2))
 	)
 	var start_distance: float = maxf(center_distance - fragment_length * 0.5, 0.5)
-	var end_distance: float = minf(center_distance + fragment_length * 0.5, total_distance * 0.97)
+	var end_distance: float = minf(center_distance + fragment_length * 0.5, total_distance * 0.98)
 	if end_distance - start_distance < 7.0:
 		return
 
-	# Include the path samples that lie within the fragment so its strip follows
-	# bends rather than looking like a straight tile cut from the trail.
 	var fragment_distances: Array[float] = [start_distance]
 	for point_index in range(1, path.size() - 1):
 		var sample_distance: float = cumulative_distances[point_index]
@@ -571,9 +818,7 @@ func _spawn_shed_fragment(
 		var section: Dictionary = _sample_trail_cross_section(
 			sample_distance, path, cumulative_distances, tangents, normals, half_widths
 		)
-		var t: float = (
-			(sample_distance - start_distance) / (end_distance - start_distance)
-		)
+		var t: float = (sample_distance - start_distance) / (end_distance - start_distance)
 		var taper: float = lerpf(0.14, 1.0, sin(PI * t))
 		var center: Vector2 = section["position"]
 		var normal: Vector2 = section["normal"]
@@ -590,7 +835,6 @@ func _spawn_shed_fragment(
 		var vertex: Vector2 = inner_edge[reverse_index]
 		world_vertices.append(vertex)
 		centroid_global += vertex
-
 	if world_vertices.size() < 6:
 		return
 	centroid_global /= float(world_vertices.size())
@@ -600,7 +844,7 @@ func _spawn_shed_fragment(
 		fragment_polygon.append(vertex - centroid_global)
 
 	var shard := Polygon2D.new()
-	shard.name = "DetachedAuraFragment"
+	shard.name = "DetachedAuraChevron"
 	shard.z_as_relative = false
 	shard.z_index = -2
 	shard.polygon = fragment_polygon
@@ -619,13 +863,13 @@ func _spawn_shed_fragment(
 
 	var source_index: int = _nearest_trail_sample_index(center_distance, cumulative_distances)
 	var outward_speed: float = lerpf(
-		24.0, 44.0, absf(sin(sequence_value * 17.13 + 2.7))
+		38.0, 62.0, absf(sin(sequence_value * 17.13 + 2.7))
 	)
 	var drift_speed: float = lerpf(
-		9.0, 22.0, absf(sin(sequence_value * 6.73 + 1.4))
+		8.0, 18.0, absf(sin(sequence_value * 6.73 + 1.4))
 	)
 	var lifetime: float = lerpf(
-		0.46, 0.72, absf(sin(sequence_value * 3.91 + 0.8))
+		0.34, 0.48, absf(sin(sequence_value * 3.91 + 0.8))
 	)
 	var angular_velocity: float = sin(sequence_value * 8.31 + 0.9) * 3.0
 	var velocity: Vector2 = (
@@ -638,7 +882,8 @@ func _spawn_shed_fragment(
 		"age": 0.0,
 		"lifetime": lifetime,
 		"angular_velocity": angular_velocity,
-		"base_alpha": 1.0
+		"base_alpha": 1.0,
+		"fade_start_fraction": 0.18
 	})
 	_shed_sequence += 1
 
@@ -672,7 +917,8 @@ func _update_detached_shed_fragments(delta: float) -> void:
 		velocity *= maxf(0.0, 1.0 - delta * 0.8)
 		shard.global_position += velocity * delta
 		shard.rotation += float(fragment["angular_velocity"]) * delta
-		var fade: float = 1.0 - smoothstep(lifetime * 0.18, lifetime, age)
+		var fade_start: float = lifetime * float(fragment.get("fade_start_fraction", 0.18))
+		var fade: float = 1.0 - smoothstep(fade_start, lifetime, age)
 		var tint: Color = shard.modulate
 		tint.a = float(fragment["base_alpha"]) * fade
 		shard.modulate = tint
