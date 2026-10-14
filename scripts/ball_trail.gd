@@ -917,9 +917,16 @@ func _sync_shed_gap_materials(
 				)
 
 	var materials: Array[ShaderMaterial] = []
-	var unified_material := _unified_shape.material as ShaderMaterial if _unified_shape != null else null
-	var energy_material := _energy_line.material as ShaderMaterial if _energy_line != null else null
-	var aura_material := _trail_aura.material as ShaderMaterial if _trail_aura != null else null
+	var unified_material: ShaderMaterial = null
+	var energy_material: ShaderMaterial = null
+	var aura_material: ShaderMaterial = null
+	if _unified_shape != null:
+		unified_material = _unified_shape.material as ShaderMaterial
+	if _energy_line != null:
+		energy_material = _energy_line.material as ShaderMaterial
+	if _trail_aura != null:
+		aura_material = _trail_aura.material as ShaderMaterial
+
 	for material in [unified_material, energy_material, aura_material, _shed_piece_material]:
 		if material != null and not materials.has(material):
 			materials.append(material)
