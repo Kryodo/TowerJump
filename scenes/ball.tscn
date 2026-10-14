@@ -201,6 +201,7 @@ antialiased = true
 
 [node name="TrailAura" type="Line2D" parent="TrailVisual" unique_id=333510001]
 material = SubResource("ShaderMaterial_aura_shedding")
+texture_mode = 2
 width = 40.0
 width_curve = SubResource("Curve_iijjg")
 gradient = SubResource("Gradient_f7kxq")

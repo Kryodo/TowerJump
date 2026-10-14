@@ -315,12 +315,16 @@ func _update_fissure_shader_scale(total_distance: float) -> void:
 	var energy_material := _energy_line.material as ShaderMaterial
 	if body_material != null:
 		body_material.set_shader_parameter("crack_along_scale", along_scale)
+		body_material.set_shader_parameter("crack_width_scale", 1.35)
 	if aura_material != null:
 		aura_material.set_shader_parameter("crack_along_scale", along_scale)
+		aura_material.set_shader_parameter("crack_width_scale", 1.80)
 	if energy_material != null:
 		energy_material.set_shader_parameter("crack_along_scale", along_scale)
+		energy_material.set_shader_parameter("crack_width_scale", 0.90)
 	if _surface_fragment_material != null:
 		_surface_fragment_material.set_shader_parameter("crack_along_scale", along_scale)
+		_surface_fragment_material.set_shader_parameter("crack_width_scale", 1.35)
 
 
 func _get_animated_trail_point(index: int, apply_head_offset: bool = true) -> Vector2:
@@ -574,12 +578,20 @@ func _spawn_surface_fragment(
 		return
 
 	var sequence_value: float = float(_shed_sequence)
-	var burst_progress: float = float(burst_index) / float(maxi(SURFACE_BURST_PIECE_COUNT - 1, 1))
+	var anchor_progress: float
+	match burst_index:
+		0:
+			anchor_progress = 0.34
+		1:
+			anchor_progress = 0.45
+		2:
+			anchor_progress = 0.57
+		_:
+			anchor_progress = 0.68
 	var progress: float = clampf(
-		lerpf(0.22, 0.56, burst_progress)
-		+ sin(sequence_value * 8.13 + 1.7) * 0.035,
-		0.18,
-		0.62
+		anchor_progress + sin(sequence_value * 8.13 + 1.7) * 0.024,
+		0.30,
+		0.73
 	)
 	var center_distance: float = total_distance * progress
 	var fragment_length: float = lerpf(

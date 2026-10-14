@@ -7,6 +7,7 @@ uniform int palette_mode = 0;
 uniform float trail_progress_start = 0.0;
 uniform float trail_progress_scale = 1.0;
 uniform float crack_along_scale = 1.0;
+uniform float crack_width_scale = 1.0;
 
 float crack_segment_distance(vec2 uv, vec2 start_uv, vec2 end_uv) {
 	float scale = max(crack_along_scale, 1.0);
@@ -37,7 +38,7 @@ float crack_keep(vec2 uv) {
 			crack_segment_distance(uv, vec2(0.258, 0.735), vec2(0.236, 0.945))
 		)
 	);
-	float cut_long = 1.0 - smoothstep(0.020, 0.043, long_crack);
+	float cut_long = 1.0 - smoothstep(0.020 * crack_width_scale, 0.043 * crack_width_scale, long_crack);
 
 	// A separate hooked split starts well inside the trail and runs out to one edge.
 	float side_crack = min(
@@ -50,7 +51,7 @@ float crack_keep(vec2 uv) {
 			crack_segment_distance(uv, vec2(0.453, 0.865), vec2(0.434, 0.985))
 		)
 	);
-	float cut_side = 1.0 - smoothstep(0.014, 0.032, side_crack);
+	float cut_side = 1.0 - smoothstep(0.014 * crack_width_scale, 0.032 * crack_width_scale, side_crack);
 
 	// This one starts at the opposite edge and travels through most of the body.
 	float cross_crack = min(
@@ -69,7 +70,7 @@ float crack_keep(vec2 uv) {
 			crack_segment_distance(uv, vec2(0.640, 0.635), vec2(0.671, 0.755))
 		)
 	);
-	float cut_cross = 1.0 - smoothstep(0.017, 0.037, cross_crack);
+	float cut_cross = 1.0 - smoothstep(0.017 * crack_width_scale, 0.037 * crack_width_scale, cross_crack);
 
 	// Shorter, narrower, irregular fracture near the lower body.
 	float lower_crack = min(
@@ -85,7 +86,7 @@ float crack_keep(vec2 uv) {
 			)
 		)
 	);
-	float cut_lower = 1.0 - smoothstep(0.013, 0.029, lower_crack);
+	float cut_lower = 1.0 - smoothstep(0.013 * crack_width_scale, 0.029 * crack_width_scale, lower_crack);
 
 	// A small branching spur makes the pattern feel fractured, not repeated.
 	float branch_crack = min(
@@ -98,7 +99,7 @@ float crack_keep(vec2 uv) {
 			crack_segment_distance(uv, vec2(0.330, 0.568), vec2(0.315, 0.632))
 		)
 	);
-	float cut_branch = 1.0 - smoothstep(0.010, 0.023, branch_crack);
+	float cut_branch = 1.0 - smoothstep(0.010 * crack_width_scale, 0.023 * crack_width_scale, branch_crack);
 
 	float cut = max(max(cut_long, cut_side), max(max(cut_cross, cut_lower), cut_branch));
 	return 1.0 - cut;
