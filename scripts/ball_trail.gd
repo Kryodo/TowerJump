@@ -16,6 +16,8 @@ const ORB_RIM_CENTER_RADIUS_RATIO: float = 0.93
 const SHED_CONNECTED_END_PROGRESS: float = 0.38
 const SHED_GEOMETRY_PIECE_CAPACITY: int = 24
 const MAX_ACTIVE_SHED_BREAKS: int = 3
+const LANDING_BURST_FRAGMENT_COUNT: int = 3
+const LANDING_BURST_INTERVAL: float = 0.05
 
 @export_category("Visual Palette")
 @export_enum("Electric Blue", "Rich Violet") var visual_palette: int = 0
@@ -40,6 +42,9 @@ var _last_emission_direction: Vector2 = Vector2.DOWN
 var _ball_surface_radius: float = 29.9
 var _shed_sequence: int = 0
 var _pending_landing_shed: bool = false
+var _landing_burst_remaining: int = 0
+var _landing_burst_timer: float = 0.0
+var _landing_burst_last_progress: float = -1.0
 var _detached_shed_fragments: Array[Dictionary] = []
 var _shed_geometry_pieces: Array[Polygon2D] = []
 var _shed_piece_ranges: Array[Dictionary] = []
@@ -94,8 +99,8 @@ func _on_landing_confirmed(event: LandingEvent) -> void:
 	if ball == null or event.ball != ball:
 		return
 
-	# Queue the release until this frame's trail geometry has been rebuilt.
-	# One confirmed landing requests one genuine polygon fragment.
+	# Queue a short release burst until this frame's trail geometry is rebuilt.
+	# The burst only uses genuine pieces cut from this trail's polygon.
 	_pending_landing_shed = true
 
 
@@ -257,6 +262,11 @@ func _process(delta: float) -> void:
 	if not shedding_enabled:
 		_shed_break_events.clear()
 		_pending_landing_shed = false
+		_landing_burst_remaining = 0
+		_landing_burst_timer = 0.0
+		_landing_burst_last_progress = -1.0
+	if _landing_burst_remaining > 0 and not _pending_landing_shed:
+		_landing_burst_timer = maxf(_landing_burst_timer - delta, 0.0)
 	var current_world_position: Vector2 = ball.global_position
 	var movement: Vector2 = current_world_position - _previous_ball_position
 	var distance_from_trail: float = movement.length()
@@ -517,13 +527,27 @@ func _update_unified_comet_shape() -> void:
 				)
 		_unified_contour.points = contour_points
 
-	# Only a confirmed landing can release material. The source polygon and
-	# its linked gap are captured after the current frame's geometry rebuild.
+	# A confirmed landing starts three real pieces, with two short stagger gaps.
+	# Each release happens only after this frame's source polygons are rebuilt.
 	if _pending_landing_shed:
 		_pending_landing_shed = false
-		_spawn_shed_fragment(
+		_landing_burst_remaining = LANDING_BURST_FRAGMENT_COUNT
+		_landing_burst_timer = 0.0
+		_landing_burst_last_progress = -1.0
+
+	if _landing_burst_remaining > 0 and _landing_burst_timer <= 0.0:
+		var spawned: bool = _spawn_shed_fragment(
 			path, cumulative_distances, total_distance, tangents, normals, half_widths
 		)
+		if spawned:
+			_landing_burst_remaining -= 1
+			if _landing_burst_remaining > 0:
+				_landing_burst_timer = LANDING_BURST_INTERVAL
+		else:
+			# Do not leave a burst waiting forever if usable source material is
+			# unavailable or all three persistent gap slots are already occupied.
+			_landing_burst_remaining = 0
+			_landing_burst_last_progress = -1.0
 
 
 func _spawn_shed_fragment(
@@ -533,7 +557,7 @@ func _spawn_shed_fragment(
 	tangents: Array[Vector2],
 	normals: Array[Vector2],
 	half_widths: Array[float]
-) -> void:
+) -> bool:
 	if (
 		not shedding_enabled
 		or path.size() < 16
@@ -542,7 +566,7 @@ func _spawn_shed_fragment(
 		or _shed_break_events.size() >= MAX_ACTIVE_SHED_BREAKS
 		or _shed_piece_ranges.is_empty()
 	):
-		return
+		return false
 
 	# Candidates are the actual lower-tail polygons currently visible in the
 	# scene. We clone one of those exact meshes instead of inventing a generic
@@ -554,18 +578,73 @@ func _spawn_shed_fragment(
 		if progress >= 0.48 and progress <= 0.78 and is_instance_valid(source_piece) and source_piece.visible:
 			candidates.append(piece_range)
 	if candidates.is_empty():
-		return
+		return false
 
-	var selected: Dictionary = candidates[_shed_sequence % candidates.size()]
+	# Start near the middle of the lower tail, then take neighboring islands in
+	# the same direction. This makes one landing read as a compact material burst.
+	var selected: Dictionary = {}
+	if _landing_burst_last_progress < 0.0:
+		for candidate in candidates:
+			var candidate_progress: float = float(candidate["progress"])
+			if (
+				selected.is_empty()
+				or absf(candidate_progress - 0.62)
+				< absf(float(selected["progress"]) - 0.62)
+			):
+				selected = candidate
+	else:
+		for candidate in candidates:
+			var candidate_progress: float = float(candidate["progress"])
+			if candidate_progress <= _landing_burst_last_progress + 0.002:
+				continue
+			if (
+				selected.is_empty()
+				or candidate_progress < float(selected["progress"])
+			):
+				selected = candidate
+
+		# Near the tail limit there may be no candidate farther down the stream.
+		# In that case, take the nearest unbroken island just above the previous one.
+		if selected.is_empty():
+			for candidate in candidates:
+				var candidate_progress_before: float = float(candidate["progress"])
+				if candidate_progress_before >= _landing_burst_last_progress - 0.002:
+					continue
+				if (
+					selected.is_empty()
+					or candidate_progress_before > float(selected["progress"])
+				):
+					selected = candidate
+
+	if selected.is_empty():
+		return false
 	var source_piece := selected["node"] as Polygon2D
 	if source_piece.polygon.size() < 4:
-		return
+		return false
+
+	var start_id: int = int(selected["start_id"])
+	var end_id: int = int(selected["end_id"])
+	var start_sample_index: int = _point_ids.find(start_id)
+	var end_sample_index: int = _point_ids.find(end_id)
+	if start_sample_index < 0 or end_sample_index < 0:
+		return false
+	var piece_length: float = (
+		float(selected["end_distance"]) - float(selected["start_distance"])
+	)
+	var start_skew: float = minf(piece_length * 0.32, 5.0)
+	var end_skew: float = minf(piece_length * 0.28, 4.5)
+	var start_offset: float = (
+		float(selected["start_distance"]) - cumulative_distances[start_sample_index]
+	)
+	var end_offset: float = (
+		float(selected["end_distance"]) - cumulative_distances[end_sample_index]
+	)
 
 	var world_root: Node2D = get_tree().current_scene as Node2D
 	if world_root == null:
 		world_root = get_parent() as Node2D
 	if world_root == null:
-		return
+		return false
 
 	var world_vertices: Array[Vector2] = []
 	var centroid_global := Vector2.ZERO
@@ -590,12 +669,13 @@ func _spawn_shed_fragment(
 	shard.global_position = centroid_global
 	shard.global_rotation = 0.0
 
-	var start_id: int = int(selected["start_id"])
-	var end_id: int = int(selected["end_id"])
 	_shed_break_events.append({
 		"start_id": start_id,
 		"end_id": end_id,
-		"slant_direction": 1.0 if _shed_sequence % 2 == 0 else -1.0
+		"start_offset": start_offset,
+		"end_offset": end_offset,
+		"start_skew": start_skew,
+		"end_skew": end_skew
 	})
 
 	# Remove this very section immediately. Its anchor IDs keep the matching
@@ -627,7 +707,9 @@ func _spawn_shed_fragment(
 		"base_alpha": 1.0
 	})
 	_shed_sequence += 1
+	_landing_burst_last_progress = float(selected["progress"])
 	_sync_shed_gap_materials(cumulative_distances, total_distance)
+	return true
 
 
 func _update_detached_shed_fragments(delta: float) -> void:
@@ -748,15 +830,15 @@ func _build_shed_piece_polygon(
 	var polygon_points := PackedVector2Array()
 	var polygon_uvs := PackedVector2Array()
 	var length: float = end_distance - start_distance
-	var start_skew: float = minf(length * 0.20, 3.0)
-	var end_skew: float = minf(length * 0.17, 2.5)
+	var start_skew: float = minf(length * 0.32, 5.0)
+	var end_skew: float = minf(length * 0.28, 4.5)
 
-	# Keep both sides inside the source interval, but angle the ends more
-	# clearly so detachments read as chevrons instead of flat slices.
+	# Asymmetric offsets make both ends read as stronger angled cuts. The same
+	# skew values are stored in the gap event so every visual layer matches them.
 	var start_right_distance: float = start_distance + start_skew
-	var start_left_distance: float = start_distance + start_skew * 0.18
+	var start_left_distance: float = start_distance + start_skew * 0.12
 	var end_right_distance: float = end_distance - end_skew
-	var end_left_distance: float = end_distance - end_skew * 0.18
+	var end_left_distance: float = end_distance - end_skew * 0.12
 
 	var start_right_section: Dictionary = _sample_trail_cross_section(
 		start_right_distance, path, cumulative_distances, tangents, normals, half_widths
@@ -913,6 +995,33 @@ func _prune_shed_break_events() -> void:
 			_shed_break_events.remove_at(event_index)
 
 
+func _shed_event_distance_bounds(
+	event: Dictionary,
+	cumulative_distances: Array[float]
+) -> Vector2:
+	var start_index: int = _point_ids.find(int(event["start_id"]))
+	var end_index: int = _point_ids.find(int(event["end_id"]))
+	if start_index < 0 or end_index < 0 or cumulative_distances.is_empty():
+		return Vector2(-1.0, -1.0)
+
+	var max_distance: float = cumulative_distances[cumulative_distances.size() - 1]
+	var start_distance: float = clampf(
+		cumulative_distances[start_index] + float(event.get("start_offset", 0.0)),
+		0.0,
+		max_distance
+	)
+	var end_distance: float = clampf(
+		cumulative_distances[end_index] + float(event.get("end_offset", 0.0)),
+		0.0,
+		max_distance
+	)
+	if end_distance < start_distance:
+		var swap_distance: float = start_distance
+		start_distance = end_distance
+		end_distance = swap_distance
+	return Vector2(start_distance, end_distance)
+
+
 func _shed_event_overlaps_interval(
 	interval_start: float,
 	interval_end: float,
@@ -920,14 +1029,11 @@ func _shed_event_overlaps_interval(
 	total_distance: float
 ) -> bool:
 	for event in _shed_break_events:
-		var start_index: int = _point_ids.find(int(event["start_id"]))
-		var end_index: int = _point_ids.find(int(event["end_id"]))
-		if start_index < 0 or end_index < 0:
+		var bounds: Vector2 = _shed_event_distance_bounds(event, cumulative_distances)
+		if bounds.x < 0.0 or bounds.y <= bounds.x:
 			continue
-		var event_start: float = cumulative_distances[mini(start_index, end_index)]
-		var event_end: float = cumulative_distances[maxi(start_index, end_index)]
-		# Ignore touching endpoints; only skip the source range itself.
-		if event_start < interval_end - 0.8 and event_end > interval_start + 0.8:
+		# Use the actual source boundaries, not their nearest sample positions.
+		if bounds.x < interval_end - 0.8 and bounds.y > interval_start + 0.8:
 			return true
 	return false
 
@@ -944,23 +1050,18 @@ func _sync_shed_gap_materials(
 	if shedding_enabled and total_distance > 0.01:
 		for event_index in range(mini(_shed_break_events.size(), MAX_ACTIVE_SHED_BREAKS)):
 			var event: Dictionary = _shed_break_events[event_index]
-			var start_index: int = _point_ids.find(int(event["start_id"]))
-			var end_index: int = _point_ids.find(int(event["end_id"]))
-			if start_index < 0 or end_index < 0:
+			var bounds: Vector2 = _shed_event_distance_bounds(event, cumulative_distances)
+			if bounds.x < 0.0 or bounds.y - bounds.x <= 0.01:
 				continue
 
-			var start_distance: float = cumulative_distances[mini(start_index, end_index)]
-			var end_distance: float = cumulative_distances[maxi(start_index, end_index)]
-			if end_distance - start_distance > 0.01:
-				var gap_width: float = end_distance - start_distance
-				var slant_direction: float = float(event.get("slant_direction", 1.0))
-				var slant_distance: float = minf(gap_width * 0.22, 5.0) * slant_direction
-				intervals[event_index] = Vector4(
-					start_distance / total_distance,
-					end_distance / total_distance,
-					slant_distance / total_distance,
-					0.0
-				)
+			var start_skew: float = float(event.get("start_skew", 0.0))
+			var end_skew: float = float(event.get("end_skew", 0.0))
+			intervals[event_index] = Vector4(
+				bounds.x / total_distance,
+				bounds.y / total_distance,
+				start_skew / total_distance,
+				end_skew / total_distance
+			)
 
 	var materials: Array[ShaderMaterial] = []
 	var unified_material: ShaderMaterial = null
