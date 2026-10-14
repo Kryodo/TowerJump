@@ -60,9 +60,8 @@ void fragment() {
 	body_color = mix(body_color, inner_energy_color, center_energy * (0.14 + 0.16 * head_energy));
 	body_color *= flow;
 
-	// The translucent skin now participates in the same fracture pattern as
-	// the inner energy stream and aura. The orb sprite is drawn later and keeps
-	// its luminous core intact while the lower trail visibly sheds pieces.
+	// The connected neck and detached islands share the same soft plasma body.
+	// Landing-triggered gaps are supplied through shed_gap_mask below.
 	float translucent_body_alpha = mix(0.30, 0.10, smoothstep(0.02, 0.92, along));
 	// Separate polygons receive a modest alpha lift, not an opaque-material
 	// switch. They should read as the same plasma body with edges removed.
