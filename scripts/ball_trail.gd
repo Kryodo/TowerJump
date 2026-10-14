@@ -1279,6 +1279,30 @@ func _sync_shed_gap_materials(
 	_set_shed_gap_uniforms(_shed_piece_material, _empty_shed_gap_intervals())
 
 
+func _update_particle_emitters(
+	current_world_position: Vector2,
+	movement: Vector2,
+	distance_from_trail: float
+) -> void:
+	if distance_from_trail > 0.01 and distance_from_trail <= max_segment_distance:
+		_last_emission_direction = -movement.normalized()
+
+	# Spawn geometric fragments from the back of the orb, not its centre, so
+	# they appear to break away from the comet tail rather than through the ball.
+	var emission_position: Vector2 = (
+		current_world_position + _last_emission_direction * trail_head_offset
+	)
+	for emitter in _particle_emitters:
+		emitter.global_position = emission_position
+		var material := emitter.process_material as ParticleProcessMaterial
+		if material != null:
+			material.direction = Vector3(
+				_last_emission_direction.x,
+				_last_emission_direction.y,
+				0.0
+			)
+
+
 func _apply_visual_palette() -> void:
 	var energy_head: Color
 	var energy_tail: Color
