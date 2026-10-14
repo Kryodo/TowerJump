@@ -15,6 +15,8 @@ const UNIFIED_HEAD_ARC_SEGMENTS: int = 20
 const ORB_RIM_CENTER_RADIUS_RATIO: float = 0.93
 const SHED_CONNECTED_END_PROGRESS: float = 0.38
 const SHED_GEOMETRY_PIECE_CAPACITY: int = 12
+const SHED_BURST_PIECE_COUNT: int = 3
+const SHED_BURST_SPACING: float = 0.05
 const MAX_ACTIVE_SHED_BREAKS: int = 3
 
 @export_category("Visual Palette")
@@ -22,7 +24,6 @@ const MAX_ACTIVE_SHED_BREAKS: int = 3
 
 @export_category("Comet Shedding")
 @export var shedding_enabled: bool = true
-@export_range(0.06, 0.5, 0.01) var shed_fragment_interval: float = 0.14
 
 @onready var _energy_line: Line2D = $EnergyLine
 @onready var _trail_aura: Line2D = $TrailAura
@@ -39,7 +40,8 @@ var _previous_ball_position: Vector2 = Vector2.ZERO
 var _trail_time: float = 0.0
 var _last_emission_direction: Vector2 = Vector2.DOWN
 var _ball_surface_radius: float = 29.9
-var _shed_spawn_clock: float = 0.0
+var _shed_burst_remaining: int = 0
+var _shed_burst_clock: float = 0.0
 var _shed_sequence: int = 0
 var _detached_shed_fragments: Array[Dictionary] = []
 var _shed_geometry_pieces: Array[Polygon2D] = []
@@ -79,6 +81,7 @@ func _ready() -> void:
 	_apply_visual_palette()
 	_initialize_split_line_pools()
 	_initialize_shed_geometry_pieces()
+	call_deferred("_connect_landing_feedback")
 	_update_trail_lines()
 	_update_rim_breath()
 
@@ -238,10 +241,10 @@ func _process(delta: float) -> void:
 		return
 
 	_trail_time += delta
-	if shedding_enabled:
-		_shed_spawn_clock += delta
-	else:
+	if not shedding_enabled:
 		_shed_break_events.clear()
+		_shed_burst_remaining = 0
+		_shed_burst_clock = 0.0
 	var current_world_position: Vector2 = ball.global_position
 	var movement: Vector2 = current_world_position - _previous_ball_position
 	var distance_from_trail: float = movement.length()
@@ -263,7 +266,7 @@ func _process(delta: float) -> void:
 			_points.pop_back()
 			_point_ids.pop_back()
 
-	_update_trail_lines()
+	_update_trail_lines(delta)
 	_update_detached_shed_fragments(delta)
 	_update_rim_breath()
 	_update_particle_emitters(current_world_position, movement, distance_from_trail)
@@ -281,7 +284,7 @@ func _update_rim_breath() -> void:
 		_unified_contour.modulate = Color(rim_breath, rim_breath, rim_breath, 1.0)
 
 
-func _update_trail_lines() -> void:
+func _update_trail_lines(delta: float = 0.0) -> void:
 	if _points.size() < 2:
 		_clear_shed_line_spans()
 		if _unified_shape != null:
@@ -293,7 +296,7 @@ func _update_trail_lines() -> void:
 		return
 
 	_rebuild_shed_line_spans()
-	_update_unified_comet_shape()
+	_update_unified_comet_shape(delta)
 
 
 func _initialize_split_line_pools() -> void:
@@ -566,7 +569,7 @@ func _get_animated_trail_point(index: int, apply_head_offset: bool = true) -> Ve
 
 
 
-func _update_unified_comet_shape() -> void:
+func _update_unified_comet_shape(delta: float = 0.0) -> void:
 	if _unified_shape == null or _points.size() < 2:
 		return
 
@@ -727,14 +730,75 @@ func _update_unified_comet_shape() -> void:
 				)
 		_unified_contour.points = contour_points
 
-	# Emit one actual polygon shard from the lower trail at intervals. Shader
-	# fractures remove material from the parent trail while these pieces drift
-	# independently, so the breakup reads as shed geometry rather than sparks.
-	if shedding_enabled and _shed_spawn_clock >= shed_fragment_interval:
-		_shed_spawn_clock = 0.0
-		_spawn_shed_fragment(
-			path, cumulative_distances, total_distance, tangents, normals, half_widths
-		)
+	# The trail geometry and candidate ranges have now been rebuilt for this
+	# frame. Release at most one queued fragment from those fresh surviving ranges.
+	_process_shed_burst(
+		delta, path, cumulative_distances, total_distance, tangents, normals, half_widths
+	)
+
+
+func _connect_landing_feedback() -> void:
+	var scene_root := get_tree().current_scene
+	if scene_root == null:
+		return
+
+	# The main game scene owns this coordinator. Test rooms without it continue
+	# to render the trail without raising any landing-triggered bursts.
+	var controller := scene_root.get_node_or_null("LandingFeedbackController")
+	if controller == null or not controller.has_signal("landing_confirmed"):
+		return
+
+	var callback := Callable(self, "_on_landing_confirmed")
+	if not controller.is_connected("landing_confirmed", callback):
+		controller.connect("landing_confirmed", callback)
+
+
+func _on_landing_confirmed(event: LandingEvent) -> void:
+	if not shedding_enabled or event == null:
+		return
+
+	var ball := get_parent() as CharacterBody2D
+	if ball == null or event.ball != ball:
+		return
+
+	# A confirmed physical landing queues one deliberate burst; no shedding is
+	# driven by elapsed time while the ball is travelling between platforms.
+	_shed_burst_remaining = SHED_BURST_PIECE_COUNT
+	_shed_burst_clock = 0.0
+
+
+func _process_shed_burst(
+	delta: float,
+	path: Array[Vector2],
+	cumulative_distances: Array[float],
+	total_distance: float,
+	tangents: Array[Vector2],
+	normals: Array[Vector2],
+	half_widths: Array[float]
+) -> void:
+	if not shedding_enabled or _shed_burst_remaining <= 0:
+		return
+
+	if _shed_burst_clock > 0.0:
+		_shed_burst_clock = maxf(_shed_burst_clock - delta, 0.0)
+		if _shed_burst_clock > 0.0:
+			return
+
+	var previous_break_count: int = _shed_break_events.size()
+	_spawn_shed_fragment(
+		path, cumulative_distances, total_distance, tangents, normals, half_widths
+	)
+
+	# If the trail is not yet long enough or no eligible source polygon exists,
+	# discard this burst instead of producing a delayed, contextless fragment.
+	if _shed_break_events.size() == previous_break_count:
+		_shed_burst_remaining = 0
+		_shed_burst_clock = 0.0
+		return
+
+	_shed_burst_remaining -= 1
+	if _shed_burst_remaining > 0:
+		_shed_burst_clock = SHED_BURST_SPACING
 
 
 func _spawn_shed_fragment(
@@ -847,7 +911,6 @@ func _spawn_shed_fragment(
 		"base_alpha": 1.0
 	})
 	_shed_sequence += 1
-	_shed_spawn_clock = 0.0
 	_sync_shed_gap_materials(cumulative_distances, total_distance)
 	_rebuild_shed_line_spans()
 
