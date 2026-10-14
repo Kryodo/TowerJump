@@ -2,7 +2,7 @@ extends Node2D
 
 ## Visual energy trail for the player ball.
 ## The trail is layered: a soft outer aura, a turbulent inner stream, staggered
-## plasma filaments with a small terminal fork, and geometric energy fragments.
+## plasma filaments with a small terminal fork, and landing-triggered aura fragments.
 ## This script only controls visuals; ball movement and collision remain in ball.gd.
 
 @export_category("Trail History")
@@ -13,11 +13,8 @@ extends Node2D
 
 const UNIFIED_HEAD_ARC_SEGMENTS: int = 20
 const ORB_RIM_CENTER_RADIUS_RATIO: float = 0.93
-const SHED_CONNECTED_END_PROGRESS: float = 0.38
-const SHED_GEOMETRY_PIECE_CAPACITY: int = 12
-const SHED_BURST_PIECE_COUNT: int = 3
-const SHED_BURST_SPACING: float = 0.05
-const MAX_ACTIVE_SHED_BREAKS: int = 3
+const SHED_BURST_PIECE_COUNT: int = 5
+const SHED_BURST_SPACING: float = 0.035
 
 @export_category("Visual Palette")
 @export_enum("Electric Blue", "Rich Violet") var visual_palette: int = 0
@@ -28,13 +25,10 @@ const MAX_ACTIVE_SHED_BREAKS: int = 3
 @onready var _energy_line: Line2D = $EnergyLine
 @onready var _trail_aura: Line2D = $TrailAura
 @onready var _unified_shape: Polygon2D = get_node_or_null("UnifiedCometShape") as Polygon2D
-@onready var _shed_geometry_container: Node2D = get_node_or_null("ShedGeometry") as Node2D
 @onready var _unified_contour: Line2D = get_node_or_null("UnifiedCometContour") as Line2D
 @onready var _ball_visual: Sprite2D = get_parent().get_node("Visual") as Sprite2D
 
 var _points: Array[Vector2] = []
-var _point_ids: Array[int] = []
-var _next_point_id: int = 1
 var _particle_emitters: Array[GPUParticles2D] = []
 var _previous_ball_position: Vector2 = Vector2.ZERO
 var _trail_time: float = 0.0
@@ -44,24 +38,7 @@ var _shed_burst_remaining: int = 0
 var _shed_burst_clock: float = 0.0
 var _shed_sequence: int = 0
 var _detached_shed_fragments: Array[Dictionary] = []
-var _shed_geometry_pieces: Array[Polygon2D] = []
-var _shed_piece_ranges: Array[Dictionary] = []
-var _shed_break_events: Array[Dictionary] = []
-var _shed_piece_material: ShaderMaterial
-var _detached_piece_material: ShaderMaterial
-
-const SPLIT_LINE_PROFILE_STEPS: int = 16
-var _energy_line_slots: Array[Line2D] = []
-var _aura_line_slots: Array[Line2D] = []
-var _energy_base_gradient: Gradient
-var _aura_base_gradient: Gradient
-var _energy_base_width_curve: Curve
-var _aura_base_width_curve: Curve
-var _energy_profile_gradients: Array[Gradient] = []
-var _aura_profile_gradients: Array[Gradient] = []
-var _energy_profile_curves: Array[Curve] = []
-var _aura_profile_curves: Array[Curve] = []
-
+var _aura_fragment_material: CanvasItemMaterial
 
 func _ready() -> void:
 	z_index = -1
@@ -79,8 +56,7 @@ func _ready() -> void:
 			_particle_emitters.append(emitter)
 
 	_apply_visual_palette()
-	_initialize_split_line_pools()
-	_initialize_shed_geometry_pieces()
+	_initialize_aura_fragment_material()
 	call_deferred("_connect_landing_feedback")
 	_update_trail_lines()
 	_update_rim_breath()
@@ -242,7 +218,6 @@ func _process(delta: float) -> void:
 
 	_trail_time += delta
 	if not shedding_enabled:
-		_shed_break_events.clear()
 		_shed_burst_remaining = 0
 		_shed_burst_clock = 0.0
 	var current_world_position: Vector2 = ball.global_position
@@ -253,18 +228,11 @@ func _process(delta: float) -> void:
 		# Do not draw a ribbon across teleports, screen-wrap jumps, or other
 		# large discontinuities in the sampled trajectory.
 		_points.clear()
-		_point_ids.clear()
-		_shed_break_events.clear()
 		_points.append(current_world_position)
-		_point_ids.append(_next_point_id)
-		_next_point_id += 1
 	elif _points[0].distance_to(current_world_position) >= min_distance:
 		_points.push_front(current_world_position)
-		_point_ids.push_front(_next_point_id)
-		_next_point_id += 1
 		while _points.size() > max_points:
 			_points.pop_back()
-			_point_ids.pop_back()
 
 	_update_trail_lines(delta)
 	_update_detached_shed_fragments(delta)
@@ -286,257 +254,36 @@ func _update_rim_breath() -> void:
 
 func _update_trail_lines(delta: float = 0.0) -> void:
 	if _points.size() < 2:
-		_clear_shed_line_spans()
+		_energy_line.clear_points()
+		_trail_aura.clear_points()
 		if _unified_shape != null:
 			_unified_shape.polygon = PackedVector2Array()
 			_unified_shape.uv = PackedVector2Array()
-		_clear_shed_geometry_pieces()
 		if _unified_contour != null:
 			_unified_contour.clear_points()
 		return
 
-	_rebuild_shed_line_spans()
+	_rebuild_trail_lines()
 	_update_unified_comet_shape(delta)
 
 
-func _initialize_split_line_pools() -> void:
-	_energy_base_gradient = _energy_line.gradient
-	_aura_base_gradient = _trail_aura.gradient
-	_energy_base_width_curve = _energy_line.width_curve
-	_aura_base_width_curve = _trail_aura.width_curve
-
-	_energy_line_slots.append(_energy_line)
-	_aura_line_slots.append(_trail_aura)
-	_energy_profile_gradients.append(_make_profile_gradient(_energy_base_gradient))
-	_aura_profile_gradients.append(_make_profile_gradient(_aura_base_gradient))
-	_energy_profile_curves.append(_make_profile_curve(_energy_base_width_curve))
-	_aura_profile_curves.append(_make_profile_curve(_aura_base_width_curve))
-
-	for slot_index in range(1, MAX_ACTIVE_SHED_BREAKS + 1):
-		var energy_span := _energy_line.duplicate() as Line2D
-		energy_span.name = "EnergyLineSplit_%02d" % slot_index
-		energy_span.clear_points()
-		var source_energy_material := _energy_line.material as ShaderMaterial
-		if source_energy_material != null:
-			energy_span.material = source_energy_material.duplicate() as ShaderMaterial
-		var energy_profile_gradient: Gradient = _make_profile_gradient(_energy_base_gradient)
-		var energy_profile_curve: Curve = _make_profile_curve(_energy_base_width_curve)
-		if energy_profile_gradient != null:
-			energy_span.gradient = energy_profile_gradient
-		if energy_profile_curve != null:
-			energy_span.width_curve = energy_profile_curve
-		add_child(energy_span)
-		_energy_line_slots.append(energy_span)
-		_energy_profile_gradients.append(energy_profile_gradient)
-		_energy_profile_curves.append(energy_profile_curve)
-
-		var aura_span := _trail_aura.duplicate() as Line2D
-		aura_span.name = "TrailAuraSplit_%02d" % slot_index
-		aura_span.clear_points()
-		var source_aura_material := _trail_aura.material as ShaderMaterial
-		if source_aura_material != null:
-			aura_span.material = source_aura_material.duplicate() as ShaderMaterial
-		var aura_profile_gradient: Gradient = _make_profile_gradient(_aura_base_gradient)
-		var aura_profile_curve: Curve = _make_profile_curve(_aura_base_width_curve)
-		if aura_profile_gradient != null:
-			aura_span.gradient = aura_profile_gradient
-		if aura_profile_curve != null:
-			aura_span.width_curve = aura_profile_curve
-		add_child(aura_span)
-		_aura_line_slots.append(aura_span)
-		_aura_profile_gradients.append(aura_profile_gradient)
-		_aura_profile_curves.append(aura_profile_curve)
-
-
-func _make_profile_gradient(source_gradient: Gradient) -> Gradient:
-	if source_gradient == null:
-		return null
-
-	var profile := Gradient.new()
-	profile.set_color(0, source_gradient.sample(0.0))
-	profile.set_color(1, source_gradient.sample(1.0))
-	for point_index in range(1, SPLIT_LINE_PROFILE_STEPS):
-		var t: float = float(point_index) / float(SPLIT_LINE_PROFILE_STEPS)
-		profile.add_point(t, source_gradient.sample(t))
-	return profile
-
-
-func _make_profile_curve(source_curve: Curve) -> Curve:
-	if source_curve == null:
-		return null
-
-	var profile := Curve.new()
-	profile.clear_points()
-	profile.min_value = source_curve.min_value
-	profile.max_value = source_curve.max_value
-	profile.bake_resolution = source_curve.bake_resolution
-	for point_index in range(SPLIT_LINE_PROFILE_STEPS + 1):
-		var t: float = float(point_index) / float(SPLIT_LINE_PROFILE_STEPS)
-		profile.add_point(Vector2(t, source_curve.sample_baked(t)))
-	return profile
-
-
-func _rebuild_shed_line_spans() -> void:
-	var energy_points: Array[Vector2] = []
-	var aura_points: Array[Vector2] = []
-	var energy_distances: Array[float] = [0.0]
-	var aura_distances: Array[float] = [0.0]
-	for point_index in range(_points.size()):
-		energy_points.append(_get_animated_trail_point(point_index, true))
-		aura_points.append(_get_animated_trail_point(point_index, false))
-		if point_index > 0:
-			energy_distances.append(
-				energy_distances[point_index - 1]
-				+ energy_points[point_index - 1].distance_to(energy_points[point_index])
-			)
-			aura_distances.append(
-				aura_distances[point_index - 1]
-				+ aura_points[point_index - 1].distance_to(aura_points[point_index])
-			)
-
-	var spans: Array[Vector2i] = _get_live_shed_line_spans()
-	var energy_total: float = energy_distances[energy_distances.size() - 1]
-	var aura_total: float = aura_distances[aura_distances.size() - 1]
-	var has_gaps: bool = true
-	if spans.size() == 1:
-		var only_span: Vector2i = spans[0]
-		has_gaps = only_span.x != 0 or only_span.y != _points.size() - 1
-
-	for slot_index in range(_energy_line_slots.size()):
-		var energy_line: Line2D = _energy_line_slots[slot_index]
-		var aura_line: Line2D = _aura_line_slots[slot_index]
-		energy_line.clear_points()
-		aura_line.clear_points()
-		if slot_index >= spans.size():
-			continue
-
-		var span: Vector2i = spans[slot_index]
-		if span.y - span.x < 1:
-			continue
-		for point_index in range(span.x, span.y + 1):
-			energy_line.add_point(energy_line.to_local(energy_points[point_index]))
-			aura_line.add_point(aura_line.to_local(aura_points[point_index]))
-
-		var energy_start_progress: float = 0.0
-		var energy_end_progress: float = 1.0
-		if energy_total > 0.001:
-			energy_start_progress = energy_distances[span.x] / energy_total
-			energy_end_progress = energy_distances[span.y] / energy_total
-		var aura_start_progress: float = 0.0
-		var aura_end_progress: float = 1.0
-		if aura_total > 0.001:
-			aura_start_progress = aura_distances[span.x] / aura_total
-			aura_end_progress = aura_distances[span.y] / aura_total
-
-		_apply_line_profile(
-			energy_line, _energy_base_gradient, _energy_base_width_curve,
-			_energy_profile_gradients[slot_index], _energy_profile_curves[slot_index],
-			energy_start_progress, energy_end_progress, has_gaps
-		)
-		_apply_line_profile(
-			aura_line, _aura_base_gradient, _aura_base_width_curve,
-			_aura_profile_gradients[slot_index], _aura_profile_curves[slot_index],
-			aura_start_progress, aura_end_progress, has_gaps
-		)
-		var energy_material := energy_line.material as ShaderMaterial
-		if energy_material != null:
-			energy_material.set_shader_parameter("trail_progress_start", energy_start_progress)
-			energy_material.set_shader_parameter(
-				"trail_progress_scale",
-				maxf(energy_end_progress - energy_start_progress, 0.0001)
-			)
-
-
-func _apply_line_profile(
-	line: Line2D,
-	source_gradient: Gradient,
-	source_curve: Curve,
-	profile_gradient: Gradient,
-	profile_curve: Curve,
-	start_progress: float,
-	end_progress: float,
-	profile_is_split: bool
-) -> void:
-	if not profile_is_split:
-		line.gradient = source_gradient
-		line.width_curve = source_curve
+func _rebuild_trail_lines() -> void:
+	_energy_line.clear_points()
+	_trail_aura.clear_points()
+	if _points.size() < 2:
 		return
 
-	if source_gradient != null and profile_gradient != null:
-		for point_index in range(profile_gradient.get_point_count()):
-			var local_progress: float = profile_gradient.get_offset(point_index)
-			profile_gradient.set_color(
-				point_index,
-				source_gradient.sample(lerpf(start_progress, end_progress, local_progress))
-			)
-		line.gradient = profile_gradient
-	elif source_gradient == null:
-		line.gradient = null
+	# Each ribbon stays whole and keeps its original gradient and width profile.
+	for point_index in range(_points.size()):
+		var energy_point: Vector2 = _get_animated_trail_point(point_index, true)
+		var aura_point: Vector2 = _get_animated_trail_point(point_index, false)
+		_energy_line.add_point(_energy_line.to_local(energy_point))
+		_trail_aura.add_point(_trail_aura.to_local(aura_point))
 
-	if source_curve != null and profile_curve != null:
-		for point_index in range(profile_curve.get_point_count()):
-			var local_progress: float = profile_curve.get_point_position(point_index).x
-			profile_curve.set_point_value(
-				point_index,
-				source_curve.sample_baked(lerpf(start_progress, end_progress, local_progress))
-			)
-		line.width_curve = profile_curve
-	elif source_curve == null:
-		line.width_curve = null
-
-
-func _get_live_shed_line_spans() -> Array[Vector2i]:
-	var cut_ranges: Array[Vector2i] = []
-	if shedding_enabled:
-		for event in _shed_break_events:
-			var start_index: int = _point_ids.find(int(event["start_id"]))
-			var end_index: int = _point_ids.find(int(event["end_id"]))
-			if start_index < 0 and end_index < 0:
-				continue
-
-			var cut_start: int
-			var cut_end: int
-			if start_index >= 0 and end_index >= 0:
-				cut_start = mini(start_index, end_index)
-				cut_end = maxi(start_index, end_index)
-			elif start_index >= 0:
-				cut_start = start_index
-				cut_end = _points.size() - 1
-			else:
-				cut_start = 0
-				cut_end = end_index
-			cut_ranges.append(Vector2i(cut_start, cut_end))
-
-	cut_ranges.sort_custom(func(a: Vector2i, b: Vector2i) -> bool: return a.x < b.x)
-	var merged_ranges: Array[Vector2i] = []
-	for cut_range in cut_ranges:
-		if merged_ranges.is_empty():
-			merged_ranges.append(cut_range)
-			continue
-		var previous: Vector2i = merged_ranges[merged_ranges.size() - 1]
-		if cut_range.x <= previous.y + 1:
-			merged_ranges[merged_ranges.size() - 1] = Vector2i(
-				previous.x, maxi(previous.y, cut_range.y)
-			)
-		else:
-			merged_ranges.append(cut_range)
-
-	var spans: Array[Vector2i] = []
-	var next_start: int = 0
-	for cut_range in merged_ranges:
-		if cut_range.x - next_start >= 2:
-			spans.append(Vector2i(next_start, cut_range.x - 1))
-		next_start = maxi(next_start, cut_range.y + 1)
-	if _points.size() - next_start >= 2:
-		spans.append(Vector2i(next_start, _points.size() - 1))
-	return spans
-
-
-func _clear_shed_line_spans() -> void:
-	for line in _energy_line_slots:
-		line.clear_points()
-	for line in _aura_line_slots:
-		line.clear_points()
+	var energy_material := _energy_line.material as ShaderMaterial
+	if energy_material != null:
+		energy_material.set_shader_parameter("trail_progress_start", 0.0)
+		energy_material.set_shader_parameter("trail_progress_scale", 1.0)
 
 
 func _get_animated_trail_point(index: int, apply_head_offset: bool = true) -> Vector2:
@@ -589,7 +336,6 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 	if total_distance < 0.01:
 		_unified_shape.polygon = PackedVector2Array()
 		_unified_shape.uv = PackedVector2Array()
-		_clear_shed_geometry_pieces()
 		if _unified_contour != null:
 			_unified_contour.clear_points()
 		return
@@ -635,14 +381,9 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 	var polygon_uvs := PackedVector2Array()
 	var root_direction: Vector2 = tangents[0]
 	var root_normal: Vector2 = normals[0]
-	var use_geometric_shedding: bool = shedding_enabled and total_distance >= 70.0
-	var connected_end_distance: float = total_distance
-	if use_geometric_shedding:
-		connected_end_distance = total_distance * SHED_CONNECTED_END_PROGRESS
 
-	# Keep the orb and upper neck as one coherent piece. In shedding mode the
-	# parent silhouette ends here; the lower half is rebuilt from separate
-	# Polygon2D islands with real transparent gaps between their boundaries.
+	# The living comet body always remains one uninterrupted ribbon. Landing
+	# fragments are built separately from narrow strips of the outer aura only.
 	for arc_index in range(UNIFIED_HEAD_ARC_SEGMENTS + 1):
 		var arc_t: float = float(arc_index) / float(UNIFIED_HEAD_ARC_SEGMENTS)
 		var angle: float = PI * 0.5 + PI * arc_t
@@ -654,55 +395,19 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 		polygon_points.append(_unified_shape.to_local(world_point))
 		polygon_uvs.append(Vector2(0.0, arc_t))
 
-	if use_geometric_shedding:
-		# Add the surviving connected section's right edge up to its cut plane.
-		for i in range(1, path.size() - 1):
-			if cumulative_distances[i] >= connected_end_distance:
-				break
-			var right_point: Vector2 = path[i] - normals[i] * half_widths[i]
-			polygon_points.append(_unified_shape.to_local(right_point))
-			polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 1.0))
+	for i in range(1, path.size() - 1):
+		var right_point: Vector2 = path[i] - normals[i] * half_widths[i]
+		polygon_points.append(_unified_shape.to_local(right_point))
+		polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 1.0))
 
-		var connected_cut: Dictionary = _sample_trail_cross_section(
-			connected_end_distance, path, cumulative_distances, tangents, normals, half_widths
-		)
-		var cut_position: Vector2 = connected_cut["position"]
-		var cut_normal: Vector2 = connected_cut["normal"]
-		var cut_width: float = connected_cut["half_width"]
-		var cut_uv_x: float = connected_end_distance / total_distance
-		polygon_points.append(_unified_shape.to_local(cut_position - cut_normal * cut_width))
-		polygon_uvs.append(Vector2(cut_uv_x, 1.0))
-		polygon_points.append(_unified_shape.to_local(cut_position + cut_normal * cut_width))
-		polygon_uvs.append(Vector2(cut_uv_x, 0.0))
+	polygon_points.append(_unified_shape.to_local(path[path.size() - 1]))
+	polygon_uvs.append(Vector2(1.0, 0.5))
 
-		for i in range(path.size() - 2, 0, -1):
-			if cumulative_distances[i] >= connected_end_distance:
-				continue
-			var left_point: Vector2 = path[i] + normals[i] * half_widths[i]
-			polygon_points.append(_unified_shape.to_local(left_point))
-			polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 0.0))
+	for i in range(path.size() - 2, 0, -1):
+		var left_point: Vector2 = path[i] + normals[i] * half_widths[i]
+		polygon_points.append(_unified_shape.to_local(left_point))
+		polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 0.0))
 
-		_update_shed_geometry_pieces(
-			path, cumulative_distances, total_distance, tangents, normals, half_widths
-		)
-	else:
-		# Fallback preserves the original continuous silhouette when shedding
-		# is disabled, making this experiment easy to compare and roll back.
-		for i in range(1, path.size() - 1):
-			var right_point: Vector2 = path[i] - normals[i] * half_widths[i]
-			polygon_points.append(_unified_shape.to_local(right_point))
-			polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 1.0))
-
-		polygon_points.append(_unified_shape.to_local(path[path.size() - 1]))
-		polygon_uvs.append(Vector2(1.0, 0.5))
-
-		for i in range(path.size() - 2, 0, -1):
-			var left_point: Vector2 = path[i] + normals[i] * half_widths[i]
-			polygon_points.append(_unified_shape.to_local(left_point))
-			polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 0.0))
-
-		_clear_shed_geometry_pieces()
-		_sync_shed_gap_materials(cumulative_distances, total_distance)
 
 	_unified_shape.polygon = polygon_points
 	_unified_shape.uv = polygon_uvs
@@ -784,14 +489,15 @@ func _process_shed_burst(
 		if _shed_burst_clock > 0.0:
 			return
 
-	var previous_break_count: int = _shed_break_events.size()
+	var previous_fragment_count: int = _detached_shed_fragments.size()
+	var burst_index: int = SHED_BURST_PIECE_COUNT - _shed_burst_remaining
 	_spawn_shed_fragment(
-		path, cumulative_distances, total_distance, tangents, normals, half_widths
+		path, cumulative_distances, total_distance, tangents, normals, half_widths,
+		burst_index
 	)
 
-	# If the trail is not yet long enough or no eligible source polygon exists,
-	# discard this burst instead of producing a delayed, contextless fragment.
-	if _shed_break_events.size() == previous_break_count:
+	# Drop a burst when there is not enough trail to make a meaningful aura strip.
+	if _detached_shed_fragments.size() == previous_fragment_count:
 		_shed_burst_remaining = 0
 		_shed_burst_clock = 0.0
 		return
@@ -807,96 +513,112 @@ func _spawn_shed_fragment(
 	total_distance: float,
 	tangents: Array[Vector2],
 	normals: Array[Vector2],
-	half_widths: Array[float]
+	half_widths: Array[float],
+	burst_index: int
 ) -> void:
 	if (
 		not shedding_enabled
-		or path.size() < 16
-		or total_distance < 105.0
-		or _detached_shed_fragments.size() >= 14
-		or _shed_break_events.size() >= MAX_ACTIVE_SHED_BREAKS
-		or _shed_piece_ranges.is_empty()
+		or path.size() < 6
+		or total_distance < 55.0
+		or _detached_shed_fragments.size() >= 30
+		or _aura_fragment_material == null
 	):
 		return
 
-	# Candidates are the actual lower-tail polygons currently visible in the
-	# scene. We clone one of those exact meshes instead of inventing a generic
-	# shard, then lock its source range out of the living trail.
-	var candidates: Array[Dictionary] = []
-	for piece_range in _shed_piece_ranges:
-		var progress: float = float(piece_range["progress"])
-		var source_piece := piece_range["node"] as Polygon2D
-		if progress >= 0.48 and progress <= 0.78 and is_instance_valid(source_piece) and source_piece.visible:
-			candidates.append(piece_range)
-	if candidates.is_empty():
+	# Spread the groups along the visible trail, with a little deterministic
+	# variation. They are slices of the outside edge of the aura, never the body.
+	var burst_progress: float = (
+		float(burst_index) / float(maxi(SHED_BURST_PIECE_COUNT - 1, 1))
+	)
+	var sequence_value: float = float(_shed_sequence)
+	var progress: float = clampf(
+		lerpf(0.22, 0.79, burst_progress)
+		+ sin(sequence_value * 11.7 + 2.4) * 0.026,
+		0.17,
+		0.84
+	)
+	var center_distance: float = total_distance * progress
+	var fragment_length: float = lerpf(
+		18.0, 29.0, absf(sin(sequence_value * 5.31 + 1.2))
+	)
+	var start_distance: float = maxf(center_distance - fragment_length * 0.5, 0.5)
+	var end_distance: float = minf(center_distance + fragment_length * 0.5, total_distance * 0.97)
+	if end_distance - start_distance < 7.0:
 		return
 
-	var selected: Dictionary = candidates[_shed_sequence % candidates.size()]
-	var source_piece := selected["node"] as Polygon2D
-	if source_piece.polygon.size() < 4:
+	# Include the path samples that lie within the fragment so its strip follows
+	# bends rather than looking like a straight tile cut from the trail.
+	var fragment_distances: Array[float] = [start_distance]
+	for point_index in range(1, path.size() - 1):
+		var sample_distance: float = cumulative_distances[point_index]
+		if sample_distance > start_distance + 0.1 and sample_distance < end_distance - 0.1:
+			fragment_distances.append(sample_distance)
+	fragment_distances.append(end_distance)
+
+	var side: float = -1.0 if burst_index % 2 == 0 else 1.0
+	var outer_edge: Array[Vector2] = []
+	var inner_edge: Array[Vector2] = []
+	for distance_index in range(fragment_distances.size()):
+		var sample_distance: float = fragment_distances[distance_index]
+		var section: Dictionary = _sample_trail_cross_section(
+			sample_distance, path, cumulative_distances, tangents, normals, half_widths
+		)
+		var t: float = (
+			(sample_distance - start_distance) / (end_distance - start_distance)
+		)
+		var taper: float = lerpf(0.14, 1.0, sin(PI * t))
+		var center: Vector2 = section["position"]
+		var normal: Vector2 = section["normal"]
+		var half_width: float = float(section["half_width"])
+		outer_edge.append(center + normal * side * half_width * 0.98 * taper)
+		inner_edge.append(center + normal * side * half_width * 0.54 * taper)
+
+	var world_vertices: Array[Vector2] = []
+	var centroid_global := Vector2.ZERO
+	for vertex in outer_edge:
+		world_vertices.append(vertex)
+		centroid_global += vertex
+	for reverse_index in range(inner_edge.size() - 1, -1, -1):
+		var vertex: Vector2 = inner_edge[reverse_index]
+		world_vertices.append(vertex)
+		centroid_global += vertex
+
+	if world_vertices.size() < 6:
 		return
+	centroid_global /= float(world_vertices.size())
+
+	var fragment_polygon := PackedVector2Array()
+	for vertex in world_vertices:
+		fragment_polygon.append(vertex - centroid_global)
+
+	var shard := Polygon2D.new()
+	shard.name = "DetachedAuraFragment"
+	shard.z_as_relative = false
+	shard.z_index = -2
+	shard.polygon = fragment_polygon
+	shard.material = _aura_fragment_material
+	shard.color = _aura_fragment_tint(progress)
 
 	var world_root: Node2D = get_tree().current_scene as Node2D
 	if world_root == null:
 		world_root = get_parent() as Node2D
 	if world_root == null:
+		shard.queue_free()
 		return
-
-	var world_vertices: Array[Vector2] = []
-	var centroid_global := Vector2.ZERO
-	for local_vertex in source_piece.polygon:
-		var global_vertex: Vector2 = source_piece.to_global(local_vertex)
-		world_vertices.append(global_vertex)
-		centroid_global += global_vertex
-	centroid_global /= float(world_vertices.size())
-
-	var detached_polygon := PackedVector2Array()
-	for global_vertex in world_vertices:
-		detached_polygon.append(global_vertex - centroid_global)
-
-	var shard := Polygon2D.new()
-	shard.name = "DetachedCometBodyPiece"
-	shard.z_as_relative = false
-	shard.z_index = -2
-	shard.polygon = detached_polygon
-	shard.uv = source_piece.uv.duplicate()
-	shard.material = _detached_piece_material if _detached_piece_material != null else source_piece.material
 	world_root.add_child(shard)
 	shard.global_position = centroid_global
 	shard.global_rotation = 0.0
 
-	var start_id: int = int(selected["start_id"])
-	var end_id: int = int(selected["end_id"])
-	var start_anchor_index: int = _point_ids.find(start_id)
-	var end_anchor_index: int = _point_ids.find(end_id)
-	var start_offset: float = 0.0
-	var end_offset: float = 0.0
-	if start_anchor_index >= 0:
-		start_offset = float(selected["start_distance"]) - cumulative_distances[start_anchor_index]
-	if end_anchor_index >= 0:
-		end_offset = float(selected["end_distance"]) - cumulative_distances[end_anchor_index]
-	_shed_break_events.append({
-		"start_id": start_id,
-		"end_id": end_id,
-		"start_offset": start_offset,
-		"end_offset": end_offset
-	})
-
-	# Remove this very section immediately. Its anchor IDs keep the matching
-	# gap in the trail history as new samples are added at the orb end.
-	source_piece.visible = false
-
-	var source_distance: float = (
-		float(selected["start_distance"]) + float(selected["end_distance"])
-	) * 0.5
-	var source_index: int = _nearest_trail_sample_index(
-		source_distance, cumulative_distances
+	var source_index: int = _nearest_trail_sample_index(center_distance, cumulative_distances)
+	var outward_speed: float = lerpf(
+		24.0, 44.0, absf(sin(sequence_value * 17.13 + 2.7))
 	)
-	var sequence_value: float = float(_shed_sequence)
-	var side: float = -1.0 if _shed_sequence % 2 == 0 else 1.0
-	var outward_speed: float = lerpf(24.0, 44.0, absf(sin(sequence_value * 17.13 + 2.7)))
-	var drift_speed: float = lerpf(9.0, 22.0, absf(sin(sequence_value * 6.73 + 1.4)))
-	var lifetime: float = lerpf(0.42, 0.70, absf(sin(sequence_value * 3.91 + 0.8)))
+	var drift_speed: float = lerpf(
+		9.0, 22.0, absf(sin(sequence_value * 6.73 + 1.4))
+	)
+	var lifetime: float = lerpf(
+		0.46, 0.72, absf(sin(sequence_value * 3.91 + 0.8))
+	)
 	var angular_velocity: float = sin(sequence_value * 8.31 + 0.9) * 3.0
 	var velocity: Vector2 = (
 		normals[source_index] * side * outward_speed
@@ -911,8 +633,20 @@ func _spawn_shed_fragment(
 		"base_alpha": 1.0
 	})
 	_shed_sequence += 1
-	_sync_shed_gap_materials(cumulative_distances, total_distance)
-	_rebuild_shed_line_spans()
+
+
+func _aura_fragment_tint(progress: float) -> Color:
+	var head_color: Color
+	var tail_color: Color
+	if visual_palette == 1:
+		head_color = Color(0.92, 0.43, 1.35, 0.92)
+		tail_color = Color(0.28, 0.045, 0.62, 0.72)
+	else:
+		head_color = Color(0.20, 0.72, 1.35, 0.92)
+		tail_color = Color(0.025, 0.11, 0.54, 0.72)
+	return head_color.lerp(tail_color, clampf(progress, 0.0, 1.0))
+
+
 
 
 func _update_detached_shed_fragments(delta: float) -> void:
@@ -942,37 +676,6 @@ func _update_detached_shed_fragments(delta: float) -> void:
 			_detached_shed_fragments.remove_at(fragment_index)
 		else:
 			_detached_shed_fragments[fragment_index] = fragment
-
-
-func _initialize_shed_geometry_pieces() -> void:
-	if _shed_geometry_container == null:
-		return
-	var base_material := _unified_shape.material as ShaderMaterial
-	if base_material != null:
-		_shed_piece_material = base_material.duplicate() as ShaderMaterial
-		_shed_piece_material.set_shader_parameter("solid_piece", 1.0)
-		_shed_piece_material.set_shader_parameter("shedding_amount", 1.0)
-		_detached_piece_material = _shed_piece_material.duplicate() as ShaderMaterial
-		_detached_piece_material.set_shader_parameter("shed_gap_0", Vector2(-1.0, -1.0))
-		_detached_piece_material.set_shader_parameter("shed_gap_1", Vector2(-1.0, -1.0))
-		_detached_piece_material.set_shader_parameter("shed_gap_2", Vector2(-1.0, -1.0))
-
-	for piece_index in range(SHED_GEOMETRY_PIECE_CAPACITY):
-		var piece := Polygon2D.new()
-		piece.name = "ShedTrailPiece_%02d" % piece_index
-		piece.z_index = -1
-		piece.visible = false
-		piece.material = _shed_piece_material
-		_shed_geometry_container.add_child(piece)
-		_shed_geometry_pieces.append(piece)
-
-
-func _clear_shed_geometry_pieces() -> void:
-	_shed_piece_ranges.clear()
-	for piece in _shed_geometry_pieces:
-		piece.polygon = PackedVector2Array()
-		piece.uv = PackedVector2Array()
-		piece.visible = false
 
 
 func _sample_trail_cross_section(
@@ -1008,166 +711,6 @@ func _sample_trail_cross_section(
 	}
 
 
-func _append_shed_edge_sample(
-	points: PackedVector2Array,
-	uvs: PackedVector2Array,
-	world_position: Vector2,
-	progress: float,
-	across: float
-) -> void:
-	points.append(_shed_geometry_container.to_local(world_position))
-	uvs.append(Vector2(progress, across))
-
-
-func _build_shed_piece_polygon(
-	piece: Polygon2D,
-	start_distance: float,
-	end_distance: float,
-	path: Array[Vector2],
-	cumulative_distances: Array[float],
-	total_distance: float,
-	tangents: Array[Vector2],
-	normals: Array[Vector2],
-	half_widths: Array[float]
-) -> void:
-	var polygon_points := PackedVector2Array()
-	var polygon_uvs := PackedVector2Array()
-	var length: float = end_distance - start_distance
-	var start_skew: float = minf(length * 0.12, 1.2)
-	var end_skew: float = minf(length * 0.10, 1.0)
-
-	# Keep the chipped ends inside their own source interval. This prevents a
-	# neighboring piece from protruding back into a persistent detachment gap.
-	var start_right_distance: float = start_distance + start_skew
-	var start_left_distance: float = start_distance + start_skew * 0.25
-	var end_right_distance: float = end_distance - end_skew
-	var end_left_distance: float = end_distance - end_skew * 0.25
-
-	var start_right_section: Dictionary = _sample_trail_cross_section(
-		start_right_distance, path, cumulative_distances, tangents, normals, half_widths
-	)
-	var start_left_section: Dictionary = _sample_trail_cross_section(
-		start_left_distance, path, cumulative_distances, tangents, normals, half_widths
-	)
-	var end_right_section: Dictionary = _sample_trail_cross_section(
-		end_right_distance, path, cumulative_distances, tangents, normals, half_widths
-	)
-	var end_left_section: Dictionary = _sample_trail_cross_section(
-		end_left_distance, path, cumulative_distances, tangents, normals, half_widths
-	)
-
-	var start_right: Vector2 = start_right_section["position"] - start_right_section["normal"] * float(start_right_section["half_width"])
-	var start_left: Vector2 = start_left_section["position"] + start_left_section["normal"] * float(start_left_section["half_width"])
-	var end_right: Vector2 = end_right_section["position"] - end_right_section["normal"] * float(end_right_section["half_width"])
-	var end_left: Vector2 = end_left_section["position"] + end_left_section["normal"] * float(end_left_section["half_width"])
-
-	_append_shed_edge_sample(
-		polygon_points, polygon_uvs, start_right,
-		start_right_distance / total_distance, 1.0
-	)
-	for i in range(1, path.size() - 1):
-		if cumulative_distances[i] > start_right_distance and cumulative_distances[i] < end_right_distance:
-			var right_point: Vector2 = path[i] - normals[i] * half_widths[i]
-			_append_shed_edge_sample(
-				polygon_points, polygon_uvs, right_point,
-				cumulative_distances[i] / total_distance, 1.0
-			)
-	_append_shed_edge_sample(
-		polygon_points, polygon_uvs, end_right,
-		end_right_distance / total_distance, 1.0
-	)
-	_append_shed_edge_sample(
-		polygon_points, polygon_uvs, end_left,
-		end_left_distance / total_distance, 0.0
-	)
-	for i in range(path.size() - 2, 0, -1):
-		if cumulative_distances[i] < end_left_distance and cumulative_distances[i] > start_left_distance:
-			var left_point: Vector2 = path[i] + normals[i] * half_widths[i]
-			_append_shed_edge_sample(
-				polygon_points, polygon_uvs, left_point,
-				cumulative_distances[i] / total_distance, 0.0
-			)
-	_append_shed_edge_sample(
-		polygon_points, polygon_uvs, start_left,
-		start_left_distance / total_distance, 0.0
-	)
-
-	piece.polygon = polygon_points
-	piece.uv = polygon_uvs
-	piece.material = _shed_piece_material
-	piece.visible = polygon_points.size() >= 4
-
-
-func _update_shed_geometry_pieces(
-	path: Array[Vector2],
-	cumulative_distances: Array[float],
-	total_distance: float,
-	tangents: Array[Vector2],
-	normals: Array[Vector2],
-	half_widths: Array[float]
-) -> void:
-	_clear_shed_geometry_pieces()
-	_prune_shed_break_events()
-	if _shed_geometry_pieces.is_empty() or total_distance < 38.0 or _shed_geometry_container == null:
-		_sync_shed_gap_materials(cumulative_distances, total_distance)
-		return
-
-	# The connected head transitions into a nearly continuous segmented tail.
-	# Only an event-locked source interval creates a pronounced missing chunk.
-	var cursor: float = maxf(total_distance * SHED_CONNECTED_END_PROGRESS - 3.5, 0.0)
-	var tail_limit: float = total_distance * 0.985
-	var slot_index: int = 0
-	while cursor < tail_limit and slot_index < _shed_geometry_pieces.size():
-		var seed_a: float = absf(sin(float(slot_index) * 15.731 + 2.17))
-		var seed_b: float = absf(sin(float(slot_index) * 9.173 + 5.61))
-		var piece_length: float = clampf(total_distance * lerpf(0.055, 0.095, seed_a), 8.0, 24.0)
-		var piece_end: float = minf(cursor + piece_length, tail_limit)
-		if piece_end - cursor < 5.0:
-			break
-
-		var start_sample_index: int = _nearest_trail_sample_index(cursor, cumulative_distances)
-		var end_sample_index: int = _nearest_trail_sample_index(piece_end, cumulative_distances)
-		if end_sample_index <= start_sample_index:
-			if start_sample_index < _point_ids.size() - 1:
-				end_sample_index = start_sample_index + 1
-			else:
-				start_sample_index = maxi(start_sample_index - 1, 0)
-
-		var interval_has_detached_piece: bool = _shed_event_overlaps_interval(
-			cursor, piece_end, cumulative_distances, total_distance
-		)
-		if not interval_has_detached_piece:
-			var piece: Polygon2D = _shed_geometry_pieces[slot_index]
-			_build_shed_piece_polygon(
-				piece,
-				cursor,
-				piece_end,
-				path,
-				cumulative_distances,
-				total_distance,
-				tangents,
-				normals,
-				half_widths
-			)
-			_shed_piece_ranges.append({
-				"node": piece,
-				"start_id": _point_ids[start_sample_index],
-				"end_id": _point_ids[end_sample_index],
-				"start_distance": cursor,
-				"end_distance": piece_end,
-				"progress": (cursor + piece_end) * 0.5 / total_distance,
-				"slot": slot_index
-			})
-
-		# Always advance, including when this interval overlaps a live break.
-		# The previous implementation advanced only after drawing a piece,
-		# so one existing break could stall the whole geometry reconstruction.
-		cursor = piece_end + clampf(lerpf(0.6, 1.3, seed_b), 0.6, 1.5)
-		slot_index += 1
-
-	_sync_shed_gap_materials(cumulative_distances, total_distance)
-
-
 func _nearest_trail_sample_index(
 	target_distance: float,
 	cumulative_distances: Array[float]
@@ -1180,98 +723,6 @@ func _nearest_trail_sample_index(
 			closest_error = error
 			closest_index = i
 	return closest_index
-
-
-func _prune_shed_break_events() -> void:
-	for event_index in range(_shed_break_events.size() - 1, -1, -1):
-		var event: Dictionary = _shed_break_events[event_index]
-		var start_index: int = _point_ids.find(int(event["start_id"]))
-		var end_index: int = _point_ids.find(int(event["end_id"]))
-		# Keep a break while either boundary sample survives. When the older
-		# boundary leaves the capped trail, the hole contracts naturally from
-		# the tail instead of the original source geometry suddenly respawning.
-		if start_index < 0 and end_index < 0:
-			_shed_break_events.remove_at(event_index)
-
-
-func _shed_event_overlaps_interval(
-	interval_start: float,
-	interval_end: float,
-	cumulative_distances: Array[float],
-	total_distance: float
-) -> bool:
-	for event in _shed_break_events:
-		var start_index: int = _point_ids.find(int(event["start_id"]))
-		var end_index: int = _point_ids.find(int(event["end_id"]))
-		if start_index < 0 and end_index < 0:
-			continue
-
-		var event_start: float = 0.0
-		var event_end: float = total_distance
-		if start_index >= 0 and end_index >= 0:
-			var anchored_start: float = cumulative_distances[start_index] + float(event.get("start_offset", 0.0))
-			var anchored_end: float = cumulative_distances[end_index] + float(event.get("end_offset", 0.0))
-			event_start = minf(anchored_start, anchored_end)
-			event_end = maxf(anchored_start, anchored_end)
-		elif start_index >= 0:
-			event_start = cumulative_distances[start_index] + float(event.get("start_offset", 0.0))
-		elif end_index >= 0:
-			event_end = cumulative_distances[end_index] + float(event.get("end_offset", 0.0))
-
-		event_start = clampf(event_start, 0.0, total_distance)
-		event_end = clampf(event_end, 0.0, total_distance)
-		# If one boundary ages out, extend only that side to the trail end.
-		# The surviving anchor and local offset keep the missing interval stable.
-		if event_start < interval_end - 0.8 and event_end > interval_start + 0.8:
-			return true
-	return false
-
-
-func _sync_shed_gap_materials(
-	cumulative_distances: Array[float],
-	total_distance: float
-) -> void:
-	var intervals: Array[Vector2] = [
-		Vector2(-1.0, -1.0),
-		Vector2(-1.0, -1.0),
-		Vector2(-1.0, -1.0)
-	]
-	if shedding_enabled and total_distance > 0.01:
-		for event_index in range(mini(_shed_break_events.size(), MAX_ACTIVE_SHED_BREAKS)):
-			var event: Dictionary = _shed_break_events[event_index]
-			var start_index: int = _point_ids.find(int(event["start_id"]))
-			var end_index: int = _point_ids.find(int(event["end_id"]))
-			if start_index < 0 and end_index < 0:
-				continue
-
-			var start_distance: float = 0.0
-			var end_distance: float = total_distance
-			if start_index >= 0 and end_index >= 0:
-				var anchored_start: float = cumulative_distances[start_index] + float(event.get("start_offset", 0.0))
-				var anchored_end: float = cumulative_distances[end_index] + float(event.get("end_offset", 0.0))
-				start_distance = minf(anchored_start, anchored_end)
-				end_distance = maxf(anchored_start, anchored_end)
-			elif start_index >= 0:
-				start_distance = cumulative_distances[start_index] + float(event.get("start_offset", 0.0))
-			elif end_index >= 0:
-				end_distance = cumulative_distances[end_index] + float(event.get("end_offset", 0.0))
-
-			start_distance = clampf(start_distance, 0.0, total_distance)
-			end_distance = clampf(end_distance, 0.0, total_distance)
-			if end_distance - start_distance > 0.01:
-				intervals[event_index] = Vector2(
-					start_distance / total_distance,
-					end_distance / total_distance
-				)
-
-	var unified_material: ShaderMaterial = null
-	if _unified_shape != null:
-		unified_material = _unified_shape.material as ShaderMaterial
-	for material in [unified_material, _shed_piece_material]:
-		if material != null:
-			material.set_shader_parameter("shed_gap_0", intervals[0])
-			material.set_shader_parameter("shed_gap_1", intervals[1])
-			material.set_shader_parameter("shed_gap_2", intervals[2])
 
 
 func _update_particle_emitters(
@@ -1342,7 +793,6 @@ func _apply_visual_palette() -> void:
 		if unified_material != null:
 			unified_material = unified_material.duplicate() as ShaderMaterial
 			unified_material.set_shader_parameter("palette_mode", visual_palette)
-			unified_material.set_shader_parameter("shedding_amount", 1.0 if shedding_enabled else 0.0)
 			_unified_shape.material = unified_material
 
 	var energy_material := _energy_line.material as ShaderMaterial
