@@ -62,6 +62,14 @@ func _ready() -> void:
 	_update_rim_breath()
 
 
+func _initialize_aura_fragment_material() -> void:
+	# Use additive blending so the detached aura strips read as luminous energy,
+	# without borrowing the main comet-body shader or changing its geometry.
+	var fragment_material := CanvasItemMaterial.new()
+	fragment_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	_aura_fragment_material = fragment_material
+
+
 func _measure_ball_surface_radius() -> float:
 	if _ball_visual == null or _ball_visual.texture == null:
 		return 29.9
