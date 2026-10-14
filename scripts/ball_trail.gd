@@ -332,6 +332,7 @@ func _update_unified_comet_shape() -> void:
 	if total_distance < 0.01:
 		_unified_shape.polygon = PackedVector2Array()
 		_unified_shape.uv = PackedVector2Array()
+		_clear_shed_geometry_pieces()
 		if _unified_contour != null:
 			_unified_contour.clear_points()
 		return
