@@ -14,7 +14,8 @@ extends Node2D
 const UNIFIED_HEAD_ARC_SEGMENTS: int = 20
 const ORB_RIM_CENTER_RADIUS_RATIO: float = 0.93
 const SHED_CONNECTED_END_PROGRESS: float = 0.38
-const SHED_GEOMETRY_PIECE_CAPACITY: int = 24
+const SHED_GEOMETRY_PIECE_CAPACITY: int = 32
+const SHED_GAP_MASK_PADDING: float = 2.5
 const MAX_ACTIVE_SHED_BREAKS: int = 3
 const LANDING_BURST_FRAGMENT_COUNT: int = 3
 const LANDING_BURST_INTERVAL: float = 0.05
@@ -910,9 +911,9 @@ func _update_shed_geometry_pieces(
 		return
 
 	# The connected head transitions into a nearly continuous segmented tail.
-	# Only an event-locked source interval creates a pronounced missing chunk.
-	# Slightly overlap the first tail island with the connected neck. The former
-	# positive offset left an empty slice here before any detachment occurred.
+	# Keep the tiny seam and overlap at the neck, but carve every live landing
+	# break out of the geometry itself rather than hoping a whole generated
+	# island happens to overlap it after the trail is rebuilt.
 	var cursor: float = maxf(
 		total_distance * SHED_CONNECTED_END_PROGRESS - 3.5,
 		0.0
@@ -927,6 +928,32 @@ func _update_shed_geometry_pieces(
 		if piece_end - cursor < 5.0:
 			break
 
+		# If a live break intersects this island, end the island at the near
+		# boundary or jump across the hole. No rebuilt polygon can span the gap.
+		var overlapping_break: Vector2 = _find_overlapping_shed_break(
+			cursor, piece_end, cumulative_distances
+		)
+		if overlapping_break.x >= 0.0:
+			if overlapping_break.x > cursor + 5.0:
+				piece_end = minf(piece_end, overlapping_break.x)
+			else:
+				cursor = minf(
+					maxf(overlapping_break.y + 0.65, cursor + 1.0),
+					tail_limit
+				)
+				slot_index += 1
+				continue
+
+		if piece_end - cursor < 5.0:
+			if overlapping_break.x >= 0.0:
+				cursor = minf(
+					maxf(overlapping_break.y + 0.65, cursor + 1.0),
+					tail_limit
+				)
+				slot_index += 1
+				continue
+			break
+
 		var start_sample_index: int = _nearest_trail_sample_index(cursor, cumulative_distances)
 		var end_sample_index: int = _nearest_trail_sample_index(piece_end, cumulative_distances)
 		if end_sample_index <= start_sample_index:
@@ -935,35 +962,28 @@ func _update_shed_geometry_pieces(
 			else:
 				start_sample_index = maxi(start_sample_index - 1, 0)
 
-		var interval_has_detached_piece: bool = _shed_event_overlaps_interval(
-			cursor, piece_end, cumulative_distances, total_distance
+		var piece: Polygon2D = _shed_geometry_pieces[slot_index]
+		_build_shed_piece_polygon(
+			piece,
+			cursor,
+			piece_end,
+			path,
+			cumulative_distances,
+			total_distance,
+			tangents,
+			normals,
+			half_widths
 		)
-		if not interval_has_detached_piece:
-			var piece: Polygon2D = _shed_geometry_pieces[slot_index]
-			_build_shed_piece_polygon(
-				piece,
-				cursor,
-				piece_end,
-				path,
-				cumulative_distances,
-				total_distance,
-				tangents,
-				normals,
-				half_widths
-			)
-			_shed_piece_ranges.append({
-				"node": piece,
-				"start_id": _point_ids[start_sample_index],
-				"end_id": _point_ids[end_sample_index],
-				"start_distance": cursor,
-				"end_distance": piece_end,
-				"progress": (cursor + piece_end) * 0.5 / total_distance,
-				"slot": slot_index
-			})
+		_shed_piece_ranges.append({
+			"node": piece,
+			"start_id": _point_ids[start_sample_index],
+			"end_id": _point_ids[end_sample_index],
+			"start_distance": cursor,
+			"end_distance": piece_end,
+			"progress": (cursor + piece_end) * 0.5 / total_distance,
+			"slot": slot_index
+		})
 
-		# Always advance, including when this interval overlaps a live break.
-		# The previous implementation advanced only after drawing a piece,
-		# so one existing break could stall the whole geometry reconstruction.
 		cursor = piece_end + clampf(lerpf(0.25, 0.65, seed_b), 0.2, 0.8)
 		slot_index += 1
 
@@ -1022,20 +1042,21 @@ func _shed_event_distance_bounds(
 	return Vector2(start_distance, end_distance)
 
 
-func _shed_event_overlaps_interval(
+func _find_overlapping_shed_break(
 	interval_start: float,
 	interval_end: float,
-	cumulative_distances: Array[float],
-	total_distance: float
-) -> bool:
+	cumulative_distances: Array[float]
+) -> Vector2:
+	var closest_break := Vector2(-1.0, -1.0)
 	for event in _shed_break_events:
 		var bounds: Vector2 = _shed_event_distance_bounds(event, cumulative_distances)
 		if bounds.x < 0.0 or bounds.y <= bounds.x:
 			continue
-		# Use the actual source boundaries, not their nearest sample positions.
-		if bounds.x < interval_end - 0.8 and bounds.y > interval_start + 0.8:
-			return true
-	return false
+		if bounds.x >= interval_end or bounds.y <= interval_start:
+			continue
+		if closest_break.x < 0.0 or bounds.x < closest_break.x:
+			closest_break = bounds
+	return closest_break
 
 
 func _sync_shed_gap_materials(
@@ -1056,9 +1077,16 @@ func _sync_shed_gap_materials(
 
 			var start_skew: float = float(event.get("start_skew", 0.0))
 			var end_skew: float = float(event.get("end_skew", 0.0))
+			# The aura and bright energy can otherwise blur across the physical
+			# hole. Extend their shader cut slightly beyond the removed geometry.
+			var mask_start: float = maxf(bounds.x - SHED_GAP_MASK_PADDING, 0.0)
+			var mask_end: float = minf(
+				bounds.y + SHED_GAP_MASK_PADDING,
+				total_distance
+			)
 			intervals[event_index] = Vector4(
-				bounds.x / total_distance,
-				bounds.y / total_distance,
+				mask_start / total_distance,
+				mask_end / total_distance,
 				start_skew / total_distance,
 				end_skew / total_distance
 			)
