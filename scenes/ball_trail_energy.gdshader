@@ -5,6 +5,26 @@ uniform float energy_strength : hint_range(0.0, 3.0) = 1.35;
 uniform float filament_strength : hint_range(0.0, 4.0) = 1.7;
 uniform int palette_mode = 0;
 uniform float shedding_amount = 1.0;
+uniform vec2 shed_gap_0 = vec2(-1.0, -1.0);
+uniform vec2 shed_gap_1 = vec2(-1.0, -1.0);
+uniform vec2 shed_gap_2 = vec2(-1.0, -1.0);
+
+float gap_coverage(vec2 interval, float along) {
+	if (interval.x < 0.0 || interval.y <= interval.x) {
+		return 0.0;
+	}
+	float feather = min(0.003, (interval.y - interval.x) * 0.16);
+	return smoothstep(interval.x, interval.x + feather, along)
+		* (1.0 - smoothstep(interval.y - feather, interval.y, along));
+}
+
+float shed_gap_mask(float along) {
+	float gap = max(
+		gap_coverage(shed_gap_0, along),
+		max(gap_coverage(shed_gap_1, along), gap_coverage(shed_gap_2, along))
+	);
+	return 1.0 - gap;
+}
 
 
 // ------------------------------------------------------------
@@ -241,6 +261,7 @@ void fragment()
 	// The near-orb channel stays whole; more pieces are missing farther back.
 	float fracture_progress = smoothstep(0.36, 0.78, uv.x) * shedding_amount;
 	energy *= mix(1.0, shedding_pattern(uv), fracture_progress);
+	energy *= shed_gap_mask(uv.x);
 
 
 	// Palette-matched energy stream: saturated blue or rich violet.
