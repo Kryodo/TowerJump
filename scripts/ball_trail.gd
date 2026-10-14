@@ -768,31 +768,131 @@ func _update_shed_geometry_pieces(
 		_sync_shed_gap_materials(cumulative_distances, total_distance)
 		return
 
-	# The unbroken head ends first. Beyond a small open gap, individually
-	# generated trail islands occupy only their own polygon geometry.
+	# The unbroken head ends first. Beyond it, geometry is divided into real
+	# islands; event-locked source intervals stay absent while their sample IDs
+	# remain in the trail history.
 	var cursor: float = total_distance * SHED_CONNECTED_END_PROGRESS
 	cursor += clampf(total_distance * 0.04, 5.0, 11.0)
 	var tail_limit: float = total_distance * 0.985
-	var piece_index: int = 0
-	while cursor < tail_limit and piece_index < _shed_geometry_pieces.size():
-		var seed_a: float = absf(sin(float(piece_index) * 15.731 + 2.17))
-		var seed_b: float = absf(sin(float(piece_index) * 9.173 + 5.61))
+	var slot_index: int = 0
+	while cursor < tail_limit and slot_index < _shed_geometry_pieces.size():
+		var seed_a: float = absf(sin(float(slot_index) * 15.731 + 2.17))
+		var seed_b: float = absf(sin(float(slot_index) * 9.173 + 5.61))
 		var piece_length: float = clampf(total_distance * lerpf(0.055, 0.095, seed_a), 8.0, 24.0)
 		var piece_end: float = minf(cursor + piece_length, tail_limit)
 		if piece_end - cursor >= 5.0:
-			_build_shed_piece_polygon(
-				_shed_geometry_pieces[piece_index],
-				cursor,
-				piece_end,
-				path,
-				cumulative_distances,
-				total_distance,
-				tangents,
-				normals,
-				half_widths
+			var start_sample_index: int = _nearest_trail_sample_index(cursor, cumulative_distances)
+			var end_sample_index: int = _nearest_trail_sample_index(piece_end, cumulative_distances)
+			if end_sample_index <= start_sample_index:
+				end_sample_index = mini(start_sample_index + 1, _point_ids.size() - 1)
+
+			var interval_has_detached_piece: bool = _shed_event_overlaps_interval(
+				cursor, piece_end, cumulative_distances
 			)
-			piece_index += 1
-		cursor = piece_end + clampf(lerpf(4.0, 9.0, seed_b), 3.0, 10.0)
+			if not interval_has_detached_piece:
+				var piece: Polygon2D = _shed_geometry_pieces[slot_index]
+				_build_shed_piece_polygon(
+					piece,
+					cursor,
+					piece_end,
+					path,
+					cumulative_distances,
+					total_distance,
+					tangents,
+					normals,
+					half_widths
+				)
+				_shed_piece_ranges.append({
+					"node": piece,
+					"start_id": _point_ids[start_sample_index],
+					"end_id": _point_ids[end_sample_index],
+					"start_distance": cursor,
+					"end_distance": piece_end,
+					"progress": (cursor + piece_end) * 0.5 / total_distance,
+				"slot": slot_index
+				})
+			cursor = piece_end + clampf(lerpf(4.0, 9.0, seed_b), 3.0, 10.0)
+		slot_index += 1
+
+	_sync_shed_gap_materials(cumulative_distances, total_distance)
+
+
+func _nearest_trail_sample_index(
+	target_distance: float,
+	cumulative_distances: Array[float]
+) -> int:
+	var closest_index: int = 0
+	var closest_error: float = INF
+	for i in range(cumulative_distances.size()):
+		var error: float = absf(cumulative_distances[i] - target_distance)
+		if error < closest_error:
+			closest_error = error
+			closest_index = i
+	return closest_index
+
+
+func _prune_shed_break_events() -> void:
+	for event_index in range(_shed_break_events.size() - 1, -1, -1):
+		var event: Dictionary = _shed_break_events[event_index]
+		if _point_ids.find(int(event["start_id"])) < 0 or _point_ids.find(int(event["end_id"])) < 0:
+			_shed_break_events.remove_at(event_index)
+
+
+func _shed_event_overlaps_interval(
+	interval_start: float,
+	interval_end: float,
+	cumulative_distances: Array[float]
+) -> bool:
+	for event in _shed_break_events:
+		var start_index: int = _point_ids.find(int(event["start_id"]))
+		var end_index: int = _point_ids.find(int(event["end_id"]))
+		if start_index < 0 or end_index < 0:
+			continue
+		var event_start: float = cumulative_distances[mini(start_index, end_index)]
+		var event_end: float = cumulative_distances[maxi(start_index, end_index)]
+		# Ignore touching endpoints; we only remove geometry with meaningful
+		# overlap, so a cut doesn't accidentally erase the neighboring section.
+		if event_start < interval_end - 0.8 and event_end > interval_start + 0.8:
+			return true
+	return false
+
+
+func _sync_shed_gap_materials(
+	cumulative_distances: Array[float],
+	total_distance: float
+) -> void:
+	var intervals: Array[Vector2] = [
+		Vector2(-1.0, -1.0),
+		Vector2(-1.0, -1.0),
+		Vector2(-1.0, -1.0)
+	]
+	if shedding_enabled and total_distance > 0.01:
+		for event_index in range(mini(_shed_break_events.size(), MAX_ACTIVE_SHED_BREAKS)):
+			var event: Dictionary = _shed_break_events[event_index]
+			var start_index: int = _point_ids.find(int(event["start_id"]))
+			var end_index: int = _point_ids.find(int(event["end_id"]))
+			if start_index < 0 or end_index < 0:
+				continue
+			var start_distance: float = cumulative_distances[mini(start_index, end_index)]
+			var end_distance: float = cumulative_distances[maxi(start_index, end_index)]
+			if end_distance - start_distance > 0.01:
+				intervals[event_index] = Vector2(
+					start_distance / total_distance,
+					end_distance / total_distance
+				)
+
+	var materials: Array[ShaderMaterial] = []
+	var unified_material := _unified_shape.material as ShaderMaterial if _unified_shape != null else null
+	var energy_material := _energy_line.material as ShaderMaterial if _energy_line != null else null
+	var aura_material := _trail_aura.material as ShaderMaterial if _trail_aura != null else null
+	for material in [unified_material, energy_material, aura_material, _shed_piece_material]:
+		if material != null and not materials.has(material):
+			materials.append(material)
+
+	for material in materials:
+		material.set_shader_parameter("shed_gap_0", intervals[0])
+		material.set_shader_parameter("shed_gap_1", intervals[1])
+		material.set_shader_parameter("shed_gap_2", intervals[2])
 
 
 func _update_particle_emitters(
