@@ -189,6 +189,9 @@ visual_palette = 1
 material = SubResource("ShaderMaterial_unified_comet")
 z_index = -1
 
+[node name="ShedGeometry" type="Node2D" parent="TrailVisual"]
+z_index = 0
+
 [node name="UnifiedCometContour" type="Line2D" parent="TrailVisual" unique_id=1770062204]
 z_index = 2
 visible = false
