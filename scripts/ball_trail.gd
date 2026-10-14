@@ -834,7 +834,7 @@ func _update_shed_geometry_pieces(
 	# Slightly overlap the first tail island with the connected neck. The former
 	# positive offset left an empty slice here before any detachment occurred.
 	var cursor: float = maxf(
-		total_distance * SHED_CONNECTED_END_PROGRESS - 1.8,
+		total_distance * SHED_CONNECTED_END_PROGRESS - 3.5,
 		0.0
 	)
 	var tail_limit: float = total_distance * 0.985
