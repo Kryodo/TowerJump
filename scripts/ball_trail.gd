@@ -400,9 +400,9 @@ func _rebuild_shed_line_spans() -> void:
 				+ aura_points[point_index - 1].distance_to(aura_points[point_index])
 			)
 
-	var spans: Array[Vector2i] = _get_live_shed_line_spans()
 	var energy_total: float = energy_distances[energy_distances.size() - 1]
 	var aura_total: float = aura_distances[aura_distances.size() - 1]
+	var spans: Array[Vector2i] = _get_live_shed_line_spans(aura_distances, aura_total)
 	var has_gaps: bool = true
 	if spans.size() == 1:
 		var only_span: Vector2i = spans[0]
@@ -491,7 +491,7 @@ func _apply_line_profile(
 		line.width_curve = null
 
 
-func _get_live_shed_line_spans() -> Array[Vector2i]:
+func _get_live_shed_line_spans(reference_distances: Array[float], reference_total: float) -> Array[Vector2i]:
 	var cut_ranges: Array[Vector2i] = []
 	if shedding_enabled:
 		for event in _shed_break_events:
@@ -502,9 +502,10 @@ func _get_live_shed_line_spans() -> Array[Vector2i]:
 					continue
 				var fallback_start: float = clampf(float(event.get("start_progress", 0.0)), 0.0, 1.0)
 				var fallback_end: float = clampf(float(event.get("end_progress", 1.0)), 0.0, 1.0)
-				var last_point_index: int = _points.size() - 1
-				var fallback_cut_start: int = int(floor(minf(fallback_start, fallback_end) * last_point_index))
-				var fallback_cut_end: int = int(ceil(maxf(fallback_start, fallback_end) * last_point_index))
+				var fallback_start_distance: float = minf(fallback_start, fallback_end) * reference_total
+				var fallback_end_distance: float = maxf(fallback_start, fallback_end) * reference_total
+				var fallback_cut_start: int = _nearest_trail_sample_index(fallback_start_distance, reference_distances)
+				var fallback_cut_end: int = _nearest_trail_sample_index(fallback_end_distance, reference_distances)
 				cut_ranges.append(Vector2i(fallback_cut_start, fallback_cut_end))
 				continue
 
