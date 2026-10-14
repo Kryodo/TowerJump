@@ -1335,12 +1335,12 @@ func _sync_shed_gap_materials(
 					continue
 				var fallback_start: float = clampf(float(event.get("start_progress", 0.0)), 0.0, 1.0)
 				var fallback_end: float = clampf(float(event.get("end_progress", 1.0)), 0.0, 1.0)
-				start_distance = minf(fallback_start, fallback_end) * total_distance
-				end_distance = maxf(fallback_start, fallback_end) * total_distance
-				if end_distance - start_distance > 0.01:
+				var fallback_start_distance: float = minf(fallback_start, fallback_end) * total_distance
+				var fallback_end_distance: float = maxf(fallback_start, fallback_end) * total_distance
+				if fallback_end_distance - fallback_start_distance > 0.01:
 					intervals[event_index] = Vector2(
-						start_distance / total_distance,
-						end_distance / total_distance
+						fallback_start_distance / total_distance,
+						fallback_end_distance / total_distance
 					)
 				continue
 
