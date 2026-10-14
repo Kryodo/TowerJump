@@ -13,8 +13,6 @@ extends Node2D
 
 const UNIFIED_HEAD_ARC_SEGMENTS: int = 20
 const ORB_RIM_CENTER_RADIUS_RATIO: float = 0.93
-const SHED_CONNECTED_END_PROGRESS: float = 0.38
-const SHED_GEOMETRY_PIECE_CAPACITY: int = 12
 const SURFACE_BURST_PIECE_COUNT: int = 4
 const CHEVRON_BURST_PIECE_COUNT: int = 5
 const SURFACE_BURST_SPACING: float = 0.055
@@ -29,7 +27,6 @@ const CHEVRON_BURST_SPACING: float = 0.035
 @onready var _energy_line: Line2D = $EnergyLine
 @onready var _trail_aura: Line2D = $TrailAura
 @onready var _unified_shape: Polygon2D = get_node_or_null("UnifiedCometShape") as Polygon2D
-@onready var _shed_geometry_container: Node2D = get_node_or_null("ShedGeometry") as Node2D
 @onready var _unified_contour: Line2D = get_node_or_null("UnifiedCometContour") as Line2D
 @onready var _ball_visual: Sprite2D = get_parent().get_node("Visual") as Sprite2D
 
@@ -61,13 +58,11 @@ var _landing_burst_normals: Array[Vector2] = []
 var _landing_burst_half_widths: Array[float] = []
 var _landing_burst_total_distance: float = 0.0
 var _landing_burst_snapshot_valid: bool = false
-var _shed_geometry_pieces: Array[Polygon2D] = []
 
 func _ready() -> void:
 	z_index = -1
 	_previous_ball_position = global_position
 	_ball_surface_radius = _measure_ball_surface_radius()
-	_initialize_shed_geometry_pieces()
 
 	for node_name in [
 		"TrailParticles",
@@ -299,13 +294,13 @@ func _update_trail_lines(delta: float = 0.0) -> void:
 		_latest_trail_normals.clear()
 		_latest_trail_half_widths.clear()
 		_latest_trail_total_distance = 0.0
-		_clear_shed_geometry_pieces()
+
 		_energy_line.clear_points()
 		_trail_aura.clear_points()
 		if _unified_shape != null:
 			_unified_shape.polygon = PackedVector2Array()
 			_unified_shape.uv = PackedVector2Array()
-		_clear_shed_geometry_pieces()
+
 		if _unified_contour != null:
 			_unified_contour.clear_points()
 		return
@@ -327,28 +322,23 @@ func _rebuild_trail_lines() -> void:
 		_energy_line.add_point(_energy_line.to_local(energy_point))
 		_trail_aura.add_point(_trail_aura.to_local(aura_point))
 
-	var energy_material := _energy_line.material as ShaderMaterial
-	if energy_material != null:
-		energy_material.set_shader_parameter("trail_progress_start", 0.0)
-		energy_material.set_shader_parameter("trail_progress_scale", 1.0)
 
 
-func _update_fracture_shader_parameters(total_distance: float) -> void:
-	var along_scale: float = maxf(total_distance / maxf(_trail_aura.width, 1.0), 1.0)
-	var body_shedding: float = 1.0 if shedding_enabled else 0.0
+func _update_fracture_shader_parameters() -> void:
+	# All visible trail layers share one stable shader mask. This prevents the
+	# energy stream or aura from filling transparent fractures in the body.
+	var shedding_strength: float = 1.0 if shedding_enabled else 0.0
 	var body_material := _unified_shape.material as ShaderMaterial
 	var aura_material := _trail_aura.material as ShaderMaterial
 	var energy_material := _energy_line.material as ShaderMaterial
 	if body_material != null:
-		body_material.set_shader_parameter("shedding_amount", body_shedding)
+		body_material.set_shader_parameter("shedding_amount", shedding_strength)
 	if aura_material != null:
-		aura_material.set_shader_parameter("shedding_amount", body_shedding)
+		aura_material.set_shader_parameter("shedding_amount", shedding_strength)
 	if energy_material != null:
-		energy_material.set_shader_parameter("crack_along_scale", along_scale)
-		energy_material.set_shader_parameter("crack_width_scale", 0.90)
+		energy_material.set_shader_parameter("shedding_amount", shedding_strength)
 	if _surface_fragment_material != null:
-		_surface_fragment_material.set_shader_parameter("shedding_amount", body_shedding)
-
+		_surface_fragment_material.set_shader_parameter("shedding_amount", shedding_strength)
 
 func _get_animated_trail_point(index: int, apply_head_offset: bool = true) -> Vector2:
 	var point: Vector2 = _points[index]
@@ -448,7 +438,7 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 	_latest_trail_half_widths = half_widths.duplicate()
 	_latest_trail_total_distance = total_distance
 
-	_update_fracture_shader_parameters(total_distance)
+	_update_fracture_shader_parameters()
 
 	var polygon_points := PackedVector2Array()
 	var polygon_uvs := PackedVector2Array()
@@ -468,60 +458,21 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 		polygon_points.append(_unified_shape.to_local(world_point))
 		polygon_uvs.append(Vector2(0.0, arc_t))
 
-	var use_geometric_shedding: bool = shedding_enabled and total_distance >= 70.0
-	var connected_end_distance: float = total_distance
-	if use_geometric_shedding:
-		connected_end_distance = total_distance * SHED_CONNECTED_END_PROGRESS
 
-	if use_geometric_shedding:
-		# Keep the ball and upper neck connected. The lower trail is rendered as
-		# separate cut-out islands, matching the tested experiment-comet-shedding look.
-		for i in range(1, path.size() - 1):
-			if cumulative_distances[i] >= connected_end_distance:
-				break
-			var right_point: Vector2 = path[i] - normals[i] * half_widths[i]
-			polygon_points.append(_unified_shape.to_local(right_point))
-			polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 1.0))
+	# Keep a single continuous ribbon. Shader alpha masks reveal the fractures;
+	# no surface sections are removed from the polygon or rendered as islands.
+	for i in range(1, path.size() - 1):
+		var right_point: Vector2 = path[i] - normals[i] * half_widths[i]
+		polygon_points.append(_unified_shape.to_local(right_point))
+		polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 1.0))
 
-		var connected_cut: Dictionary = _sample_trail_cross_section(
-			connected_end_distance, path, cumulative_distances, tangents, normals, half_widths
-		)
-		var cut_position: Vector2 = connected_cut["position"]
-		var cut_normal: Vector2 = connected_cut["normal"]
-		var cut_width: float = connected_cut["half_width"]
-		var cut_uv_x: float = connected_end_distance / total_distance
-		polygon_points.append(_unified_shape.to_local(cut_position - cut_normal * cut_width))
-		polygon_uvs.append(Vector2(cut_uv_x, 1.0))
-		polygon_points.append(_unified_shape.to_local(cut_position + cut_normal * cut_width))
-		polygon_uvs.append(Vector2(cut_uv_x, 0.0))
+	polygon_points.append(_unified_shape.to_local(path[path.size() - 1]))
+	polygon_uvs.append(Vector2(1.0, 0.5))
 
-		for i in range(path.size() - 2, 0, -1):
-			if cumulative_distances[i] >= connected_end_distance:
-				continue
-			var left_point: Vector2 = path[i] + normals[i] * half_widths[i]
-			polygon_points.append(_unified_shape.to_local(left_point))
-			polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 0.0))
-
-		_update_shed_geometry_pieces(
-			path, cumulative_distances, total_distance, tangents, normals, half_widths
-		)
-	else:
-		# Preserve a fully continuous ribbon while shedding is disabled or the
-		# trail is too short for the breakup effect.
-		for i in range(1, path.size() - 1):
-			var right_point: Vector2 = path[i] - normals[i] * half_widths[i]
-			polygon_points.append(_unified_shape.to_local(right_point))
-			polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 1.0))
-
-		polygon_points.append(_unified_shape.to_local(path[path.size() - 1]))
-		polygon_uvs.append(Vector2(1.0, 0.5))
-
-		for i in range(path.size() - 2, 0, -1):
-			var left_point: Vector2 = path[i] + normals[i] * half_widths[i]
-			polygon_points.append(_unified_shape.to_local(left_point))
-			polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 0.0))
-
-		_clear_shed_geometry_pieces()
+	for i in range(path.size() - 2, 0, -1):
+		var left_point: Vector2 = path[i] + normals[i] * half_widths[i]
+		polygon_points.append(_unified_shape.to_local(left_point))
+		polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 0.0))
 
 	_unified_shape.polygon = polygon_points
 	_unified_shape.uv = polygon_uvs
@@ -654,20 +605,12 @@ func _spawn_surface_fragment(
 		return
 
 	var sequence_value: float = float(_shed_sequence)
-	var anchor_progress: float
-	match burst_index:
-		0:
-			anchor_progress = 0.34
-		1:
-			anchor_progress = 0.45
-		2:
-			anchor_progress = 0.57
-		_:
-			anchor_progress = 0.68
+	var burst_progress: float = float(burst_index) / float(maxi(SURFACE_BURST_PIECE_COUNT - 1, 1))
 	var progress: float = clampf(
-		anchor_progress + sin(sequence_value * 8.13 + 1.7) * 0.024,
-		0.30,
-		0.73
+		lerpf(0.22, 0.56, burst_progress)
+		+ sin(sequence_value * 8.13 + 1.7) * 0.035,
+		0.18,
+		0.62
 	)
 	var center_distance: float = total_distance * progress
 	var fragment_length: float = lerpf(
@@ -935,26 +878,6 @@ func _update_detached_shed_fragments(delta: float) -> void:
 			_detached_shed_fragments[fragment_index] = fragment
 
 
-func _initialize_shed_geometry_pieces() -> void:
-	if _shed_geometry_container == null:
-		return
-	for piece_index in range(SHED_GEOMETRY_PIECE_CAPACITY):
-		var piece := Polygon2D.new()
-		piece.name = "ShedTrailPiece_%02d" % piece_index
-		piece.z_index = -1
-		piece.visible = false
-		_shed_geometry_container.add_child(piece)
-		_shed_geometry_pieces.append(piece)
-
-
-func _clear_shed_geometry_pieces() -> void:
-	for piece in _shed_geometry_pieces:
-		piece.polygon = PackedVector2Array()
-		piece.uv = PackedVector2Array()
-		piece.visible = false
-
-
-
 func _sample_trail_cross_section(
 	target_distance: float,
 	path: Array[Vector2],
@@ -1000,136 +923,6 @@ func _nearest_trail_sample_index(
 			closest_error = error
 			closest_index = i
 	return closest_index
-
-
-func _append_shed_edge_sample(
-	points: PackedVector2Array,
-	uvs: PackedVector2Array,
-	world_position: Vector2,
-	progress: float,
-	across: float
-) -> void:
-	points.append(_shed_geometry_container.to_local(world_position))
-	uvs.append(Vector2(progress, across))
-
-
-func _build_shed_piece_polygon(
-	piece: Polygon2D,
-	start_distance: float,
-	end_distance: float,
-	path: Array[Vector2],
-	cumulative_distances: Array[float],
-	total_distance: float,
-	tangents: Array[Vector2],
-	normals: Array[Vector2],
-	half_widths: Array[float]
-) -> void:
-	var polygon_points := PackedVector2Array()
-	var polygon_uvs := PackedVector2Array()
-	var length: float = end_distance - start_distance
-	var start_skew: float = minf(length * 0.20, 3.0)
-	var end_skew: float = minf(length * 0.18, 2.5)
-
-	# Sample the two sides at different distances to create oblique, chipped
-	# ends. This makes each surviving island an irregular piece of the old body.
-	var start_right_distance: float = start_distance + start_skew
-	var start_left_distance: float = start_distance - start_skew
-	var end_right_distance: float = end_distance - end_skew
-	var end_left_distance: float = end_distance + end_skew
-
-	var start_right_section: Dictionary = _sample_trail_cross_section(
-		start_right_distance, path, cumulative_distances, tangents, normals, half_widths
-	)
-	var start_left_section: Dictionary = _sample_trail_cross_section(
-		start_left_distance, path, cumulative_distances, tangents, normals, half_widths
-	)
-	var end_right_section: Dictionary = _sample_trail_cross_section(
-		end_right_distance, path, cumulative_distances, tangents, normals, half_widths
-	)
-	var end_left_section: Dictionary = _sample_trail_cross_section(
-		end_left_distance, path, cumulative_distances, tangents, normals, half_widths
-	)
-
-	var start_right: Vector2 = start_right_section["position"] - start_right_section["normal"] * float(start_right_section["half_width"])
-	var start_left: Vector2 = start_left_section["position"] + start_left_section["normal"] * float(start_left_section["half_width"])
-	var end_right: Vector2 = end_right_section["position"] - end_right_section["normal"] * float(end_right_section["half_width"])
-	var end_left: Vector2 = end_left_section["position"] + end_left_section["normal"] * float(end_left_section["half_width"])
-
-	_append_shed_edge_sample(
-		polygon_points, polygon_uvs, start_right,
-		start_right_distance / total_distance, 1.0
-	)
-	for i in range(1, path.size() - 1):
-		if cumulative_distances[i] > start_right_distance and cumulative_distances[i] < end_right_distance:
-			var right_point: Vector2 = path[i] - normals[i] * half_widths[i]
-			_append_shed_edge_sample(
-				polygon_points, polygon_uvs, right_point,
-				cumulative_distances[i] / total_distance, 1.0
-			)
-	_append_shed_edge_sample(
-		polygon_points, polygon_uvs, end_right,
-		end_right_distance / total_distance, 1.0
-	)
-	_append_shed_edge_sample(
-		polygon_points, polygon_uvs, end_left,
-		end_left_distance / total_distance, 0.0
-	)
-	for i in range(path.size() - 2, 0, -1):
-		if cumulative_distances[i] < end_left_distance and cumulative_distances[i] > start_left_distance:
-			var left_point: Vector2 = path[i] + normals[i] * half_widths[i]
-			_append_shed_edge_sample(
-				polygon_points, polygon_uvs, left_point,
-				cumulative_distances[i] / total_distance, 0.0
-			)
-	_append_shed_edge_sample(
-		polygon_points, polygon_uvs, start_left,
-		start_left_distance / total_distance, 0.0
-	)
-
-	piece.polygon = polygon_points
-	piece.uv = polygon_uvs
-	piece.material = _unified_shape.material
-	piece.visible = polygon_points.size() >= 4
-
-
-func _update_shed_geometry_pieces(
-	path: Array[Vector2],
-	cumulative_distances: Array[float],
-	total_distance: float,
-	tangents: Array[Vector2],
-	normals: Array[Vector2],
-	half_widths: Array[float]
-) -> void:
-	_clear_shed_geometry_pieces()
-	if _shed_geometry_pieces.is_empty() or total_distance < 38.0 or _shed_geometry_container == null:
-		return
-
-	# The unbroken head ends first. Beyond a small open gap, individually
-	# generated trail islands occupy only their own polygon geometry.
-	var cursor: float = total_distance * SHED_CONNECTED_END_PROGRESS
-	cursor += clampf(total_distance * 0.04, 5.0, 11.0)
-	var tail_limit: float = total_distance * 0.985
-	var piece_index: int = 0
-	while cursor < tail_limit and piece_index < _shed_geometry_pieces.size():
-		var seed_a: float = absf(sin(float(piece_index) * 15.731 + 2.17))
-		var seed_b: float = absf(sin(float(piece_index) * 9.173 + 5.61))
-		var piece_length: float = clampf(total_distance * lerpf(0.055, 0.095, seed_a), 8.0, 24.0)
-		var piece_end: float = minf(cursor + piece_length, tail_limit)
-		if piece_end - cursor >= 5.0:
-			_build_shed_piece_polygon(
-				_shed_geometry_pieces[piece_index],
-				cursor,
-				piece_end,
-				path,
-				cumulative_distances,
-				total_distance,
-				tangents,
-				normals,
-				half_widths
-			)
-			piece_index += 1
-		cursor = piece_end + clampf(lerpf(4.0, 9.0, seed_b), 3.0, 10.0)
-
 
 
 func _update_particle_emitters(
