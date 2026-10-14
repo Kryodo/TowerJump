@@ -16,7 +16,6 @@ shader_parameter/palette_mode = 0
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_aura_shedding"]
 shader = ExtResource("8_aura_shedding")
-shader_parameter/shedding_amount = 1.0
 
 [sub_resource type="Gradient" id="Gradient_unified_contour"]
 offsets = PackedFloat32Array(0, 0.04, 0.12, 0.44, 0.56, 0.88, 0.96, 1)
