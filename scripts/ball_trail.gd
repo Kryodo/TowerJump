@@ -46,6 +46,7 @@ var _shed_geometry_pieces: Array[Polygon2D] = []
 var _shed_piece_ranges: Array[Dictionary] = []
 var _shed_break_events: Array[Dictionary] = []
 var _shed_piece_material: ShaderMaterial
+var _detached_piece_material: ShaderMaterial
 
 
 func _ready() -> void:
@@ -226,6 +227,8 @@ func _process(delta: float) -> void:
 	_trail_time += delta
 	if shedding_enabled:
 		_shed_spawn_clock += delta
+	else:
+		_shed_break_events.clear()
 	var current_world_position: Vector2 = ball.global_position
 	var movement: Vector2 = current_world_position - _previous_ball_position
 	var distance_from_trail: float = movement.length()
@@ -605,6 +608,10 @@ func _initialize_shed_geometry_pieces() -> void:
 		_shed_piece_material = base_material.duplicate() as ShaderMaterial
 		_shed_piece_material.set_shader_parameter("solid_piece", 1.0)
 		_shed_piece_material.set_shader_parameter("shedding_amount", 1.0)
+		_detached_piece_material = _shed_piece_material.duplicate() as ShaderMaterial
+		_detached_piece_material.set_shader_parameter("shed_gap_0", Vector2(-1.0, -1.0))
+		_detached_piece_material.set_shader_parameter("shed_gap_1", Vector2(-1.0, -1.0))
+		_detached_piece_material.set_shader_parameter("shed_gap_2", Vector2(-1.0, -1.0))
 
 	for piece_index in range(SHED_GEOMETRY_PIECE_CAPACITY):
 		var piece := Polygon2D.new()
@@ -743,7 +750,7 @@ func _build_shed_piece_polygon(
 
 	piece.polygon = polygon_points
 	piece.uv = polygon_uvs
-	piece.material = _unified_shape.material
+	piece.material = _shed_piece_material
 	piece.visible = polygon_points.size() >= 4
 
 
@@ -756,7 +763,9 @@ func _update_shed_geometry_pieces(
 	half_widths: Array[float]
 ) -> void:
 	_clear_shed_geometry_pieces()
+	_prune_shed_break_events()
 	if _shed_geometry_pieces.is_empty() or total_distance < 38.0 or _shed_geometry_container == null:
+		_sync_shed_gap_materials(cumulative_distances, total_distance)
 		return
 
 	# The unbroken head ends first. Beyond a small open gap, individually
