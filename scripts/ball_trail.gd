@@ -506,56 +506,85 @@ func _spawn_shed_fragment(
 	normals: Array[Vector2],
 	half_widths: Array[float]
 ) -> void:
-	if path.size() < 16 or total_distance < 105.0 or _detached_shed_fragments.size() >= 14:
+	if (
+		not shedding_enabled
+		or path.size() < 16
+		or total_distance < 105.0
+		or _detached_shed_fragments.size() >= 14
+		or _shed_break_events.size() >= MAX_ACTIVE_SHED_BREAKS
+		or _shed_piece_ranges.is_empty()
+	):
 		return
 
-	var progress_slots: Array[float] = [0.50, 0.62, 0.74, 0.84, 0.92]
-	var source_progress: float = progress_slots[_shed_sequence % progress_slots.size()]
-	var source_index: int = 0
-	var closest_error: float = 10.0
-	for i in range(path.size()):
-		var progress: float = cumulative_distances[i] / total_distance
-		var error: float = absf(progress - source_progress)
-		if error < closest_error:
-			closest_error = error
-			source_index = i
+	# Candidates are the actual lower-tail polygons currently visible in the
+	# scene. We clone one of those exact meshes instead of inventing a generic
+	# shard, then lock its source range out of the living trail.
+	var candidates: Array[Dictionary] = []
+	for piece_range in _shed_piece_ranges:
+		var progress: float = float(piece_range["progress"])
+		var source_piece := piece_range["node"] as Polygon2D
+		if progress >= 0.55 and progress <= 0.94 and is_instance_valid(source_piece) and source_piece.visible:
+			candidates.append(piece_range)
+	if candidates.is_empty():
+		return
 
-	var sequence_value: float = float(_shed_sequence)
-	var seed_value: float = absf(sin(sequence_value * 17.13 + 2.7))
-	var side: float = -1.0 if _shed_sequence % 2 == 0 else 1.0
-	var shard_size: float = lerpf(4.8, 9.5, seed_value)
+	var selected: Dictionary = candidates[_shed_sequence % candidates.size()]
+	var source_piece := selected["node"] as Polygon2D
+	if source_piece.polygon.size() < 4:
+		return
+
+	var world_root: Node2D = get_tree().current_scene as Node2D
+	if world_root == null:
+		world_root = get_parent() as Node2D
+	if world_root == null:
+		return
+
+	var world_vertices: Array[Vector2] = []
+	var centroid_global := Vector2.ZERO
+	for local_vertex in source_piece.polygon:
+		var global_vertex: Vector2 = source_piece.to_global(local_vertex)
+		world_vertices.append(global_vertex)
+		centroid_global += global_vertex
+	centroid_global /= float(world_vertices.size())
+
+	var detached_polygon := PackedVector2Array()
+	for global_vertex in world_vertices:
+		detached_polygon.append(global_vertex - centroid_global)
+
 	var shard := Polygon2D.new()
-	shard.name = "DetachedCometShard"
+	shard.name = "DetachedCometBodyPiece"
 	shard.z_as_relative = false
 	shard.z_index = -2
-	shard.color = (
-		Color(0.56, 0.17, 1.30, 0.92)
-		if visual_palette == 1
-		else Color(0.10, 0.44, 1.28, 0.92)
-	)
-	shard.polygon = PackedVector2Array([
-		Vector2(-shard_size, -shard_size * 0.18 * side),
-		Vector2(shard_size * 0.16, -shard_size * 0.34 * side),
-		Vector2(shard_size * 0.92, shard_size * 0.06 * side),
-		Vector2(shard_size * 0.27, shard_size * 0.78 * side),
-		Vector2(-shard_size * 0.30, shard_size * 0.46 * side)
-	])
-
-	var source_position: Vector2 = (
-		path[source_index]
-		+ normals[source_index] * half_widths[source_index] * side * 0.68
-	)
-	var world_root: Node = get_tree().current_scene
-	if world_root == null:
-		world_root = get_parent()
+	shard.polygon = detached_polygon
+	shard.uv = source_piece.uv.duplicate()
+	shard.material = _detached_piece_material if _detached_piece_material != null else source_piece.material
 	world_root.add_child(shard)
-	shard.global_position = source_position
-	shard.global_rotation = tangents[source_index].angle()
+	shard.global_position = centroid_global
+	shard.global_rotation = 0.0
 
-	var outward_speed: float = lerpf(22.0, 48.0, seed_value)
-	var drift_speed: float = lerpf(8.0, 24.0, 1.0 - seed_value)
-	var lifetime: float = lerpf(0.34, 0.62, seed_value)
-	var angular_velocity: float = lerpf(-3.4, 3.4, absf(sin(sequence_value * 8.31 + 0.9)))
+	var start_id: int = int(selected["start_id"])
+	var end_id: int = int(selected["end_id"])
+	_shed_break_events.append({
+		"start_id": start_id,
+		"end_id": end_id
+	})
+
+	# Remove this very section immediately. Its anchor IDs keep the matching
+	# gap in the trail history as new samples are added at the orb end.
+	source_piece.visible = false
+
+	var source_distance: float = (
+		float(selected["start_distance"]) + float(selected["end_distance"])
+	) * 0.5
+	var source_index: int = _nearest_trail_sample_index(
+		source_distance, cumulative_distances
+	)
+	var sequence_value: float = float(_shed_sequence)
+	var side: float = -1.0 if _shed_sequence % 2 == 0 else 1.0
+	var outward_speed: float = lerpf(24.0, 44.0, absf(sin(sequence_value * 17.13 + 2.7)))
+	var drift_speed: float = lerpf(9.0, 22.0, absf(sin(sequence_value * 6.73 + 1.4)))
+	var lifetime: float = lerpf(0.42, 0.70, absf(sin(sequence_value * 3.91 + 0.8)))
+	var angular_velocity: float = lerpf(-3.0, 3.0, sin(sequence_value * 8.31 + 0.9))
 	var velocity: Vector2 = (
 		normals[source_index] * side * outward_speed
 		+ tangents[source_index] * drift_speed
@@ -566,9 +595,11 @@ func _spawn_shed_fragment(
 		"age": 0.0,
 		"lifetime": lifetime,
 		"angular_velocity": angular_velocity,
-		"base_alpha": 0.92
+		"base_alpha": 1.0
 	})
 	_shed_sequence += 1
+	_shed_spawn_clock = 0.0
+	_sync_shed_gap_materials(cumulative_distances, total_distance)
 
 
 func _update_detached_shed_fragments(delta: float) -> void:
