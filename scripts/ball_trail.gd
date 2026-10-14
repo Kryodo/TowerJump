@@ -461,6 +461,7 @@ func _update_unified_comet_shape() -> void:
 			polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 0.0))
 
 		_clear_shed_geometry_pieces()
+		_sync_shed_gap_materials(cumulative_distances, total_distance)
 
 	_unified_shape.polygon = polygon_points
 	_unified_shape.uv = polygon_uvs
@@ -584,7 +585,7 @@ func _spawn_shed_fragment(
 	var outward_speed: float = lerpf(24.0, 44.0, absf(sin(sequence_value * 17.13 + 2.7)))
 	var drift_speed: float = lerpf(9.0, 22.0, absf(sin(sequence_value * 6.73 + 1.4)))
 	var lifetime: float = lerpf(0.42, 0.70, absf(sin(sequence_value * 3.91 + 0.8)))
-	var angular_velocity: float = lerpf(-3.0, 3.0, sin(sequence_value * 8.31 + 0.9))
+	var angular_velocity: float = sin(sequence_value * 8.31 + 0.9) * 3.0
 	var velocity: Vector2 = (
 		normals[source_index] * side * outward_speed
 		+ tangents[source_index] * drift_speed
