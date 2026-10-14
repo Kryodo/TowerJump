@@ -497,17 +497,18 @@ func _get_live_shed_line_spans(reference_distances: Array[float], reference_tota
 		for event in _shed_break_events:
 			var start_index: int = _point_ids.find(int(event["start_id"]))
 			var end_index: int = _point_ids.find(int(event["end_id"]))
-			if start_index < 0 and end_index < 0:
-				if float(event.get("hold_remaining", 0.0)) <= 0.0:
+			if start_index < 0 or end_index < 0:
+				if float(event.get("hold_remaining", 0.0)) > 0.0:
+					var fallback_start: float = clampf(float(event.get("start_progress", 0.0)), 0.0, 1.0)
+					var fallback_end: float = clampf(float(event.get("end_progress", 1.0)), 0.0, 1.0)
+					var fallback_start_distance: float = minf(fallback_start, fallback_end) * reference_total
+					var fallback_end_distance: float = maxf(fallback_start, fallback_end) * reference_total
+					var fallback_cut_start: int = _nearest_trail_sample_index(fallback_start_distance, reference_distances)
+					var fallback_cut_end: int = _nearest_trail_sample_index(fallback_end_distance, reference_distances)
+					cut_ranges.append(Vector2i(fallback_cut_start, fallback_cut_end))
 					continue
-				var fallback_start: float = clampf(float(event.get("start_progress", 0.0)), 0.0, 1.0)
-				var fallback_end: float = clampf(float(event.get("end_progress", 1.0)), 0.0, 1.0)
-				var fallback_start_distance: float = minf(fallback_start, fallback_end) * reference_total
-				var fallback_end_distance: float = maxf(fallback_start, fallback_end) * reference_total
-				var fallback_cut_start: int = _nearest_trail_sample_index(fallback_start_distance, reference_distances)
-				var fallback_cut_end: int = _nearest_trail_sample_index(fallback_end_distance, reference_distances)
-				cut_ranges.append(Vector2i(fallback_cut_start, fallback_cut_end))
-				continue
+				if start_index < 0 and end_index < 0:
+					continue
 
 			var cut_start: int
 			var cut_end: int
@@ -1285,16 +1286,17 @@ func _shed_event_overlaps_interval(
 	for event in _shed_break_events:
 		var start_index: int = _point_ids.find(int(event["start_id"]))
 		var end_index: int = _point_ids.find(int(event["end_id"]))
-		if start_index < 0 and end_index < 0:
-			if float(event.get("hold_remaining", 0.0)) <= 0.0:
+		if start_index < 0 or end_index < 0:
+			if float(event.get("hold_remaining", 0.0)) > 0.0:
+				var fallback_start: float = clampf(float(event.get("start_progress", 0.0)), 0.0, 1.0)
+				var fallback_end: float = clampf(float(event.get("end_progress", 1.0)), 0.0, 1.0)
+				var fallback_distance_start: float = minf(fallback_start, fallback_end) * total_distance
+				var fallback_distance_end: float = maxf(fallback_start, fallback_end) * total_distance
+				if fallback_distance_start < interval_end - 0.8 and fallback_distance_end > interval_start + 0.8:
+					return true
 				continue
-			var fallback_start: float = clampf(float(event.get("start_progress", 0.0)), 0.0, 1.0)
-			var fallback_end: float = clampf(float(event.get("end_progress", 1.0)), 0.0, 1.0)
-			var fallback_distance_start: float = minf(fallback_start, fallback_end) * total_distance
-			var fallback_distance_end: float = maxf(fallback_start, fallback_end) * total_distance
-			if fallback_distance_start < interval_end - 0.8 and fallback_distance_end > interval_start + 0.8:
-				return true
-			continue
+			if start_index < 0 and end_index < 0:
+				continue
 
 		var event_start: float = 0.0
 		var event_end: float = total_distance
@@ -1331,19 +1333,20 @@ func _sync_shed_gap_materials(
 			var event: Dictionary = _shed_break_events[event_index]
 			var start_index: int = _point_ids.find(int(event["start_id"]))
 			var end_index: int = _point_ids.find(int(event["end_id"]))
-			if start_index < 0 and end_index < 0:
-				if float(event.get("hold_remaining", 0.0)) <= 0.0:
-					continue
-				var fallback_start: float = clampf(float(event.get("start_progress", 0.0)), 0.0, 1.0)
-				var fallback_end: float = clampf(float(event.get("end_progress", 1.0)), 0.0, 1.0)
-				var fallback_start_distance: float = minf(fallback_start, fallback_end) * total_distance
-				var fallback_end_distance: float = maxf(fallback_start, fallback_end) * total_distance
-				if fallback_end_distance - fallback_start_distance > 0.01:
-					intervals[event_index] = Vector2(
-						fallback_start_distance / total_distance,
+			if start_index < 0 or end_index < 0:
+				if float(event.get("hold_remaining", 0.0)) > 0.0:
+					var fallback_start: float = clampf(float(event.get("start_progress", 0.0)), 0.0, 1.0)
+					var fallback_end: float = clampf(float(event.get("end_progress", 1.0)), 0.0, 1.0)
+					var fallback_start_distance: float = minf(fallback_start, fallback_end) * total_distance
+					var fallback_end_distance: float = maxf(fallback_start, fallback_end) * total_distance
+					if fallback_end_distance - fallback_start_distance > 0.01:
+						intervals[event_index] = Vector2(
+							fallback_start_distance / total_distance,
 						fallback_end_distance / total_distance
-					)
-				continue
+						)
+					continue
+				if start_index < 0 and end_index < 0:
+					continue
 
 			var start_distance: float = 0.0
 			var end_distance: float = total_distance
