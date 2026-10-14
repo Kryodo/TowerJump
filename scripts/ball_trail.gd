@@ -45,6 +45,20 @@ var _detached_shed_fragments: Array[Dictionary] = []
 var _aura_fragment_material: CanvasItemMaterial
 var _surface_fragment_material: ShaderMaterial
 
+var _latest_trail_path: Array[Vector2] = []
+var _latest_trail_distances: Array[float] = []
+var _latest_trail_tangents: Array[Vector2] = []
+var _latest_trail_normals: Array[Vector2] = []
+var _latest_trail_half_widths: Array[float] = []
+var _latest_trail_total_distance: float = 0.0
+var _landing_burst_path: Array[Vector2] = []
+var _landing_burst_distances: Array[float] = []
+var _landing_burst_tangents: Array[Vector2] = []
+var _landing_burst_normals: Array[Vector2] = []
+var _landing_burst_half_widths: Array[float] = []
+var _landing_burst_total_distance: float = 0.0
+var _landing_burst_snapshot_valid: bool = false
+
 func _ready() -> void:
 	z_index = -1
 	_previous_ball_position = global_position
@@ -274,6 +288,12 @@ func _update_rim_breath() -> void:
 
 func _update_trail_lines(delta: float = 0.0) -> void:
 	if _points.size() < 2:
+		_latest_trail_path.clear()
+		_latest_trail_distances.clear()
+		_latest_trail_tangents.clear()
+		_latest_trail_normals.clear()
+		_latest_trail_half_widths.clear()
+		_latest_trail_total_distance = 0.0
 		_energy_line.clear_points()
 		_trail_aura.clear_points()
 		if _unified_shape != null:
@@ -306,25 +326,21 @@ func _rebuild_trail_lines() -> void:
 		energy_material.set_shader_parameter("trail_progress_scale", 1.0)
 
 
-func _update_fissure_shader_scale(total_distance: float) -> void:
-	# Measure along-distance in aura-width units so shader cracks stay close to
-	# the same screen thickness even when the live trail is longer or shorter.
+func _update_fracture_shader_parameters(total_distance: float) -> void:
 	var along_scale: float = maxf(total_distance / maxf(_trail_aura.width, 1.0), 1.0)
+	var body_shedding: float = 1.0 if shedding_enabled else 0.0
 	var body_material := _unified_shape.material as ShaderMaterial
 	var aura_material := _trail_aura.material as ShaderMaterial
 	var energy_material := _energy_line.material as ShaderMaterial
 	if body_material != null:
-		body_material.set_shader_parameter("crack_along_scale", along_scale)
-		body_material.set_shader_parameter("crack_width_scale", 1.35)
+		body_material.set_shader_parameter("shedding_amount", body_shedding)
 	if aura_material != null:
-		aura_material.set_shader_parameter("crack_along_scale", along_scale)
-		aura_material.set_shader_parameter("crack_width_scale", 1.80)
+		aura_material.set_shader_parameter("shedding_amount", body_shedding)
 	if energy_material != null:
 		energy_material.set_shader_parameter("crack_along_scale", along_scale)
 		energy_material.set_shader_parameter("crack_width_scale", 0.90)
 	if _surface_fragment_material != null:
-		_surface_fragment_material.set_shader_parameter("crack_along_scale", along_scale)
-		_surface_fragment_material.set_shader_parameter("crack_width_scale", 1.35)
+		_surface_fragment_material.set_shader_parameter("shedding_amount", body_shedding)
 
 
 func _get_animated_trail_point(index: int, apply_head_offset: bool = true) -> Vector2:
@@ -418,7 +434,14 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 		upper_edge_points.append(path[i] + normals[i] * half_widths[i])
 		lower_edge_points.append(path[i] - normals[i] * half_widths[i])
 
-	_update_fissure_shader_scale(total_distance)
+	_latest_trail_path = path.duplicate()
+	_latest_trail_distances = cumulative_distances.duplicate()
+	_latest_trail_tangents = tangents.duplicate()
+	_latest_trail_normals = normals.duplicate()
+	_latest_trail_half_widths = half_widths.duplicate()
+	_latest_trail_total_distance = total_distance
+
+	_update_fracture_shader_parameters(total_distance)
 
 	var polygon_points := PackedVector2Array()
 	var polygon_uvs := PackedVector2Array()
@@ -478,10 +501,8 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 				)
 		_unified_contour.points = contour_points
 
-	# Release the queued visual fragments using this frame's continuous trail path.
-	_process_shed_burst(
-		delta, path, cumulative_distances, total_distance, tangents, normals, half_widths
-	)
+	# Release visual fragments from the geometry frozen at the landing moment.
+	_process_shed_burst(delta)
 
 
 func _connect_landing_feedback() -> void:
@@ -508,24 +529,29 @@ func _on_landing_confirmed(event: LandingEvent) -> void:
 	if ball == null or event.ball != ball:
 		return
 
-	# One confirmed landing releases four broad surface pieces plus five smaller
-	# chevrons near the trailing tip. Both are visual copies; the living trail is untouched.
+	# Freeze the just-rendered trail shape before the ball's bounce changes it.
+	if _latest_trail_path.size() < 6 or _latest_trail_total_distance < 55.0:
+		_surface_burst_remaining = 0
+		_chevron_burst_remaining = 0
+		_landing_burst_snapshot_valid = false
+		return
+	_landing_burst_path = _latest_trail_path.duplicate()
+	_landing_burst_distances = _latest_trail_distances.duplicate()
+	_landing_burst_tangents = _latest_trail_tangents.duplicate()
+	_landing_burst_normals = _latest_trail_normals.duplicate()
+	_landing_burst_half_widths = _latest_trail_half_widths.duplicate()
+	_landing_burst_total_distance = _latest_trail_total_distance
+	_landing_burst_snapshot_valid = true
+
+	# Both fragment groups now use that frozen geometry, not the changing live trail.
 	_surface_burst_remaining = SURFACE_BURST_PIECE_COUNT
 	_surface_burst_clock = 0.0
 	_chevron_burst_remaining = CHEVRON_BURST_PIECE_COUNT
 	_chevron_burst_clock = 0.0
 
 
-func _process_shed_burst(
-	delta: float,
-	path: Array[Vector2],
-	cumulative_distances: Array[float],
-	total_distance: float,
-	tangents: Array[Vector2],
-	normals: Array[Vector2],
-	half_widths: Array[float]
-) -> void:
-	if not shedding_enabled:
+func _process_shed_burst(delta: float) -> void:
+	if not shedding_enabled or not _landing_burst_snapshot_valid:
 		return
 
 	if _surface_burst_remaining > 0:
@@ -534,7 +560,8 @@ func _process_shed_burst(
 			var surface_index: int = SURFACE_BURST_PIECE_COUNT - _surface_burst_remaining
 			var previous_surface_count: int = _detached_shed_fragments.size()
 			_spawn_surface_fragment(
-				path, cumulative_distances, total_distance, tangents, normals, half_widths,
+				_landing_burst_path, _landing_burst_distances, _landing_burst_total_distance,
+				_landing_burst_tangents, _landing_burst_normals, _landing_burst_half_widths,
 				surface_index
 			)
 			if _detached_shed_fragments.size() == previous_surface_count:
@@ -549,7 +576,8 @@ func _process_shed_burst(
 			var chevron_index: int = CHEVRON_BURST_PIECE_COUNT - _chevron_burst_remaining
 			var previous_chevron_count: int = _detached_shed_fragments.size()
 			_spawn_shed_fragment(
-				path, cumulative_distances, total_distance, tangents, normals, half_widths,
+				_landing_burst_path, _landing_burst_distances, _landing_burst_total_distance,
+				_landing_burst_tangents, _landing_burst_normals, _landing_burst_half_widths,
 				chevron_index
 			)
 			if _detached_shed_fragments.size() == previous_chevron_count:
@@ -673,15 +701,15 @@ func _spawn_surface_fragment(
 	shard.global_rotation = 0.0
 
 	var source_index: int = _nearest_trail_sample_index(center_distance, cumulative_distances)
-	var horizontal_speed: float = lerpf(
+	var outward_speed: float = lerpf(
 		48.0, 78.0, absf(sin(sequence_value * 17.13 + 2.7))
-	) * side
-	var vertical_drift: float = sin(sequence_value * 7.73 + 2.1) * 14.0
+	)
+	var tangential_drift: float = sin(sequence_value * 7.73 + 2.1) * 8.0
 	var lifetime: float = lerpf(
 		0.78, 1.08, absf(sin(sequence_value * 3.91 + 0.8))
 	)
 	var angular_velocity: float = sin(sequence_value * 8.31 + 0.9) * 1.7
-	var velocity: Vector2 = Vector2(horizontal_speed, vertical_drift) + tangents[source_index] * 4.0
+	var velocity: Vector2 = normals[source_index] * side * outward_speed + tangents[source_index] * tangential_drift
 	_detached_shed_fragments.append({
 		"node": shard,
 		"velocity": velocity,
@@ -841,7 +869,6 @@ func _update_detached_shed_fragments(delta: float) -> void:
 		var age: float = float(fragment["age"]) + delta
 		var lifetime: float = float(fragment["lifetime"])
 		var velocity: Vector2 = fragment["velocity"]
-		velocity.y += 10.0 * delta
 		velocity *= maxf(0.0, 1.0 - delta * 0.8)
 		shard.global_position += velocity * delta
 		shard.rotation += float(fragment["angular_velocity"]) * delta
