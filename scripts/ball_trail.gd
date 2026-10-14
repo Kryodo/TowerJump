@@ -259,6 +259,7 @@ func _update_trail_lines() -> void:
 		if _unified_shape != null:
 			_unified_shape.polygon = PackedVector2Array()
 			_unified_shape.uv = PackedVector2Array()
+		_clear_shed_geometry_pieces()
 		if _unified_contour != null:
 			_unified_contour.clear_points()
 		return
@@ -376,8 +377,9 @@ func _update_unified_comet_shape() -> void:
 	var polygon_uvs := PackedVector2Array()
 	var root_direction: Vector2 = tangents[0]
 	var root_normal: Vector2 = normals[0]
+	var use_geometric_shedding: bool = shedding_enabled and total_distance >= 70.0
 	var connected_end_distance: float = total_distance
-	if shedding_enabled:
+	if use_geometric_shedding:
 		connected_end_distance = total_distance * SHED_CONNECTED_END_PROGRESS
 
 	# Keep the orb and upper neck as one coherent piece. In shedding mode the
@@ -394,7 +396,7 @@ func _update_unified_comet_shape() -> void:
 		polygon_points.append(_unified_shape.to_local(world_point))
 		polygon_uvs.append(Vector2(0.0, arc_t))
 
-	if shedding_enabled:
+	if use_geometric_shedding:
 		# Add the surviving connected section's right edge up to its cut plane.
 		for i in range(1, path.size() - 1):
 			if cumulative_distances[i] >= connected_end_distance:
@@ -504,7 +506,7 @@ func _spawn_shed_fragment(
 	var sequence_value: float = float(_shed_sequence)
 	var seed_value: float = absf(sin(sequence_value * 17.13 + 2.7))
 	var side: float = -1.0 if _shed_sequence % 2 == 0 else 1.0
-	var shard_size: float = lerpf(3.2, 7.0, seed_value)
+	var shard_size: float = lerpf(4.8, 9.5, seed_value)
 	var shard := Polygon2D.new()
 	shard.name = "DetachedCometShard"
 	shard.z_as_relative = false
@@ -651,65 +653,70 @@ func _build_shed_piece_polygon(
 	path: Array[Vector2],
 	cumulative_distances: Array[float],
 	total_distance: float,
+	tangents: Array[Vector2],
 	normals: Array[Vector2],
 	half_widths: Array[float]
 ) -> void:
 	var polygon_points := PackedVector2Array()
 	var polygon_uvs := PackedVector2Array()
-	var start_section: Dictionary = _sample_trail_cross_section(
-		start_distance, path, cumulative_distances, [], normals, half_widths
+	var length: float = end_distance - start_distance
+	var start_skew: float = minf(length * 0.20, 3.0)
+	var end_skew: float = minf(length * 0.18, 2.5)
+
+	# Sample the two sides at different distances to create oblique, chipped
+	# ends. This makes each surviving island an irregular piece of the old body.
+	var start_right_distance: float = start_distance + start_skew
+	var start_left_distance: float = start_distance - start_skew
+	var end_right_distance: float = end_distance - end_skew
+	var end_left_distance: float = end_distance + end_skew
+
+	var start_right_section: Dictionary = _sample_trail_cross_section(
+		start_right_distance, path, cumulative_distances, tangents, normals, half_widths
 	)
-	# Tangents are unnecessary for this builder, but the sampler expects them.
-	# The caller passes the existing tangent profile through the overload below.
-	var start_center: Vector2 = start_section["position"]
-	var start_normal: Vector2 = start_section["normal"]
-	var start_width: float = start_section["half_width"]
-
-	var end_section: Dictionary = _sample_trail_cross_section(
-		end_distance, path, cumulative_distances, [], normals, half_widths
+	var start_left_section: Dictionary = _sample_trail_cross_section(
+		start_left_distance, path, cumulative_distances, tangents, normals, half_widths
 	)
-	var end_center: Vector2 = end_section["position"]
-	var end_normal: Vector2 = end_section["normal"]
-	var end_width: float = end_section["half_width"]
+	var end_right_section: Dictionary = _sample_trail_cross_section(
+		end_right_distance, path, cumulative_distances, tangents, normals, half_widths
+	)
+	var end_left_section: Dictionary = _sample_trail_cross_section(
+		end_left_distance, path, cumulative_distances, tangents, normals, half_widths
+	)
 
-	var start_skew: float = minf((end_distance - start_distance) * 0.22, 3.0)
-	var end_skew: float = minf((end_distance - start_distance) * 0.18, 2.5)
-	var start_right: Vector2 = start_center - start_normal * start_width
-	var start_left: Vector2 = start_center + start_normal * start_width
-	var end_right: Vector2 = end_center - end_normal * end_width
-	var end_left: Vector2 = end_center + end_normal * end_width
+	var start_right: Vector2 = start_right_section["position"] - start_right_section["normal"] * float(start_right_section["half_width"])
+	var start_left: Vector2 = start_left_section["position"] + start_left_section["normal"] * float(start_left_section["half_width"])
+	var end_right: Vector2 = end_right_section["position"] - end_right_section["normal"] * float(end_right_section["half_width"])
+	var end_left: Vector2 = end_left_section["position"] + end_left_section["normal"] * float(end_left_section["half_width"])
 
-	# Slightly slanted section cuts make each island feel fractured, not like a
-	# row of identical capsule segments. Intermediate vertices preserve the path.
 	_append_shed_edge_sample(
 		polygon_points, polygon_uvs, start_right,
-		start_distance / total_distance, 1.0
+		start_right_distance / total_distance, 1.0
 	)
 	for i in range(1, path.size() - 1):
-		if cumulative_distances[i] > start_distance and cumulative_distances[i] < end_distance:
+		if cumulative_distances[i] > start_right_distance and cumulative_distances[i] < end_right_distance:
 			var right_point: Vector2 = path[i] - normals[i] * half_widths[i]
 			_append_shed_edge_sample(
 				polygon_points, polygon_uvs, right_point,
 				cumulative_distances[i] / total_distance, 1.0
 			)
 	_append_shed_edge_sample(
-		polygon_points, polygon_uvs, end_right + end_normal * end_skew,
-		end_distance / total_distance, 1.0
+		polygon_points, polygon_uvs, end_right,
+		end_right_distance / total_distance, 1.0
 	)
 	_append_shed_edge_sample(
-		polygon_points, polygon_uvs, end_left - end_normal * end_skew,
-		end_distance / total_distance, 0.0
+		polygon_points, polygon_uvs, end_left,
+		end_left_distance / total_distance, 0.0
 	)
 	for i in range(path.size() - 2, 0, -1):
-		if cumulative_distances[i] > start_distance and cumulative_distances[i] < end_distance:
+		if cumulative_distances[i] < end_left_distance and cumulative_distances[i] > start_left_distance:
 			var left_point: Vector2 = path[i] + normals[i] * half_widths[i]
 			_append_shed_edge_sample(
 				polygon_points, polygon_uvs, left_point,
 				cumulative_distances[i] / total_distance, 0.0
 			)
 	_append_shed_edge_sample(
-		polygon_points, polygon_uvs, start_left + start_normal * start_skew,
-		start_distance / total_distance, 0.0
+		polygon_points, polygon_uvs, start_left,
+		start_left_distance / total_distance, 0.0
 	)
 
 	piece.polygon = polygon_points
@@ -749,6 +756,7 @@ func _update_shed_geometry_pieces(
 				path,
 				cumulative_distances,
 				total_distance,
+				tangents,
 				normals,
 				half_widths
 			)
