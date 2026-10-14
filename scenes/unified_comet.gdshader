@@ -83,7 +83,7 @@ void fragment() {
 	float alpha = clamp((body_alpha + core_alpha) * tail_fade, 0.0, 0.94);
 	alpha = clamp(alpha * fragment_alpha_boost, 0.0, 0.94);
 	// Reveal actual transparent fractures and missing surface cells, rather than drawn-on-top lines.
-	float fracture_progress = smoothstep(0.36, 0.78, along) * shedding_amount;
+	float fracture_progress = smoothstep(0.10, 0.38, along) * shedding_amount;
 	float fracture_mask = mix(1.0, shedding_pattern(UV), fracture_progress);
 	alpha *= fracture_mask;
 

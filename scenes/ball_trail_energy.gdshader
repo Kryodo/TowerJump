@@ -244,7 +244,7 @@ void fragment()
 
 	// Break the inner energy in the same stable cells as the translucent skin.
 	// The near-orb channel stays whole; more pieces are missing farther back.
-	float fracture_progress = smoothstep(0.36, 0.78, uv.x) * shedding_amount;
+	float fracture_progress = smoothstep(0.10, 0.38, uv.x) * shedding_amount;
 	energy *= mix(1.0, shedding_pattern(uv), fracture_progress);
 
 
