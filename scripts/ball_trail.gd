@@ -1059,81 +1059,224 @@ func _find_overlapping_shed_break(
 	return closest_break
 
 
-func _sync_shed_gap_materials(
-	cumulative_distances: Array[float],
-	total_distance: float
-) -> void:
-	var intervals: Array[Vector4] = [
+func _empty_shed_gap_intervals() -> Array[Vector4]:
+	return [
 		Vector4(-1.0, -1.0, 0.0, 0.0),
 		Vector4(-1.0, -1.0, 0.0, 0.0),
 		Vector4(-1.0, -1.0, 0.0, 0.0)
 	]
-	if shedding_enabled and total_distance > 0.01:
-		for event_index in range(mini(_shed_break_events.size(), MAX_ACTIVE_SHED_BREAKS)):
-			var event: Dictionary = _shed_break_events[event_index]
-			var bounds: Vector2 = _shed_event_distance_bounds(event, cumulative_distances)
-			if bounds.x < 0.0 or bounds.y - bounds.x <= 0.01:
-				continue
 
-			var start_skew: float = float(event.get("start_skew", 0.0))
-			var end_skew: float = float(event.get("end_skew", 0.0))
-			# The aura and bright energy can otherwise blur across the physical
-			# hole. Extend their shader cut slightly beyond the removed geometry.
-			var mask_start: float = maxf(bounds.x - SHED_GAP_MASK_PADDING, 0.0)
-			var mask_end: float = minf(
-				bounds.y + SHED_GAP_MASK_PADDING,
-				total_distance
-			)
-			intervals[event_index] = Vector4(
-				mask_start / total_distance,
-				mask_end / total_distance,
-				start_skew / total_distance,
-				end_skew / total_distance
-			)
 
-	var materials: Array[ShaderMaterial] = []
+func _build_path_gap_intervals(
+	cumulative_distances: Array[float],
+	total_distance: float
+) -> Array[Vector4]:
+	var intervals: Array[Vector4] = _empty_shed_gap_intervals()
+	if not shedding_enabled or total_distance <= 0.01:
+		return intervals
+
+	for event_index in range(mini(_shed_break_events.size(), MAX_ACTIVE_SHED_BREAKS)):
+		var event: Dictionary = _shed_break_events[event_index]
+		var bounds: Vector2 = _shed_event_distance_bounds(event, cumulative_distances)
+		if bounds.x < 0.0 or bounds.y - bounds.x <= 0.01:
+			continue
+
+		var start_skew: float = float(event.get("start_skew", 0.0))
+		var end_skew: float = float(event.get("end_skew", 0.0))
+		var mask_start: float = maxf(bounds.x - SHED_GAP_MASK_PADDING, 0.0)
+		var mask_end: float = minf(bounds.y + SHED_GAP_MASK_PADDING, total_distance)
+		intervals[event_index] = Vector4(
+			mask_start / total_distance,
+			mask_end / total_distance,
+			start_skew / total_distance,
+			end_skew / total_distance
+		)
+	return intervals
+
+
+func _map_path_distance_to_line_uv(
+	target_distance: float,
+	path_cumulative_distances: Array[float],
+	line_cumulative_distances: Array[float],
+	begin_cap_offset: float,
+	line_total_distance: float
+) -> float:
+	if (
+		path_cumulative_distances.size() < 2
+		or line_cumulative_distances.size() != path_cumulative_distances.size()
+		or line_total_distance <= 0.01
+	):
+		return 0.0
+
+	var clamped_distance: float = clampf(
+		target_distance,
+		0.0,
+		path_cumulative_distances[path_cumulative_distances.size() - 1]
+	)
+	var right_index: int = 1
+	while (
+		right_index < path_cumulative_distances.size() - 1
+		and path_cumulative_distances[right_index] < clamped_distance
+	):
+		right_index += 1
+	var left_index: int = right_index - 1
+	var path_span: float = maxf(
+		path_cumulative_distances[right_index] - path_cumulative_distances[left_index],
+		0.001
+	)
+	var blend: float = clampf(
+		(clamped_distance - path_cumulative_distances[left_index]) / path_span,
+		0.0,
+		1.0
+	)
+	var line_distance: float = lerpf(
+		line_cumulative_distances[left_index],
+		line_cumulative_distances[right_index],
+		blend
+	)
+	return clampf((begin_cap_offset + line_distance) / line_total_distance, 0.0, 1.0)
+
+
+func _build_line_gap_intervals(
+	line: Line2D,
+	path_cumulative_distances: Array[float],
+	total_path_distance: float
+) -> Array[Vector4]:
+	var intervals: Array[Vector4] = _empty_shed_gap_intervals()
+	if (
+		not shedding_enabled
+		or line == null
+		or path_cumulative_distances.size() < 2
+		or total_path_distance <= 0.01
+	):
+		return intervals
+
+	var line_points: PackedVector2Array = line.points
+	if line_points.size() != path_cumulative_distances.size():
+		# Fail closed rather than applying body-space UVs to a different line mesh.
+		return intervals
+
+	var line_cumulative_distances: Array[float] = [0.0]
+	var line_path_distance: float = 0.0
+	for point_index in range(1, line_points.size()):
+		line_path_distance += line_points[point_index - 1].distance_to(line_points[point_index])
+		line_cumulative_distances.append(line_path_distance)
+
+	var head_width_factor: float = 1.0
+	var tail_width_factor: float = 1.0
+	if line.width_curve != null:
+		head_width_factor = line.width_curve.sample_baked(0.0)
+		tail_width_factor = line.width_curve.sample_baked(1.0)
+	var begin_cap_offset: float = 0.0
+	var end_cap_offset: float = 0.0
+	if line.begin_cap_mode != Line2D.LINE_CAP_NONE:
+		begin_cap_offset = line.width * 0.5 * head_width_factor
+	if line.end_cap_mode != Line2D.LINE_CAP_NONE:
+		end_cap_offset = line.width * 0.5 * tail_width_factor
+	var line_total_distance: float = (
+		line_path_distance + begin_cap_offset + end_cap_offset
+	)
+	if line_total_distance <= 0.01:
+		return intervals
+
+	for event_index in range(mini(_shed_break_events.size(), MAX_ACTIVE_SHED_BREAKS)):
+		var event: Dictionary = _shed_break_events[event_index]
+		var bounds: Vector2 = _shed_event_distance_bounds(event, path_cumulative_distances)
+		if bounds.x < 0.0 or bounds.y - bounds.x <= 0.01:
+			continue
+
+		# Convert the same physical break into this Line2D's own UV space. This
+		# handles its point positions, width curve, and round/box cap distance.
+		var raw_start: float = maxf(bounds.x - SHED_GAP_MASK_PADDING, 0.0)
+		var raw_end: float = minf(
+			bounds.y + SHED_GAP_MASK_PADDING,
+			total_path_distance
+		)
+		var start_skew: float = float(event.get("start_skew", 0.0))
+		var end_skew: float = float(event.get("end_skew", 0.0))
+		var start_u: float = _map_path_distance_to_line_uv(
+			raw_start,
+			path_cumulative_distances,
+			line_cumulative_distances,
+			begin_cap_offset,
+			line_total_distance
+		)
+		var end_u: float = _map_path_distance_to_line_uv(
+			raw_end,
+			path_cumulative_distances,
+			line_cumulative_distances,
+			begin_cap_offset,
+			line_total_distance
+		)
+		var start_skew_u: float = (
+			_map_path_distance_to_line_uv(
+				minf(raw_start + start_skew, total_path_distance),
+				path_cumulative_distances,
+				line_cumulative_distances,
+				begin_cap_offset,
+				line_total_distance
+			) - start_u
+		)
+		var end_skew_u: float = (
+			end_u - _map_path_distance_to_line_uv(
+				maxf(raw_end - end_skew, 0.0),
+				path_cumulative_distances,
+				line_cumulative_distances,
+				begin_cap_offset,
+				line_total_distance
+			)
+		)
+		intervals[event_index] = Vector4(
+			start_u,
+			end_u,
+			maxf(start_skew_u, 0.0),
+			maxf(end_skew_u, 0.0)
+		)
+	return intervals
+
+
+func _set_shed_gap_uniforms(
+	material: ShaderMaterial,
+	intervals: Array[Vector4]
+) -> void:
+	if material == null:
+		return
+	material.set_shader_parameter("shed_gap_0", intervals[0])
+	material.set_shader_parameter("shed_gap_1", intervals[1])
+	material.set_shader_parameter("shed_gap_2", intervals[2])
+
+
+func _sync_shed_gap_materials(
+	cumulative_distances: Array[float],
+	total_distance: float
+) -> void:
+	var path_intervals: Array[Vector4] = _build_path_gap_intervals(
+		cumulative_distances, total_distance
+	)
+	var energy_intervals: Array[Vector4] = _build_line_gap_intervals(
+		_energy_line, cumulative_distances, total_distance
+	)
+	var aura_intervals: Array[Vector4] = _build_line_gap_intervals(
+		_trail_aura, cumulative_distances, total_distance
+	)
+
 	var unified_material: ShaderMaterial = null
-	var energy_material: ShaderMaterial = null
-	var aura_material: ShaderMaterial = null
 	if _unified_shape != null:
 		unified_material = _unified_shape.material as ShaderMaterial
+	var energy_material: ShaderMaterial = null
 	if _energy_line != null:
 		energy_material = _energy_line.material as ShaderMaterial
+	var aura_material: ShaderMaterial = null
 	if _trail_aura != null:
 		aura_material = _trail_aura.material as ShaderMaterial
 
-	for material in [unified_material, energy_material, aura_material, _shed_piece_material]:
-		if material != null and not materials.has(material):
-			materials.append(material)
-
-	for material in materials:
-		material.set_shader_parameter("shed_gap_0", intervals[0])
-		material.set_shader_parameter("shed_gap_1", intervals[1])
-		material.set_shader_parameter("shed_gap_2", intervals[2])
-
-
-func _update_particle_emitters(
-	current_world_position: Vector2,
-	movement: Vector2,
-	distance_from_trail: float
-) -> void:
-	if distance_from_trail > 0.01 and distance_from_trail <= max_segment_distance:
-		_last_emission_direction = -movement.normalized()
-
-	# Spawn geometric fragments from the back of the orb, not its centre, so
-	# they appear to break away from the comet tail rather than through the ball.
-	var emission_position: Vector2 = (
-		current_world_position + _last_emission_direction * trail_head_offset
-	)
-	for emitter in _particle_emitters:
-		emitter.global_position = emission_position
-		var material := emitter.process_material as ParticleProcessMaterial
-		if material != null:
-			material.direction = Vector3(
-				_last_emission_direction.x,
-				_last_emission_direction.y,
-				0.0
-			)
+	# The polygon islands are already physically carved by the geometry builder.
+	# Keep their shader unmasked so an unrelated UV edge can never redraw or
+	# accidentally shrink the cut. The detached clone has its own unmasked mat.
+	_set_shed_gap_uniforms(unified_material, path_intervals)
+	_set_shed_gap_uniforms(energy_material, energy_intervals)
+	_set_shed_gap_uniforms(aura_material, aura_intervals)
+	_set_shed_gap_uniforms(_shed_piece_material, _empty_shed_gap_intervals())
 
 
 func _apply_visual_palette() -> void:
