@@ -75,8 +75,7 @@ void fragment() {
 	float along = clamp(UV.x, 0.0, 1.0);
 	float across = clamp(UV.y, 0.0, 1.0);
 	float center_energy = 1.0 - smoothstep(0.0, 0.95, abs(across * 2.0 - 1.0));
-	float natural_tail_fade = 1.0 - smoothstep(0.74, 1.0, along);
-	float tail_fade = mix(natural_tail_fade, 1.0, solid_piece);
+	float tail_fade = 1.0 - smoothstep(0.74, 1.0, along);
 	float head_energy = 1.0 - smoothstep(0.02, 0.42, along);
 	float flow = 0.94 + 0.06 * sin(along * 24.0 - TIME * 1.3 + across * 2.0);
 
@@ -101,15 +100,14 @@ void fragment() {
 	// the inner energy stream and aura. The orb sprite is drawn later and keeps
 	// its luminous core intact while the lower trail visibly sheds pieces.
 	float translucent_body_alpha = mix(0.30, 0.10, smoothstep(0.02, 0.92, along));
-	float body_alpha = mix(translucent_body_alpha, 0.92, solid_piece);
+	// Separate polygons receive a modest alpha lift, not an opaque-material
+	// switch. They should read as the same plasma body with edges removed.
+	float body_alpha = translucent_body_alpha * mix(1.0, 1.35, solid_piece);
 	float core_alpha = center_energy * 0.10 * head_energy * (1.0 - solid_piece);
 	float alpha = clamp((body_alpha + core_alpha) * tail_fade, 0.0, 0.94);
 
-	// The upper trail uses translucent shader fractures. Surviving lower pieces
-	// use solid_piece so their opacity comes from actual geometry boundaries.
-	float fracture_progress = smoothstep(0.36, 0.78, along) * shedding_amount;
-	float fracture_mask = mix(1.0, shedding_pattern(UV), fracture_progress);
-	alpha *= mix(fracture_mask, 1.0, solid_piece);
+	// A live detachment event is the only source of a full missing interval.
+	// Do not keep decorative shader cracks running across the entire trail.
 	alpha *= shed_gap_mask(along);
 
 	COLOR = vec4(body_color, alpha);
