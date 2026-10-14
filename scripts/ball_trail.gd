@@ -17,7 +17,6 @@ const SURFACE_BURST_PIECE_COUNT: int = 4
 const CHEVRON_BURST_PIECE_COUNT: int = 5
 const SURFACE_BURST_SPACING: float = 0.055
 const CHEVRON_BURST_SPACING: float = 0.035
-const AURA_FISSURE_PROGRESS: Array[float] = [0.27, 0.38, 0.49, 0.60]
 
 @export_category("Visual Palette")
 @export_enum("Electric Blue", "Rich Violet") var visual_palette: int = 0
@@ -45,8 +44,6 @@ var _shed_sequence: int = 0
 var _detached_shed_fragments: Array[Dictionary] = []
 var _aura_fragment_material: CanvasItemMaterial
 var _surface_fragment_material: ShaderMaterial
-var _aura_fissure_glow_lines: Array[Line2D] = []
-var _aura_fissure_core_lines: Array[Line2D] = []
 
 func _ready() -> void:
 	z_index = -1
@@ -65,7 +62,6 @@ func _ready() -> void:
 
 	_apply_visual_palette()
 	_initialize_aura_fragment_material()
-	_initialize_aura_fissures()
 	call_deferred("_connect_landing_feedback")
 	_update_trail_lines()
 	_update_rim_breath()
@@ -82,97 +78,6 @@ func _initialize_aura_fragment_material() -> void:
 	if body_material != null:
 		_surface_fragment_material = body_material.duplicate() as ShaderMaterial
 		_surface_fragment_material.set_shader_parameter("fragment_alpha_boost", 2.25)
-
-
-func _initialize_aura_fissures() -> void:
-	var glow_color: Color
-	var cut_color: Color
-	if visual_palette == 1:
-		glow_color = Color(0.92, 0.26, 1.45, 0.62)
-		cut_color = Color(0.025, 0.004, 0.075, 0.98)
-	else:
-		glow_color = Color(0.08, 0.72, 1.65, 0.62)
-		cut_color = Color(0.003, 0.018, 0.085, 0.98)
-
-	# Each fissure is two short chevron notches, one on each outer flank.
-	# They're real Line2D geometry, not dependent on Line2D's shader UV layout.
-	for progress_index in range(AURA_FISSURE_PROGRESS.size()):
-		for side_index in range(2):
-			var glow := Line2D.new()
-			glow.name = "AuraFissureGlow_%02d_%d" % [progress_index, side_index]
-			glow.width = 5.0
-			glow.default_color = glow_color
-			glow.joint_mode = 2
-			glow.begin_cap_mode = 2
-			glow.end_cap_mode = 2
-			glow.antialiased = true
-			glow.z_index = 1
-			add_child(glow)
-			_aura_fissure_glow_lines.append(glow)
-
-			var cut := Line2D.new()
-			cut.name = "AuraFissureCut_%02d_%d" % [progress_index, side_index]
-			cut.width = 2.4
-			cut.default_color = cut_color
-			cut.joint_mode = 2
-			cut.begin_cap_mode = 2
-			cut.end_cap_mode = 2
-			cut.antialiased = true
-			cut.z_index = 2
-			add_child(cut)
-			_aura_fissure_core_lines.append(cut)
-
-
-func _clear_aura_fissures() -> void:
-	for line in _aura_fissure_glow_lines:
-		line.clear_points()
-	for line in _aura_fissure_core_lines:
-		line.clear_points()
-
-
-func _update_aura_fissures(
-	path: Array[Vector2],
-	cumulative_distances: Array[float],
-	total_distance: float,
-	tangents: Array[Vector2],
-	normals: Array[Vector2],
-	half_widths: Array[float]
-) -> void:
-	if total_distance < 30.0 or _aura_fissure_glow_lines.is_empty():
-		_clear_aura_fissures()
-		return
-
-	for line_index in range(_aura_fissure_glow_lines.size()):
-		var progress_index: int = int(line_index / 2)
-		var side: float = -1.0 if line_index % 2 == 0 else 1.0
-		var progress: float = AURA_FISSURE_PROGRESS[progress_index]
-		var section: Dictionary = _sample_trail_cross_section(
-			total_distance * progress, path, cumulative_distances,
-			tangents, normals, half_widths
-		)
-		var center: Vector2 = section["position"]
-		var tangent: Vector2 = section["tangent"]
-		var normal: Vector2 = section["normal"]
-		var half_width: float = float(section["half_width"])
-		if half_width < 7.0:
-			_aura_fissure_glow_lines[line_index].clear_points()
-			_aura_fissure_core_lines[line_index].clear_points()
-			continue
-
-		# This angular bite stays in the outer aura band, beyond the inner energy
-		# ribbon. The dark core makes the crack readable at a glance.
-		var fissure_points: Array[Vector2] = [
-			center - tangent * 5.0 + normal * side * half_width * 0.96,
-			center + tangent * 1.5 + normal * side * half_width * 0.68,
-			center + tangent * 8.0 + normal * side * half_width * 0.92
-		]
-		var glow_line: Line2D = _aura_fissure_glow_lines[line_index]
-		var core_line: Line2D = _aura_fissure_core_lines[line_index]
-		glow_line.clear_points()
-		core_line.clear_points()
-		for world_point in fissure_points:
-			glow_line.add_point(glow_line.to_local(world_point))
-			core_line.add_point(core_line.to_local(world_point))
 
 
 
@@ -376,7 +281,6 @@ func _update_trail_lines(delta: float = 0.0) -> void:
 			_unified_shape.uv = PackedVector2Array()
 		if _unified_contour != null:
 			_unified_contour.clear_points()
-		_clear_aura_fissures()
 		return
 
 	_rebuild_trail_lines()
@@ -400,6 +304,23 @@ func _rebuild_trail_lines() -> void:
 	if energy_material != null:
 		energy_material.set_shader_parameter("trail_progress_start", 0.0)
 		energy_material.set_shader_parameter("trail_progress_scale", 1.0)
+
+
+func _update_fissure_shader_scale(total_distance: float) -> void:
+	# Measure along-distance in aura-width units so shader cracks stay close to
+	# the same screen thickness even when the live trail is longer or shorter.
+	var along_scale: float = maxf(total_distance / maxf(_trail_aura.width, 1.0), 1.0)
+	var body_material := _unified_shape.material as ShaderMaterial
+	var aura_material := _trail_aura.material as ShaderMaterial
+	var energy_material := _energy_line.material as ShaderMaterial
+	if body_material != null:
+		body_material.set_shader_parameter("crack_along_scale", along_scale)
+	if aura_material != null:
+		aura_material.set_shader_parameter("crack_along_scale", along_scale)
+	if energy_material != null:
+		energy_material.set_shader_parameter("crack_along_scale", along_scale)
+	if _surface_fragment_material != null:
+		_surface_fragment_material.set_shader_parameter("crack_along_scale", along_scale)
 
 
 func _get_animated_trail_point(index: int, apply_head_offset: bool = true) -> Vector2:
@@ -454,7 +375,6 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 		_unified_shape.uv = PackedVector2Array()
 		if _unified_contour != null:
 			_unified_contour.clear_points()
-		_clear_aura_fissures()
 		return
 
 	var tangents: Array[Vector2] = []
@@ -494,7 +414,7 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 		upper_edge_points.append(path[i] + normals[i] * half_widths[i])
 		lower_edge_points.append(path[i] - normals[i] * half_widths[i])
 
-	_update_aura_fissures(path, cumulative_distances, total_distance, tangents, normals, half_widths)
+	_update_fissure_shader_scale(total_distance)
 
 	var polygon_points := PackedVector2Array()
 	var polygon_uvs := PackedVector2Array()
@@ -554,8 +474,7 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 				)
 		_unified_contour.points = contour_points
 
-	# The trail geometry and candidate ranges have now been rebuilt for this
-	# frame. Release at most one queued fragment from those fresh surviving ranges.
+	# Release the queued visual fragments using this frame's continuous trail path.
 	_process_shed_burst(
 		delta, path, cumulative_distances, total_distance, tangents, normals, half_widths
 	)
@@ -657,14 +576,14 @@ func _spawn_surface_fragment(
 	var sequence_value: float = float(_shed_sequence)
 	var burst_progress: float = float(burst_index) / float(maxi(SURFACE_BURST_PIECE_COUNT - 1, 1))
 	var progress: float = clampf(
-		lerpf(0.23, 0.69, burst_progress)
-		+ sin(sequence_value * 8.13 + 1.7) * 0.025,
+		lerpf(0.22, 0.56, burst_progress)
+		+ sin(sequence_value * 8.13 + 1.7) * 0.035,
 		0.18,
-		0.75
+		0.62
 	)
 	var center_distance: float = total_distance * progress
 	var fragment_length: float = lerpf(
-		31.0, 46.0, absf(sin(sequence_value * 5.31 + 1.2))
+		22.0, 32.0, absf(sin(sequence_value * 5.31 + 1.2))
 	)
 	var start_distance: float = maxf(center_distance - fragment_length * 0.5, 0.5)
 	var end_distance: float = minf(center_distance + fragment_length * 0.5, total_distance * 0.91)
@@ -678,7 +597,8 @@ func _spawn_surface_fragment(
 			fragment_distances.append(sample_distance)
 	fragment_distances.append(end_distance)
 
-	var width_scale: float = lerpf(0.78, 0.91, absf(sin(sequence_value * 4.73 + 0.6)))
+	var width_scale: float = lerpf(0.62, 0.78, absf(sin(sequence_value * 4.73 + 0.6)))
+	var side: float = -1.0 if burst_index % 2 == 0 else 1.0
 	var outer_edge := PackedVector2Array()
 	var inner_edge := PackedVector2Array()
 	var outer_uvs := PackedVector2Array()
@@ -695,10 +615,12 @@ func _spawn_surface_fragment(
 		var start_skew: float = 3.8 if sample_index == 0 else 0.0
 		var end_skew: float = -2.8 if sample_index == fragment_distances.size() - 1 else 0.0
 		var distance_skew: float = start_skew + end_skew
-		outer_edge.append(center + normal * half_width + tangent * distance_skew)
-		inner_edge.append(center - normal * half_width - tangent * distance_skew * 0.65)
-		outer_uvs.append(Vector2(sample_distance / total_distance, 1.0))
-		inner_uvs.append(Vector2(sample_distance / total_distance, 0.0))
+		outer_edge.append(center + normal * side * half_width * 0.94 + tangent * distance_skew)
+		inner_edge.append(center + normal * side * half_width * 0.16 - tangent * distance_skew * 0.65)
+		var outer_across: float = 0.0 if side > 0.0 else 1.0
+		var inner_across: float = 0.43 if side > 0.0 else 0.57
+		outer_uvs.append(Vector2(sample_distance / total_distance, outer_across))
+		inner_uvs.append(Vector2(sample_distance / total_distance, inner_across))
 
 	var global_vertices: Array[Vector2] = []
 	var fragment_uvs := PackedVector2Array()
@@ -739,21 +661,15 @@ func _spawn_surface_fragment(
 	shard.global_rotation = 0.0
 
 	var source_index: int = _nearest_trail_sample_index(center_distance, cumulative_distances)
-	var side: float = -1.0 if burst_index % 2 == 0 else 1.0
-	var outward_speed: float = lerpf(
-		30.0, 48.0, absf(sin(sequence_value * 17.13 + 2.7))
-	)
-	var drift_speed: float = lerpf(
-		10.0, 21.0, absf(sin(sequence_value * 6.73 + 1.4))
-	)
+	var horizontal_speed: float = lerpf(
+		48.0, 78.0, absf(sin(sequence_value * 17.13 + 2.7))
+	) * side
+	var vertical_drift: float = sin(sequence_value * 7.73 + 2.1) * 14.0
 	var lifetime: float = lerpf(
 		0.78, 1.08, absf(sin(sequence_value * 3.91 + 0.8))
 	)
 	var angular_velocity: float = sin(sequence_value * 8.31 + 0.9) * 1.7
-	var velocity: Vector2 = (
-		normals[source_index] * side * outward_speed
-		+ tangents[source_index] * drift_speed
-	)
+	var velocity: Vector2 = Vector2(horizontal_speed, vertical_drift) + tangents[source_index] * 4.0
 	_detached_shed_fragments.append({
 		"node": shard,
 		"velocity": velocity,
