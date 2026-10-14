@@ -257,10 +257,7 @@ void fragment()
 	float edge_strength = edge_ridge * edge_waver * trail_fade;
 	energy = max(energy, edge_strength * 0.42);
 
-	// Break the inner energy in the same stable cells as the translucent skin.
-	// The near-orb channel stays whole; more pieces are missing farther back.
-	float fracture_progress = smoothstep(0.36, 0.78, uv.x) * shedding_amount;
-	energy *= mix(1.0, shedding_pattern(uv), fracture_progress);
+	// Preserve the energy stream except where a matching geometry break exists.
 	energy *= shed_gap_mask(uv.x);
 
 
