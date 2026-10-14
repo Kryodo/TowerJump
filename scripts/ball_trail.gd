@@ -13,6 +13,8 @@ extends Node2D
 
 const UNIFIED_HEAD_ARC_SEGMENTS: int = 20
 const ORB_RIM_CENTER_RADIUS_RATIO: float = 0.93
+const SHED_CONNECTED_END_PROGRESS: float = 0.38
+const SHED_GEOMETRY_PIECE_CAPACITY: int = 12
 
 @export_category("Visual Palette")
 @export_enum("Electric Blue", "Rich Violet") var visual_palette: int = 0
@@ -24,6 +26,7 @@ const ORB_RIM_CENTER_RADIUS_RATIO: float = 0.93
 @onready var _energy_line: Line2D = $EnergyLine
 @onready var _trail_aura: Line2D = $TrailAura
 @onready var _unified_shape: Polygon2D = get_node_or_null("UnifiedCometShape") as Polygon2D
+@onready var _shed_geometry_container: Node2D = get_node_or_null("ShedGeometry") as Node2D
 @onready var _unified_contour: Line2D = get_node_or_null("UnifiedCometContour") as Line2D
 @onready var _ball_visual: Sprite2D = get_parent().get_node("Visual") as Sprite2D
 
@@ -36,12 +39,14 @@ var _ball_surface_radius: float = 29.9
 var _shed_spawn_clock: float = 0.0
 var _shed_sequence: int = 0
 var _detached_shed_fragments: Array[Dictionary] = []
+var _shed_geometry_pieces: Array[Polygon2D] = []
 
 
 func _ready() -> void:
 	z_index = -1
 	_previous_ball_position = global_position
 	_ball_surface_radius = _measure_ball_surface_radius()
+	_initialize_shed_geometry_pieces()
 
 	for node_name in [
 		"TrailParticles",
@@ -371,9 +376,13 @@ func _update_unified_comet_shape() -> void:
 	var polygon_uvs := PackedVector2Array()
 	var root_direction: Vector2 = tangents[0]
 	var root_normal: Vector2 = normals[0]
+	var connected_end_distance: float = total_distance
+	if shedding_enabled:
+		connected_end_distance = total_distance * SHED_CONNECTED_END_PROGRESS
 
-	# Close the fill across the FRONT half of the ball. The real orb is drawn
-	# above this skin, so its core remains untouched and the closure stays hidden.
+	# Keep the orb and upper neck as one coherent piece. In shedding mode the
+	# parent silhouette ends here; the lower half is rebuilt from separate
+	# Polygon2D islands with real transparent gaps between their boundaries.
 	for arc_index in range(UNIFIED_HEAD_ARC_SEGMENTS + 1):
 		var arc_t: float = float(arc_index) / float(UNIFIED_HEAD_ARC_SEGMENTS)
 		var angle: float = PI * 0.5 + PI * arc_t
@@ -385,21 +394,54 @@ func _update_unified_comet_shape() -> void:
 		polygon_points.append(_unified_shape.to_local(world_point))
 		polygon_uvs.append(Vector2(0.0, arc_t))
 
-	# Right edge follows the same historical trajectory as the trail lines.
-	for i in range(1, path.size() - 1):
-		var right_point: Vector2 = path[i] - normals[i] * half_widths[i]
-		polygon_points.append(_unified_shape.to_local(right_point))
-		polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 1.0))
+	if shedding_enabled:
+		# Add the surviving connected section's right edge up to its cut plane.
+		for i in range(1, path.size() - 1):
+			if cumulative_distances[i] >= connected_end_distance:
+				break
+			var right_point: Vector2 = path[i] - normals[i] * half_widths[i]
+			polygon_points.append(_unified_shape.to_local(right_point))
+			polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 1.0))
 
-	# Single tip vertex avoids coincident left/right end vertices at zero width.
-	polygon_points.append(_unified_shape.to_local(path[path.size() - 1]))
-	polygon_uvs.append(Vector2(1.0, 0.5))
+		var connected_cut: Dictionary = _sample_trail_cross_section(
+			connected_end_distance, path, cumulative_distances, tangents, normals, half_widths
+		)
+		var cut_position: Vector2 = connected_cut["position"]
+		var cut_normal: Vector2 = connected_cut["normal"]
+		var cut_width: float = connected_cut["half_width"]
+		var cut_uv_x: float = connected_end_distance / total_distance
+		polygon_points.append(_unified_shape.to_local(cut_position - cut_normal * cut_width))
+		polygon_uvs.append(Vector2(cut_uv_x, 1.0))
+		polygon_points.append(_unified_shape.to_local(cut_position + cut_normal * cut_width))
+		polygon_uvs.append(Vector2(cut_uv_x, 0.0))
 
-	# Return along the left edge and close against the orb's rear contour.
-	for i in range(path.size() - 2, 0, -1):
-		var left_point: Vector2 = path[i] + normals[i] * half_widths[i]
-		polygon_points.append(_unified_shape.to_local(left_point))
-		polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 0.0))
+		for i in range(path.size() - 2, 0, -1):
+			if cumulative_distances[i] >= connected_end_distance:
+				continue
+			var left_point: Vector2 = path[i] + normals[i] * half_widths[i]
+			polygon_points.append(_unified_shape.to_local(left_point))
+			polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 0.0))
+
+		_update_shed_geometry_pieces(
+			path, cumulative_distances, total_distance, tangents, normals, half_widths
+		)
+	else:
+		# Fallback preserves the original continuous silhouette when shedding
+		# is disabled, making this experiment easy to compare and roll back.
+		for i in range(1, path.size() - 1):
+			var right_point: Vector2 = path[i] - normals[i] * half_widths[i]
+			polygon_points.append(_unified_shape.to_local(right_point))
+			polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 1.0))
+
+		polygon_points.append(_unified_shape.to_local(path[path.size() - 1]))
+		polygon_uvs.append(Vector2(1.0, 0.5))
+
+		for i in range(path.size() - 2, 0, -1):
+			var left_point: Vector2 = path[i] + normals[i] * half_widths[i]
+			polygon_points.append(_unified_shape.to_local(left_point))
+			polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 0.0))
+
+		_clear_shed_geometry_pieces()
 
 	_unified_shape.polygon = polygon_points
 	_unified_shape.uv = polygon_uvs
@@ -537,6 +579,181 @@ func _update_detached_shed_fragments(delta: float) -> void:
 			_detached_shed_fragments.remove_at(fragment_index)
 		else:
 			_detached_shed_fragments[fragment_index] = fragment
+
+
+func _initialize_shed_geometry_pieces() -> void:
+	if _shed_geometry_container == null:
+		return
+	for piece_index in range(SHED_GEOMETRY_PIECE_CAPACITY):
+		var piece := Polygon2D.new()
+		piece.name = "ShedTrailPiece_%02d" % piece_index
+		piece.z_index = -1
+		piece.visible = false
+		_shed_geometry_container.add_child(piece)
+		_shed_geometry_pieces.append(piece)
+
+
+func _clear_shed_geometry_pieces() -> void:
+	for piece in _shed_geometry_pieces:
+		piece.polygon = PackedVector2Array()
+		piece.uv = PackedVector2Array()
+		piece.visible = false
+
+
+func _sample_trail_cross_section(
+	target_distance: float,
+	path: Array[Vector2],
+	cumulative_distances: Array[float],
+	tangents: Array[Vector2],
+	normals: Array[Vector2],
+	half_widths: Array[float]
+) -> Dictionary:
+	var right_index: int = 1
+	while right_index < cumulative_distances.size() - 1 and cumulative_distances[right_index] < target_distance:
+		right_index += 1
+	var left_index: int = maxi(right_index - 1, 0)
+	var span: float = maxf(
+		cumulative_distances[right_index] - cumulative_distances[left_index],
+		0.001
+	)
+	var blend: float = clampf(
+		(target_distance - cumulative_distances[left_index]) / span,
+		0.0,
+		1.0
+	)
+	var center: Vector2 = path[left_index].lerp(path[right_index], blend)
+	var tangent: Vector2 = tangents[left_index].lerp(tangents[right_index], blend).normalized()
+	var normal: Vector2 = normals[left_index].lerp(normals[right_index], blend).normalized()
+	var half_width: float = lerpf(half_widths[left_index], half_widths[right_index], blend)
+	return {
+		"position": center,
+		"tangent": tangent,
+		"normal": normal,
+		"half_width": half_width
+	}
+
+
+func _append_shed_edge_sample(
+	points: PackedVector2Array,
+	uvs: PackedVector2Array,
+	world_position: Vector2,
+	progress: float,
+	across: float
+) -> void:
+	points.append(_shed_geometry_container.to_local(world_position))
+	uvs.append(Vector2(progress, across))
+
+
+func _build_shed_piece_polygon(
+	piece: Polygon2D,
+	start_distance: float,
+	end_distance: float,
+	path: Array[Vector2],
+	cumulative_distances: Array[float],
+	total_distance: float,
+	normals: Array[Vector2],
+	half_widths: Array[float]
+) -> void:
+	var polygon_points := PackedVector2Array()
+	var polygon_uvs := PackedVector2Array()
+	var start_section: Dictionary = _sample_trail_cross_section(
+		start_distance, path, cumulative_distances, [], normals, half_widths
+	)
+	# Tangents are unnecessary for this builder, but the sampler expects them.
+	# The caller passes the existing tangent profile through the overload below.
+	var start_center: Vector2 = start_section["position"]
+	var start_normal: Vector2 = start_section["normal"]
+	var start_width: float = start_section["half_width"]
+
+	var end_section: Dictionary = _sample_trail_cross_section(
+		end_distance, path, cumulative_distances, [], normals, half_widths
+	)
+	var end_center: Vector2 = end_section["position"]
+	var end_normal: Vector2 = end_section["normal"]
+	var end_width: float = end_section["half_width"]
+
+	var start_skew: float = minf((end_distance - start_distance) * 0.22, 3.0)
+	var end_skew: float = minf((end_distance - start_distance) * 0.18, 2.5)
+	var start_right: Vector2 = start_center - start_normal * start_width
+	var start_left: Vector2 = start_center + start_normal * start_width
+	var end_right: Vector2 = end_center - end_normal * end_width
+	var end_left: Vector2 = end_center + end_normal * end_width
+
+	# Slightly slanted section cuts make each island feel fractured, not like a
+	# row of identical capsule segments. Intermediate vertices preserve the path.
+	_append_shed_edge_sample(
+		polygon_points, polygon_uvs, start_right,
+		start_distance / total_distance, 1.0
+	)
+	for i in range(1, path.size() - 1):
+		if cumulative_distances[i] > start_distance and cumulative_distances[i] < end_distance:
+			var right_point: Vector2 = path[i] - normals[i] * half_widths[i]
+			_append_shed_edge_sample(
+				polygon_points, polygon_uvs, right_point,
+				cumulative_distances[i] / total_distance, 1.0
+			)
+	_append_shed_edge_sample(
+		polygon_points, polygon_uvs, end_right + end_normal * end_skew,
+		end_distance / total_distance, 1.0
+	)
+	_append_shed_edge_sample(
+		polygon_points, polygon_uvs, end_left - end_normal * end_skew,
+		end_distance / total_distance, 0.0
+	)
+	for i in range(path.size() - 2, 0, -1):
+		if cumulative_distances[i] > start_distance and cumulative_distances[i] < end_distance:
+			var left_point: Vector2 = path[i] + normals[i] * half_widths[i]
+			_append_shed_edge_sample(
+				polygon_points, polygon_uvs, left_point,
+				cumulative_distances[i] / total_distance, 0.0
+			)
+	_append_shed_edge_sample(
+		polygon_points, polygon_uvs, start_left + start_normal * start_skew,
+		start_distance / total_distance, 0.0
+	)
+
+	piece.polygon = polygon_points
+	piece.uv = polygon_uvs
+	piece.material = _unified_shape.material
+	piece.visible = polygon_points.size() >= 4
+
+
+func _update_shed_geometry_pieces(
+	path: Array[Vector2],
+	cumulative_distances: Array[float],
+	total_distance: float,
+	tangents: Array[Vector2],
+	normals: Array[Vector2],
+	half_widths: Array[float]
+) -> void:
+	_clear_shed_geometry_pieces()
+	if _shed_geometry_pieces.is_empty() or total_distance < 38.0 or _shed_geometry_container == null:
+		return
+
+	# The unbroken head ends first. Beyond a small open gap, individually
+	# generated trail islands occupy only their own polygon geometry.
+	var cursor: float = total_distance * SHED_CONNECTED_END_PROGRESS
+	cursor += clampf(total_distance * 0.04, 5.0, 11.0)
+	var tail_limit: float = total_distance * 0.985
+	var piece_index: int = 0
+	while cursor < tail_limit and piece_index < _shed_geometry_pieces.size():
+		var seed_a: float = absf(sin(float(piece_index) * 15.731 + 2.17))
+		var seed_b: float = absf(sin(float(piece_index) * 9.173 + 5.61))
+		var piece_length: float = clampf(total_distance * lerpf(0.055, 0.095, seed_a), 8.0, 24.0)
+		var piece_end: float = minf(cursor + piece_length, tail_limit)
+		if piece_end - cursor >= 5.0:
+			_build_shed_piece_polygon(
+				_shed_geometry_pieces[piece_index],
+				cursor,
+				piece_end,
+				path,
+				cumulative_distances,
+				total_distance,
+				normals,
+				half_widths
+			)
+			piece_index += 1
+		cursor = piece_end + clampf(lerpf(4.0, 9.0, seed_b), 3.0, 10.0)
 
 
 func _update_particle_emitters(
