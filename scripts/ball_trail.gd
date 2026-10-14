@@ -15,6 +15,7 @@ const UNIFIED_HEAD_ARC_SEGMENTS: int = 20
 const ORB_RIM_CENTER_RADIUS_RATIO: float = 0.93
 const SHED_CONNECTED_END_PROGRESS: float = 0.38
 const SHED_GEOMETRY_PIECE_CAPACITY: int = 12
+const MAX_ACTIVE_SHED_BREAKS: int = 3
 
 @export_category("Visual Palette")
 @export_enum("Electric Blue", "Rich Violet") var visual_palette: int = 0
@@ -31,6 +32,8 @@ const SHED_GEOMETRY_PIECE_CAPACITY: int = 12
 @onready var _ball_visual: Sprite2D = get_parent().get_node("Visual") as Sprite2D
 
 var _points: Array[Vector2] = []
+var _point_ids: Array[int] = []
+var _next_point_id: int = 1
 var _particle_emitters: Array[GPUParticles2D] = []
 var _previous_ball_position: Vector2 = Vector2.ZERO
 var _trail_time: float = 0.0
@@ -40,13 +43,15 @@ var _shed_spawn_clock: float = 0.0
 var _shed_sequence: int = 0
 var _detached_shed_fragments: Array[Dictionary] = []
 var _shed_geometry_pieces: Array[Polygon2D] = []
+var _shed_piece_ranges: Array[Dictionary] = []
+var _shed_break_events: Array[Dictionary] = []
+var _shed_piece_material: ShaderMaterial
 
 
 func _ready() -> void:
 	z_index = -1
 	_previous_ball_position = global_position
 	_ball_surface_radius = _measure_ball_surface_radius()
-	_initialize_shed_geometry_pieces()
 
 	for node_name in [
 		"TrailParticles",
@@ -59,6 +64,7 @@ func _ready() -> void:
 			_particle_emitters.append(emitter)
 
 	_apply_visual_palette()
+	_initialize_shed_geometry_pieces()
 	_update_trail_lines()
 	_update_rim_breath()
 
@@ -228,11 +234,18 @@ func _process(delta: float) -> void:
 		# Do not draw a ribbon across teleports, screen-wrap jumps, or other
 		# large discontinuities in the sampled trajectory.
 		_points.clear()
+		_point_ids.clear()
+		_shed_break_events.clear()
 		_points.append(current_world_position)
+		_point_ids.append(_next_point_id)
+		_next_point_id += 1
 	elif _points[0].distance_to(current_world_position) >= min_distance:
 		_points.push_front(current_world_position)
+		_point_ids.push_front(_next_point_id)
+		_next_point_id += 1
 		while _points.size() > max_points:
 			_points.pop_back()
+			_point_ids.pop_back()
 
 	_update_trail_lines()
 	_update_detached_shed_fragments(delta)
@@ -587,16 +600,24 @@ func _update_detached_shed_fragments(delta: float) -> void:
 func _initialize_shed_geometry_pieces() -> void:
 	if _shed_geometry_container == null:
 		return
+	var base_material := _unified_shape.material as ShaderMaterial
+	if base_material != null:
+		_shed_piece_material = base_material.duplicate() as ShaderMaterial
+		_shed_piece_material.set_shader_parameter("solid_piece", 1.0)
+		_shed_piece_material.set_shader_parameter("shedding_amount", 1.0)
+
 	for piece_index in range(SHED_GEOMETRY_PIECE_CAPACITY):
 		var piece := Polygon2D.new()
 		piece.name = "ShedTrailPiece_%02d" % piece_index
 		piece.z_index = -1
 		piece.visible = false
+		piece.material = _shed_piece_material
 		_shed_geometry_container.add_child(piece)
 		_shed_geometry_pieces.append(piece)
 
 
 func _clear_shed_geometry_pieces() -> void:
+	_shed_piece_ranges.clear()
 	for piece in _shed_geometry_pieces:
 		piece.polygon = PackedVector2Array()
 		piece.uv = PackedVector2Array()
