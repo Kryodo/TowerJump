@@ -816,7 +816,10 @@ func _update_shed_geometry_pieces(
 			var start_sample_index: int = _nearest_trail_sample_index(cursor, cumulative_distances)
 			var end_sample_index: int = _nearest_trail_sample_index(piece_end, cumulative_distances)
 			if end_sample_index <= start_sample_index:
-				end_sample_index = mini(start_sample_index + 1, _point_ids.size() - 1)
+				if start_sample_index < _point_ids.size() - 1:
+					end_sample_index = start_sample_index + 1
+				else:
+					start_sample_index = maxi(start_sample_index - 1, 0)
 
 			var interval_has_detached_piece: bool = _shed_event_overlaps_interval(
 				cursor, piece_end, cumulative_distances
