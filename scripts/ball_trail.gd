@@ -524,7 +524,7 @@ func _spawn_shed_fragment(
 	for piece_range in _shed_piece_ranges:
 		var progress: float = float(piece_range["progress"])
 		var source_piece := piece_range["node"] as Polygon2D
-		if progress >= 0.55 and progress <= 0.94 and is_instance_valid(source_piece) and source_piece.visible:
+		if progress >= 0.48 and progress <= 0.78 and is_instance_valid(source_piece) and source_piece.visible:
 			candidates.append(piece_range)
 	if candidates.is_empty():
 		return
@@ -721,15 +721,15 @@ func _build_shed_piece_polygon(
 	var polygon_points := PackedVector2Array()
 	var polygon_uvs := PackedVector2Array()
 	var length: float = end_distance - start_distance
-	var start_skew: float = minf(length * 0.20, 3.0)
-	var end_skew: float = minf(length * 0.18, 2.5)
+	var start_skew: float = minf(length * 0.12, 1.2)
+	var end_skew: float = minf(length * 0.10, 1.0)
 
-	# Sample the two sides at different distances to create oblique, chipped
-	# ends. This makes each surviving island an irregular piece of the old body.
+	# Keep the chipped ends inside their own source interval. This prevents a
+	# neighboring piece from protruding back into a persistent detachment gap.
 	var start_right_distance: float = start_distance + start_skew
-	var start_left_distance: float = start_distance - start_skew
+	var start_left_distance: float = start_distance + start_skew * 0.25
 	var end_right_distance: float = end_distance - end_skew
-	var end_left_distance: float = end_distance + end_skew
+	var end_left_distance: float = end_distance - end_skew * 0.25
 
 	var start_right_section: Dictionary = _sample_trail_cross_section(
 		start_right_distance, path, cumulative_distances, tangents, normals, half_widths
@@ -800,9 +800,8 @@ func _update_shed_geometry_pieces(
 		_sync_shed_gap_materials(cumulative_distances, total_distance)
 		return
 
-	# The unbroken head ends first. Beyond it, geometry is divided into real
-	# islands; event-locked source intervals stay absent while their sample IDs
-	# remain in the trail history.
+	# The connected head transitions into a nearly continuous segmented tail.
+	# Only an event-locked source interval creates a pronounced missing chunk.
 	var cursor: float = total_distance * SHED_CONNECTED_END_PROGRESS
 	cursor += clampf(total_distance * 0.04, 5.0, 11.0)
 	var tail_limit: float = total_distance * 0.985
@@ -812,41 +811,47 @@ func _update_shed_geometry_pieces(
 		var seed_b: float = absf(sin(float(slot_index) * 9.173 + 5.61))
 		var piece_length: float = clampf(total_distance * lerpf(0.055, 0.095, seed_a), 8.0, 24.0)
 		var piece_end: float = minf(cursor + piece_length, tail_limit)
-		if piece_end - cursor >= 5.0:
-			var start_sample_index: int = _nearest_trail_sample_index(cursor, cumulative_distances)
-			var end_sample_index: int = _nearest_trail_sample_index(piece_end, cumulative_distances)
-			if end_sample_index <= start_sample_index:
-				if start_sample_index < _point_ids.size() - 1:
-					end_sample_index = start_sample_index + 1
-				else:
-					start_sample_index = maxi(start_sample_index - 1, 0)
+		if piece_end - cursor < 5.0:
+			break
 
-			var interval_has_detached_piece: bool = _shed_event_overlaps_interval(
-				cursor, piece_end, cumulative_distances
+		var start_sample_index: int = _nearest_trail_sample_index(cursor, cumulative_distances)
+		var end_sample_index: int = _nearest_trail_sample_index(piece_end, cumulative_distances)
+		if end_sample_index <= start_sample_index:
+			if start_sample_index < _point_ids.size() - 1:
+				end_sample_index = start_sample_index + 1
+			else:
+				start_sample_index = maxi(start_sample_index - 1, 0)
+
+		var interval_has_detached_piece: bool = _shed_event_overlaps_interval(
+			cursor, piece_end, cumulative_distances, total_distance
+		)
+		if not interval_has_detached_piece:
+			var piece: Polygon2D = _shed_geometry_pieces[slot_index]
+			_build_shed_piece_polygon(
+				piece,
+				cursor,
+				piece_end,
+				path,
+				cumulative_distances,
+				total_distance,
+				tangents,
+				normals,
+				half_widths
 			)
-			if not interval_has_detached_piece:
-				var piece: Polygon2D = _shed_geometry_pieces[slot_index]
-				_build_shed_piece_polygon(
-					piece,
-					cursor,
-					piece_end,
-					path,
-					cumulative_distances,
-					total_distance,
-					tangents,
-					normals,
-					half_widths
-				)
-				_shed_piece_ranges.append({
-					"node": piece,
-					"start_id": _point_ids[start_sample_index],
-					"end_id": _point_ids[end_sample_index],
-					"start_distance": cursor,
-					"end_distance": piece_end,
-					"progress": (cursor + piece_end) * 0.5 / total_distance,
+			_shed_piece_ranges.append({
+				"node": piece,
+				"start_id": _point_ids[start_sample_index],
+				"end_id": _point_ids[end_sample_index],
+				"start_distance": cursor,
+				"end_distance": piece_end,
+				"progress": (cursor + piece_end) * 0.5 / total_distance,
 				"slot": slot_index
-				})
-			cursor = piece_end + clampf(lerpf(4.0, 9.0, seed_b), 3.0, 10.0)
+			})
+
+		# Always advance, including when this interval overlaps a live break.
+		# The previous implementation advanced only after drawing a piece,
+		# so one existing break could stall the whole geometry reconstruction.
+		cursor = piece_end + clampf(lerpf(0.6, 1.3, seed_b), 0.6, 1.5)
 		slot_index += 1
 
 	_sync_shed_gap_materials(cumulative_distances, total_distance)
@@ -869,24 +874,39 @@ func _nearest_trail_sample_index(
 func _prune_shed_break_events() -> void:
 	for event_index in range(_shed_break_events.size() - 1, -1, -1):
 		var event: Dictionary = _shed_break_events[event_index]
-		if _point_ids.find(int(event["start_id"])) < 0 or _point_ids.find(int(event["end_id"])) < 0:
+		var start_index: int = _point_ids.find(int(event["start_id"]))
+		var end_index: int = _point_ids.find(int(event["end_id"]))
+		# Keep a break while either boundary sample survives. When the older
+		# boundary leaves the capped trail, the hole contracts naturally from
+		# the tail instead of the original source geometry suddenly respawning.
+		if start_index < 0 and end_index < 0:
 			_shed_break_events.remove_at(event_index)
 
 
 func _shed_event_overlaps_interval(
 	interval_start: float,
 	interval_end: float,
-	cumulative_distances: Array[float]
+	cumulative_distances: Array[float],
+	total_distance: float
 ) -> bool:
 	for event in _shed_break_events:
 		var start_index: int = _point_ids.find(int(event["start_id"]))
 		var end_index: int = _point_ids.find(int(event["end_id"]))
-		if start_index < 0 or end_index < 0:
+		if start_index < 0 and end_index < 0:
 			continue
-		var event_start: float = cumulative_distances[mini(start_index, end_index)]
-		var event_end: float = cumulative_distances[maxi(start_index, end_index)]
-		# Ignore touching endpoints; we only remove geometry with meaningful
-		# overlap, so a cut doesn't accidentally erase the neighboring section.
+
+		var event_start: float = 0.0
+		var event_end: float = total_distance
+		if start_index >= 0 and end_index >= 0:
+			event_start = cumulative_distances[mini(start_index, end_index)]
+			event_end = cumulative_distances[maxi(start_index, end_index)]
+		elif start_index >= 0:
+			event_start = cumulative_distances[start_index]
+		elif end_index >= 0:
+			event_end = cumulative_distances[end_index]
+
+		# If one boundary has aged out, extend only that side to the trail end.
+		# This keeps the remaining material absent until its samples age away.
 		if event_start < interval_end - 0.8 and event_end > interval_start + 0.8:
 			return true
 	return false
@@ -906,10 +926,19 @@ func _sync_shed_gap_materials(
 			var event: Dictionary = _shed_break_events[event_index]
 			var start_index: int = _point_ids.find(int(event["start_id"]))
 			var end_index: int = _point_ids.find(int(event["end_id"]))
-			if start_index < 0 or end_index < 0:
+			if start_index < 0 and end_index < 0:
 				continue
-			var start_distance: float = cumulative_distances[mini(start_index, end_index)]
-			var end_distance: float = cumulative_distances[maxi(start_index, end_index)]
+
+			var start_distance: float = 0.0
+			var end_distance: float = total_distance
+			if start_index >= 0 and end_index >= 0:
+				start_distance = cumulative_distances[mini(start_index, end_index)]
+				end_distance = cumulative_distances[maxi(start_index, end_index)]
+			elif start_index >= 0:
+				start_distance = cumulative_distances[start_index]
+			elif end_index >= 0:
+				end_distance = cumulative_distances[end_index]
+
 			if end_distance - start_distance > 0.01:
 				intervals[event_index] = Vector2(
 					start_distance / total_distance,
