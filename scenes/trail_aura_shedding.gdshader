@@ -1,6 +1,26 @@
 shader_type canvas_item;
 
 uniform float shedding_amount = 1.0;
+uniform vec2 shed_gap_0 = vec2(-1.0, -1.0);
+uniform vec2 shed_gap_1 = vec2(-1.0, -1.0);
+uniform vec2 shed_gap_2 = vec2(-1.0, -1.0);
+
+float gap_coverage(vec2 interval, float along) {
+	if (interval.x < 0.0 || interval.y <= interval.x) {
+		return 0.0;
+	}
+	float feather = min(0.003, (interval.y - interval.x) * 0.16);
+	return smoothstep(interval.x, interval.x + feather, along)
+		* (1.0 - smoothstep(interval.y - feather, interval.y, along));
+}
+
+float shed_gap_mask(float along) {
+	float gap = max(
+		gap_coverage(shed_gap_0, along),
+		max(gap_coverage(shed_gap_1, along), gap_coverage(shed_gap_2, along))
+	);
+	return 1.0 - gap;
+}
 
 float hash_cell(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
@@ -51,5 +71,6 @@ void fragment() {
 	float along = clamp(UV.x, 0.0, 1.0);
 	float fracture_progress = smoothstep(0.36, 0.78, along) * shedding_amount;
 	float fracture_mask = mix(1.0, shedding_pattern(UV), fracture_progress);
-	COLOR = vec4(aura_color.rgb, aura_color.a * fracture_mask);
+	float source_gap_mask = shed_gap_mask(along);
+	COLOR = vec4(aura_color.rgb, aura_color.a * fracture_mask * source_gap_mask);
 }
