@@ -14,7 +14,7 @@ extends Node2D
 const UNIFIED_HEAD_ARC_SEGMENTS: int = 20
 const ORB_RIM_CENTER_RADIUS_RATIO: float = 0.93
 const SHED_CONNECTED_END_PROGRESS: float = 0.38
-const SHED_GEOMETRY_PIECE_CAPACITY: int = 12
+const SHED_GEOMETRY_PIECE_CAPACITY: int = 24
 const MAX_ACTIVE_SHED_BREAKS: int = 3
 
 @export_category("Visual Palette")
@@ -22,7 +22,6 @@ const MAX_ACTIVE_SHED_BREAKS: int = 3
 
 @export_category("Comet Shedding")
 @export var shedding_enabled: bool = true
-@export_range(0.06, 0.5, 0.01) var shed_fragment_interval: float = 0.14
 
 @onready var _energy_line: Line2D = $EnergyLine
 @onready var _trail_aura: Line2D = $TrailAura
@@ -39,8 +38,9 @@ var _previous_ball_position: Vector2 = Vector2.ZERO
 var _trail_time: float = 0.0
 var _last_emission_direction: Vector2 = Vector2.DOWN
 var _ball_surface_radius: float = 29.9
-var _shed_spawn_clock: float = 0.0
 var _shed_sequence: int = 0
+var _pending_landing_shed: bool = false
+var _landing_feedback_controller: Node = null
 var _detached_shed_fragments: Array[Dictionary] = []
 var _shed_geometry_pieces: Array[Polygon2D] = []
 var _shed_piece_ranges: Array[Dictionary] = []
@@ -68,6 +68,37 @@ func _ready() -> void:
 	_initialize_shed_geometry_pieces()
 	_update_trail_lines()
 	_update_rim_breath()
+	call_deferred("_connect_landing_feedback")
+
+
+func _connect_landing_feedback() -> void:
+	var scene_root: Node = get_tree().current_scene
+	if scene_root == null:
+		return
+
+	# Reuse the existing confirmed-landing event; the trail owns only its
+	# visual reaction and does not infer contact from ball velocity.
+	var controller: Node = scene_root.get_node_or_null("LandingFeedbackController")
+	if controller == null or not controller.has_signal("landing_confirmed"):
+		return
+
+	var callback := Callable(self, "_on_landing_confirmed")
+	if not controller.is_connected("landing_confirmed", callback):
+		controller.connect("landing_confirmed", callback)
+	_landing_feedback_controller = controller
+
+
+func _on_landing_confirmed(event: LandingEvent) -> void:
+	if not shedding_enabled or event == null:
+		return
+
+	var ball := get_parent() as CharacterBody2D
+	if ball == null or event.ball != ball:
+		return
+
+	# Queue the release until this frame's trail geometry has been rebuilt.
+	# One confirmed landing requests one genuine polygon fragment.
+	_pending_landing_shed = true
 
 
 func _measure_ball_surface_radius() -> float:
@@ -225,10 +256,9 @@ func _process(delta: float) -> void:
 		return
 
 	_trail_time += delta
-	if shedding_enabled:
-		_shed_spawn_clock += delta
-	else:
+	if not shedding_enabled:
 		_shed_break_events.clear()
+		_pending_landing_shed = false
 	var current_world_position: Vector2 = ball.global_position
 	var movement: Vector2 = current_world_position - _previous_ball_position
 	var distance_from_trail: float = movement.length()
@@ -489,11 +519,10 @@ func _update_unified_comet_shape() -> void:
 				)
 		_unified_contour.points = contour_points
 
-	# Emit one actual polygon shard from the lower trail at intervals. Shader
-	# fractures remove material from the parent trail while these pieces drift
-	# independently, so the breakup reads as shed geometry rather than sparks.
-	if shedding_enabled and _shed_spawn_clock >= shed_fragment_interval:
-		_shed_spawn_clock = 0.0
+	# Only a confirmed landing can release material. The source polygon and
+	# its linked gap are captured after the current frame's geometry rebuild.
+	if _pending_landing_shed:
+		_pending_landing_shed = false
 		_spawn_shed_fragment(
 			path, cumulative_distances, total_distance, tangents, normals, half_widths
 		)
@@ -567,7 +596,8 @@ func _spawn_shed_fragment(
 	var end_id: int = int(selected["end_id"])
 	_shed_break_events.append({
 		"start_id": start_id,
-		"end_id": end_id
+		"end_id": end_id,
+		"slant_direction": 1.0 if _shed_sequence % 2 == 0 else -1.0
 	})
 
 	# Remove this very section immediately. Its anchor IDs keep the matching
@@ -599,7 +629,6 @@ func _spawn_shed_fragment(
 		"base_alpha": 1.0
 	})
 	_shed_sequence += 1
-	_shed_spawn_clock = 0.0
 	_sync_shed_gap_materials(cumulative_distances, total_distance)
 
 
@@ -641,9 +670,9 @@ func _initialize_shed_geometry_pieces() -> void:
 		_shed_piece_material.set_shader_parameter("solid_piece", 1.0)
 		_shed_piece_material.set_shader_parameter("shedding_amount", 1.0)
 		_detached_piece_material = _shed_piece_material.duplicate() as ShaderMaterial
-		_detached_piece_material.set_shader_parameter("shed_gap_0", Vector2(-1.0, -1.0))
-		_detached_piece_material.set_shader_parameter("shed_gap_1", Vector2(-1.0, -1.0))
-		_detached_piece_material.set_shader_parameter("shed_gap_2", Vector2(-1.0, -1.0))
+		_detached_piece_material.set_shader_parameter("shed_gap_0", Vector4(-1.0, -1.0, 0.0, 0.0))
+		_detached_piece_material.set_shader_parameter("shed_gap_1", Vector4(-1.0, -1.0, 0.0, 0.0))
+		_detached_piece_material.set_shader_parameter("shed_gap_2", Vector4(-1.0, -1.0, 0.0, 0.0))
 
 	for piece_index in range(SHED_GEOMETRY_PIECE_CAPACITY):
 		var piece := Polygon2D.new()
@@ -721,15 +750,15 @@ func _build_shed_piece_polygon(
 	var polygon_points := PackedVector2Array()
 	var polygon_uvs := PackedVector2Array()
 	var length: float = end_distance - start_distance
-	var start_skew: float = minf(length * 0.12, 1.2)
-	var end_skew: float = minf(length * 0.10, 1.0)
+	var start_skew: float = minf(length * 0.20, 3.0)
+	var end_skew: float = minf(length * 0.17, 2.5)
 
-	# Keep the chipped ends inside their own source interval. This prevents a
-	# neighboring piece from protruding back into a persistent detachment gap.
+	# Keep both sides inside the source interval, but angle the ends more
+	# clearly so detachments read as chevrons instead of flat slices.
 	var start_right_distance: float = start_distance + start_skew
-	var start_left_distance: float = start_distance + start_skew * 0.25
+	var start_left_distance: float = start_distance + start_skew * 0.18
 	var end_right_distance: float = end_distance - end_skew
-	var end_left_distance: float = end_distance - end_skew * 0.25
+	var end_left_distance: float = end_distance - end_skew * 0.18
 
 	var start_right_section: Dictionary = _sample_trail_cross_section(
 		start_right_distance, path, cumulative_distances, tangents, normals, half_widths
@@ -802,8 +831,12 @@ func _update_shed_geometry_pieces(
 
 	# The connected head transitions into a nearly continuous segmented tail.
 	# Only an event-locked source interval creates a pronounced missing chunk.
-	var cursor: float = total_distance * SHED_CONNECTED_END_PROGRESS
-	cursor += clampf(total_distance * 0.04, 5.0, 11.0)
+	# Slightly overlap the first tail island with the connected neck. The former
+	# positive offset left an empty slice here before any detachment occurred.
+	var cursor: float = maxf(
+		total_distance * SHED_CONNECTED_END_PROGRESS - 1.8,
+		0.0
+	)
 	var tail_limit: float = total_distance * 0.985
 	var slot_index: int = 0
 	while cursor < tail_limit and slot_index < _shed_geometry_pieces.size():
@@ -851,7 +884,7 @@ func _update_shed_geometry_pieces(
 		# Always advance, including when this interval overlaps a live break.
 		# The previous implementation advanced only after drawing a piece,
 		# so one existing break could stall the whole geometry reconstruction.
-		cursor = piece_end + clampf(lerpf(0.6, 1.3, seed_b), 0.6, 1.5)
+		cursor = piece_end + clampf(lerpf(0.25, 0.65, seed_b), 0.2, 0.8)
 		slot_index += 1
 
 	_sync_shed_gap_materials(cumulative_distances, total_distance)
@@ -876,10 +909,9 @@ func _prune_shed_break_events() -> void:
 		var event: Dictionary = _shed_break_events[event_index]
 		var start_index: int = _point_ids.find(int(event["start_id"]))
 		var end_index: int = _point_ids.find(int(event["end_id"]))
-		# Keep a break while either boundary sample survives. When the older
-		# boundary leaves the capped trail, the hole contracts naturally from
-		# the tail instead of the original source geometry suddenly respawning.
-		if start_index < 0 and end_index < 0:
+		# A gap belongs to the exact source interval. Once either boundary sample
+		# leaves history, that interval has aged out and its mask is removed.
+		if start_index < 0 or end_index < 0:
 			_shed_break_events.remove_at(event_index)
 
 
@@ -892,21 +924,11 @@ func _shed_event_overlaps_interval(
 	for event in _shed_break_events:
 		var start_index: int = _point_ids.find(int(event["start_id"]))
 		var end_index: int = _point_ids.find(int(event["end_id"]))
-		if start_index < 0 and end_index < 0:
+		if start_index < 0 or end_index < 0:
 			continue
-
-		var event_start: float = 0.0
-		var event_end: float = total_distance
-		if start_index >= 0 and end_index >= 0:
-			event_start = cumulative_distances[mini(start_index, end_index)]
-			event_end = cumulative_distances[maxi(start_index, end_index)]
-		elif start_index >= 0:
-			event_start = cumulative_distances[start_index]
-		elif end_index >= 0:
-			event_end = cumulative_distances[end_index]
-
-		# If one boundary has aged out, extend only that side to the trail end.
-		# This keeps the remaining material absent until its samples age away.
+		var event_start: float = cumulative_distances[mini(start_index, end_index)]
+		var event_end: float = cumulative_distances[maxi(start_index, end_index)]
+		# Ignore touching endpoints; only skip the source range itself.
 		if event_start < interval_end - 0.8 and event_end > interval_start + 0.8:
 			return true
 	return false
@@ -916,33 +938,30 @@ func _sync_shed_gap_materials(
 	cumulative_distances: Array[float],
 	total_distance: float
 ) -> void:
-	var intervals: Array[Vector2] = [
-		Vector2(-1.0, -1.0),
-		Vector2(-1.0, -1.0),
-		Vector2(-1.0, -1.0)
+	var intervals: Array[Vector4] = [
+		Vector4(-1.0, -1.0, 0.0, 0.0),
+		Vector4(-1.0, -1.0, 0.0, 0.0),
+		Vector4(-1.0, -1.0, 0.0, 0.0)
 	]
 	if shedding_enabled and total_distance > 0.01:
 		for event_index in range(mini(_shed_break_events.size(), MAX_ACTIVE_SHED_BREAKS)):
 			var event: Dictionary = _shed_break_events[event_index]
 			var start_index: int = _point_ids.find(int(event["start_id"]))
 			var end_index: int = _point_ids.find(int(event["end_id"]))
-			if start_index < 0 and end_index < 0:
+			if start_index < 0 or end_index < 0:
 				continue
 
-			var start_distance: float = 0.0
-			var end_distance: float = total_distance
-			if start_index >= 0 and end_index >= 0:
-				start_distance = cumulative_distances[mini(start_index, end_index)]
-				end_distance = cumulative_distances[maxi(start_index, end_index)]
-			elif start_index >= 0:
-				start_distance = cumulative_distances[start_index]
-			elif end_index >= 0:
-				end_distance = cumulative_distances[end_index]
-
+			var start_distance: float = cumulative_distances[mini(start_index, end_index)]
+			var end_distance: float = cumulative_distances[maxi(start_index, end_index)]
 			if end_distance - start_distance > 0.01:
-				intervals[event_index] = Vector2(
+				var gap_width: float = end_distance - start_distance
+				var slant_direction: float = float(event.get("slant_direction", 1.0))
+				var slant_distance: float = minf(gap_width * 0.22, 5.0) * slant_direction
+				intervals[event_index] = Vector4(
 					start_distance / total_distance,
-					end_distance / total_distance
+					end_distance / total_distance,
+					slant_distance / total_distance,
+					0.0
 				)
 
 	var materials: Array[ShaderMaterial] = []
