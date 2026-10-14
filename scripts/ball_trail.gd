@@ -40,7 +40,6 @@ var _last_emission_direction: Vector2 = Vector2.DOWN
 var _ball_surface_radius: float = 29.9
 var _shed_sequence: int = 0
 var _pending_landing_shed: bool = false
-var _landing_feedback_controller: Node = null
 var _detached_shed_fragments: Array[Dictionary] = []
 var _shed_geometry_pieces: Array[Polygon2D] = []
 var _shed_piece_ranges: Array[Dictionary] = []
@@ -85,7 +84,6 @@ func _connect_landing_feedback() -> void:
 	var callback := Callable(self, "_on_landing_confirmed")
 	if not controller.is_connected("landing_confirmed", callback):
 		controller.connect("landing_confirmed", callback)
-	_landing_feedback_controller = controller
 
 
 func _on_landing_confirmed(event: LandingEvent) -> void:
