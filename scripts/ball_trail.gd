@@ -15,9 +15,10 @@ const UNIFIED_HEAD_ARC_SEGMENTS: int = 20
 const ORB_RIM_CENTER_RADIUS_RATIO: float = 0.93
 const SHED_CONNECTED_END_PROGRESS: float = 0.38
 const SHED_GEOMETRY_PIECE_CAPACITY: int = 12
-const SHED_BURST_PIECE_COUNT: int = 3
-const SHED_BURST_SPACING: float = 0.05
 const MAX_ACTIVE_SHED_BREAKS: int = 3
+const SHED_MIN_FRAGMENT_PROGRESS: float = 0.40
+const SHED_MAX_FRAGMENT_PROGRESS: float = 0.88
+const SHED_RECENT_PROGRESS_SEPARATION: float = 0.13
 
 @export_category("Visual Palette")
 @export_enum("Electric Blue", "Rich Violet") var visual_palette: int = 0
@@ -40,9 +41,9 @@ var _previous_ball_position: Vector2 = Vector2.ZERO
 var _trail_time: float = 0.0
 var _last_emission_direction: Vector2 = Vector2.DOWN
 var _ball_surface_radius: float = 29.9
-var _shed_burst_remaining: int = 0
-var _shed_burst_clock: float = 0.0
+var _landing_shear_pending: bool = false
 var _shed_sequence: int = 0
+var _recent_shed_progresses: Array[float] = []
 var _detached_shed_fragments: Array[Dictionary] = []
 var _shed_geometry_pieces: Array[Polygon2D] = []
 var _shed_piece_ranges: Array[Dictionary] = []
@@ -243,8 +244,13 @@ func _process(delta: float) -> void:
 	_trail_time += delta
 	if not shedding_enabled:
 		_shed_break_events.clear()
-		_shed_burst_remaining = 0
-		_shed_burst_clock = 0.0
+		_landing_shear_pending = false
+	else:
+		for event in _shed_break_events:
+			event["hold_remaining"] = maxf(
+				float(event.get("hold_remaining", 0.0)) - delta,
+				0.0
+			)
 	var current_world_position: Vector2 = ball.global_position
 	var movement: Vector2 = current_world_position - _previous_ball_position
 	var distance_from_trail: float = movement.length()
@@ -266,7 +272,7 @@ func _process(delta: float) -> void:
 			_points.pop_back()
 			_point_ids.pop_back()
 
-	_update_trail_lines(delta)
+	_update_trail_lines()
 	_update_detached_shed_fragments(delta)
 	_update_rim_breath()
 	_update_particle_emitters(current_world_position, movement, distance_from_trail)
@@ -284,7 +290,7 @@ func _update_rim_breath() -> void:
 		_unified_contour.modulate = Color(rim_breath, rim_breath, rim_breath, 1.0)
 
 
-func _update_trail_lines(delta: float = 0.0) -> void:
+func _update_trail_lines() -> void:
 	if _points.size() < 2:
 		_clear_shed_line_spans()
 		if _unified_shape != null:
@@ -296,7 +302,7 @@ func _update_trail_lines(delta: float = 0.0) -> void:
 		return
 
 	_rebuild_shed_line_spans()
-	_update_unified_comet_shape(delta)
+	_update_unified_comet_shape()
 
 
 func _initialize_split_line_pools() -> void:
@@ -492,6 +498,14 @@ func _get_live_shed_line_spans() -> Array[Vector2i]:
 			var start_index: int = _point_ids.find(int(event["start_id"]))
 			var end_index: int = _point_ids.find(int(event["end_id"]))
 			if start_index < 0 and end_index < 0:
+				if float(event.get("hold_remaining", 0.0)) <= 0.0:
+					continue
+				var fallback_start: float = clampf(float(event.get("start_progress", 0.0)), 0.0, 1.0)
+				var fallback_end: float = clampf(float(event.get("end_progress", 1.0)), 0.0, 1.0)
+				var last_point_index: int = _points.size() - 1
+				var fallback_cut_start: int = int(floor(minf(fallback_start, fallback_end) * last_point_index))
+				var fallback_cut_end: int = int(ceil(maxf(fallback_start, fallback_end) * last_point_index))
+				cut_ranges.append(Vector2i(fallback_cut_start, fallback_cut_end))
 				continue
 
 			var cut_start: int
@@ -569,7 +583,7 @@ func _get_animated_trail_point(index: int, apply_head_offset: bool = true) -> Ve
 
 
 
-func _update_unified_comet_shape(delta: float = 0.0) -> void:
+func _update_unified_comet_shape() -> void:
 	if _unified_shape == null or _points.size() < 2:
 		return
 
@@ -730,10 +744,10 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 				)
 		_unified_contour.points = contour_points
 
-	# The trail geometry and candidate ranges have now been rebuilt for this
-	# frame. Release at most one queued fragment from those fresh surviving ranges.
-	_process_shed_burst(
-		delta, path, cumulative_distances, total_distance, tangents, normals, half_widths
+	# Detach only after this frame's geometry has been rebuilt, so the selected
+	# source range and persistent hole describe the same surviving trail.
+	_process_pending_landing_shear(
+		path, cumulative_distances, total_distance, tangents, normals, half_widths
 	)
 
 
@@ -761,14 +775,17 @@ func _on_landing_confirmed(event: LandingEvent) -> void:
 	if ball == null or event.ball != ball:
 		return
 
-	# A confirmed physical landing queues one deliberate burst; no shedding is
-	# driven by elapsed time while the ball is travelling between platforms.
-	_shed_burst_remaining = SHED_BURST_PIECE_COUNT
-	_shed_burst_clock = 0.0
+	# Let the previous shear finish before allowing another one. This keeps the
+	# landing effect rare and readable instead of stacking several moving pieces.
+	for fragment in _detached_shed_fragments:
+		var existing_piece := fragment.get("node") as Polygon2D
+		if is_instance_valid(existing_piece):
+			return
+
+	_landing_shear_pending = true
 
 
-func _process_shed_burst(
-	delta: float,
+func _process_pending_landing_shear(
 	path: Array[Vector2],
 	cumulative_distances: Array[float],
 	total_distance: float,
@@ -776,29 +793,18 @@ func _process_shed_burst(
 	normals: Array[Vector2],
 	half_widths: Array[float]
 ) -> void:
-	if not shedding_enabled or _shed_burst_remaining <= 0:
+	if not shedding_enabled or not _landing_shear_pending:
 		return
 
-	if _shed_burst_clock > 0.0:
-		_shed_burst_clock = maxf(_shed_burst_clock - delta, 0.0)
-		if _shed_burst_clock > 0.0:
-			return
-
+	# A failed source selection is intentionally dropped rather than retried on
+	# a later frame, when the trail would have moved away from the landing.
+	_landing_shear_pending = false
 	var previous_break_count: int = _shed_break_events.size()
 	_spawn_shed_fragment(
 		path, cumulative_distances, total_distance, tangents, normals, half_widths
 	)
-
-	# If the trail is not yet long enough or no eligible source polygon exists,
-	# discard this burst instead of producing a delayed, contextless fragment.
 	if _shed_break_events.size() == previous_break_count:
-		_shed_burst_remaining = 0
-		_shed_burst_clock = 0.0
 		return
-
-	_shed_burst_remaining -= 1
-	if _shed_burst_remaining > 0:
-		_shed_burst_clock = SHED_BURST_SPACING
 
 
 func _spawn_shed_fragment(
@@ -815,26 +821,74 @@ func _spawn_shed_fragment(
 		or total_distance < 105.0
 		or _detached_shed_fragments.size() >= 14
 		or _shed_break_events.size() >= MAX_ACTIVE_SHED_BREAKS
-		or _shed_piece_ranges.is_empty()
+		or _shed_piece_ranges.size() < 2
+		or _shed_geometry_container == null
 	):
 		return
 
-	# Candidates are the actual lower-tail polygons currently visible in the
-	# scene. We clone one of those exact meshes instead of inventing a generic
-	# shard, then lock its source range out of the living trail.
-	var candidates: Array[Dictionary] = []
-	for piece_range in _shed_piece_ranges:
-		var progress: float = float(piece_range["progress"])
-		var source_piece := piece_range["node"] as Polygon2D
-		if progress >= 0.48 and progress <= 0.78 and is_instance_valid(source_piece) and source_piece.visible:
-			candidates.append(piece_range)
-	if candidates.is_empty():
+	# Form candidate pairs from adjacent, currently visible trail islands. The
+	# resulting shard is one continuous, wider piece rather than three tiny
+	# particle-like chips. Its source is rebuilt from the same ribbon geometry.
+	var candidate_pairs: Array[Dictionary] = []
+	for range_index in range(_shed_piece_ranges.size() - 1):
+		var first: Dictionary = _shed_piece_ranges[range_index]
+		var second: Dictionary = _shed_piece_ranges[range_index + 1]
+		var first_piece := first["node"] as Polygon2D
+		var second_piece := second["node"] as Polygon2D
+		if (
+			not is_instance_valid(first_piece)
+			or not is_instance_valid(second_piece)
+			or not first_piece.visible
+			or not second_piece.visible
+		):
+			continue
+
+		var start_distance: float = float(first["start_distance"])
+		var end_distance: float = float(second["end_distance"])
+		var gap_between: float = float(second["start_distance"]) - float(first["end_distance"])
+		var progress: float = (start_distance + end_distance) * 0.5 / total_distance
+		if (
+			gap_between < -0.1
+			or gap_between > 4.0
+			or progress < SHED_MIN_FRAGMENT_PROGRESS
+			or progress > SHED_MAX_FRAGMENT_PROGRESS
+			or end_distance - start_distance < 22.0
+		):
+			continue
+
+		candidate_pairs.append({
+			"first_index": range_index,
+			"second_index": range_index + 1,
+			"start_distance": start_distance,
+			"end_distance": end_distance,
+			"progress": progress
+		})
+
+	if candidate_pairs.is_empty():
 		return
 
-	var selected: Dictionary = candidates[_shed_sequence % candidates.size()]
-	var source_piece := selected["node"] as Polygon2D
-	if source_piece.polygon.size() < 4:
-		return
+	# Prefer a source position well away from the last few shears. If the live
+	# gaps leave very few options, fall back to available pairs rather than
+	# forcing an awkward location or repeatedly choosing the same tail section.
+	var preferred_pairs: Array[Dictionary] = []
+	for candidate in candidate_pairs:
+		var progress: float = float(candidate["progress"])
+		var separated_from_recent: bool = true
+		for recent_progress in _recent_shed_progresses:
+			if absf(progress - recent_progress) < SHED_RECENT_PROGRESS_SEPARATION:
+				separated_from_recent = false
+				break
+		if separated_from_recent:
+			preferred_pairs.append(candidate)
+
+	var selection_pool: Array[Dictionary] = (
+		preferred_pairs if not preferred_pairs.is_empty() else candidate_pairs
+	)
+	var selected: Dictionary = selection_pool[randi_range(0, selection_pool.size() - 1)]
+	var first_range_index: int = int(selected["first_index"])
+	var second_range_index: int = int(selected["second_index"])
+	var start_distance: float = float(selected["start_distance"])
+	var end_distance: float = float(selected["end_distance"])
 
 	var world_root: Node2D = get_tree().current_scene as Node2D
 	if world_root == null:
@@ -842,10 +896,28 @@ func _spawn_shed_fragment(
 	if world_root == null:
 		return
 
+	# Build one mesh across both neighboring source intervals, then detach that
+	# actual ribbon section with the same body shader and full-trail UV values.
+	var fragment_source := Polygon2D.new()
+	fragment_source.name = "CometShearSource"
+	fragment_source.visible = false
+	_shed_geometry_container.add_child(fragment_source)
+	_build_shed_piece_polygon(
+		fragment_source, start_distance, end_distance, path,
+		cumulative_distances, total_distance, tangents, normals, half_widths
+	)
+	fragment_source.visible = false
+	fragment_source.material = (
+		_detached_piece_material if _detached_piece_material != null else _shed_piece_material
+	)
+	if fragment_source.polygon.size() < 4:
+		fragment_source.queue_free()
+		return
+
 	var world_vertices: Array[Vector2] = []
 	var centroid_global := Vector2.ZERO
-	for local_vertex in source_piece.polygon:
-		var global_vertex: Vector2 = source_piece.to_global(local_vertex)
+	for local_vertex in fragment_source.polygon:
+		var global_vertex: Vector2 = fragment_source.to_global(local_vertex)
 		world_vertices.append(global_vertex)
 		centroid_global += global_vertex
 	centroid_global /= float(world_vertices.size())
@@ -855,53 +927,62 @@ func _spawn_shed_fragment(
 		detached_polygon.append(global_vertex - centroid_global)
 
 	var shard := Polygon2D.new()
-	shard.name = "DetachedCometBodyPiece"
+	shard.name = "DetachedCometShear"
 	shard.z_as_relative = false
 	shard.z_index = -2
 	shard.polygon = detached_polygon
-	shard.uv = source_piece.uv.duplicate()
-	shard.material = _detached_piece_material if _detached_piece_material != null else source_piece.material
+	shard.uv = fragment_source.uv.duplicate()
+	shard.material = _detached_piece_material if _detached_piece_material != null else fragment_source.material
 	world_root.add_child(shard)
 	shard.global_position = centroid_global
 	shard.global_rotation = 0.0
+	fragment_source.queue_free()
 
-	var start_id: int = int(selected["start_id"])
-	var end_id: int = int(selected["end_id"])
-	var start_anchor_index: int = _point_ids.find(start_id)
-	var end_anchor_index: int = _point_ids.find(end_id)
-	var start_offset: float = 0.0
-	var end_offset: float = 0.0
-	if start_anchor_index >= 0:
-		start_offset = float(selected["start_distance"]) - cumulative_distances[start_anchor_index]
-	if end_anchor_index >= 0:
-		end_offset = float(selected["end_distance"]) - cumulative_distances[end_anchor_index]
+	var start_anchor_index: int = _nearest_trail_sample_index(start_distance, cumulative_distances)
+	var end_anchor_index: int = _nearest_trail_sample_index(end_distance, cumulative_distances)
+	if end_anchor_index <= start_anchor_index:
+		shard.queue_free()
+		return
+
+	var start_id: int = _point_ids[start_anchor_index]
+	var end_id: int = _point_ids[end_anchor_index]
+	var start_offset: float = start_distance - cumulative_distances[start_anchor_index]
+	var end_offset: float = end_distance - cumulative_distances[end_anchor_index]
+	var sequence_value: float = float(_shed_sequence)
+	var horizontal_side_value: float = sin(sequence_value * 17.17 + _trail_time * 0.73)
+	var side: float = -1.0 if horizontal_side_value < 0.0 else 1.0
+	var horizontal_speed: float = lerpf(90.0, 132.0, absf(sin(sequence_value * 11.31 + 0.4)))
+	var vertical_speed: float = sin(sequence_value * 7.73 + 2.1) * 30.0
+	var lifetime: float = lerpf(1.10, 1.38, absf(sin(sequence_value * 3.91 + 0.8)))
+	var angular_velocity: float = sin(sequence_value * 8.31 + 0.9) * 2.1
+
+	# The original samples may leave the capped history before this fragment
+	# finishes fading. Keep a progress-space fallback gap for the fragment's
+	# visible lifetime, then let it disappear naturally with the shear.
 	_shed_break_events.append({
 		"start_id": start_id,
 		"end_id": end_id,
 		"start_offset": start_offset,
-		"end_offset": end_offset
+		"end_offset": end_offset,
+		"start_progress": start_distance / total_distance,
+		"end_progress": end_distance / total_distance,
+		"hold_remaining": lifetime + 0.10
 	})
 
-	# Remove this very section immediately. Its anchor IDs keep the matching
-	# gap in the trail history as new samples are added at the orb end.
-	source_piece.visible = false
+	# Remove the two source islands immediately; rebuilding will keep every
+	# intersecting source interval absent as the history advances.
+	for range_index in [first_range_index, second_range_index]:
+		var source_range: Dictionary = _shed_piece_ranges[range_index]
+		var source_piece := source_range["node"] as Polygon2D
+		if is_instance_valid(source_piece):
+			source_piece.visible = false
 
-	var source_distance: float = (
-		float(selected["start_distance"]) + float(selected["end_distance"])
-	) * 0.5
-	var source_index: int = _nearest_trail_sample_index(
-		source_distance, cumulative_distances
-	)
-	var sequence_value: float = float(_shed_sequence)
-	var side: float = -1.0 if _shed_sequence % 2 == 0 else 1.0
-	var outward_speed: float = lerpf(24.0, 44.0, absf(sin(sequence_value * 17.13 + 2.7)))
-	var drift_speed: float = lerpf(9.0, 22.0, absf(sin(sequence_value * 6.73 + 1.4)))
-	var lifetime: float = lerpf(0.42, 0.70, absf(sin(sequence_value * 3.91 + 0.8)))
-	var angular_velocity: float = sin(sequence_value * 8.31 + 0.9) * 3.0
-	var velocity: Vector2 = (
-		normals[source_index] * side * outward_speed
-		+ tangents[source_index] * drift_speed
-	)
+	_recent_shed_progresses.append(float(selected["progress"]))
+	while _recent_shed_progresses.size() > 3:
+		_recent_shed_progresses.pop_front()
+
+	# Use world-space horizontal ejection with only a small vertical component.
+	var velocity := Vector2(side * horizontal_speed, vertical_speed)
 	_detached_shed_fragments.append({
 		"node": shard,
 		"velocity": velocity,
@@ -926,11 +1007,11 @@ func _update_detached_shed_fragments(delta: float) -> void:
 		var age: float = float(fragment["age"]) + delta
 		var lifetime: float = float(fragment["lifetime"])
 		var velocity: Vector2 = fragment["velocity"]
-		velocity.y += 10.0 * delta
-		velocity *= maxf(0.0, 1.0 - delta * 0.8)
+		velocity.y += 7.0 * delta
+		velocity *= maxf(0.0, 1.0 - delta * 0.45)
 		shard.global_position += velocity * delta
 		shard.rotation += float(fragment["angular_velocity"]) * delta
-		var fade: float = 1.0 - smoothstep(lifetime * 0.18, lifetime, age)
+		var fade: float = 1.0 - smoothstep(lifetime * 0.56, lifetime, age)
 		var tint: Color = shard.modulate
 		tint.a = float(fragment["base_alpha"]) * fade
 		shard.modulate = tint
@@ -1190,7 +1271,7 @@ func _prune_shed_break_events() -> void:
 		# Keep a break while either boundary sample survives. When the older
 		# boundary leaves the capped trail, the hole contracts naturally from
 		# the tail instead of the original source geometry suddenly respawning.
-		if start_index < 0 and end_index < 0:
+		if start_index < 0 and end_index < 0 and float(event.get("hold_remaining", 0.0)) <= 0.0:
 			_shed_break_events.remove_at(event_index)
 
 
@@ -1204,6 +1285,14 @@ func _shed_event_overlaps_interval(
 		var start_index: int = _point_ids.find(int(event["start_id"]))
 		var end_index: int = _point_ids.find(int(event["end_id"]))
 		if start_index < 0 and end_index < 0:
+			if float(event.get("hold_remaining", 0.0)) <= 0.0:
+				continue
+			var fallback_start: float = clampf(float(event.get("start_progress", 0.0)), 0.0, 1.0)
+			var fallback_end: float = clampf(float(event.get("end_progress", 1.0)), 0.0, 1.0)
+			var fallback_distance_start: float = minf(fallback_start, fallback_end) * total_distance
+			var fallback_distance_end: float = maxf(fallback_start, fallback_end) * total_distance
+			if fallback_distance_start < interval_end - 0.8 and fallback_distance_end > interval_start + 0.8:
+				return true
 			continue
 
 		var event_start: float = 0.0
@@ -1242,6 +1331,17 @@ func _sync_shed_gap_materials(
 			var start_index: int = _point_ids.find(int(event["start_id"]))
 			var end_index: int = _point_ids.find(int(event["end_id"]))
 			if start_index < 0 and end_index < 0:
+				if float(event.get("hold_remaining", 0.0)) <= 0.0:
+					continue
+				var fallback_start: float = clampf(float(event.get("start_progress", 0.0)), 0.0, 1.0)
+				var fallback_end: float = clampf(float(event.get("end_progress", 1.0)), 0.0, 1.0)
+				start_distance = minf(fallback_start, fallback_end) * total_distance
+				end_distance = maxf(fallback_start, fallback_end) * total_distance
+				if end_distance - start_distance > 0.01:
+					intervals[event_index] = Vector2(
+						start_distance / total_distance,
+						end_distance / total_distance
+					)
 				continue
 
 			var start_distance: float = 0.0
