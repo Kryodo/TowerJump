@@ -48,6 +48,18 @@ var _shed_break_events: Array[Dictionary] = []
 var _shed_piece_material: ShaderMaterial
 var _detached_piece_material: ShaderMaterial
 
+const SPLIT_LINE_PROFILE_STEPS: int = 16
+var _energy_line_slots: Array[Line2D] = []
+var _aura_line_slots: Array[Line2D] = []
+var _energy_base_gradient: Gradient
+var _aura_base_gradient: Gradient
+var _energy_base_width_curve: Curve
+var _aura_base_width_curve: Curve
+var _energy_profile_gradients: Array[Gradient] = []
+var _aura_profile_gradients: Array[Gradient] = []
+var _energy_profile_curves: Array[Curve] = []
+var _aura_profile_curves: Array[Curve] = []
+
 
 func _ready() -> void:
 	z_index = -1
@@ -65,6 +77,7 @@ func _ready() -> void:
 			_particle_emitters.append(emitter)
 
 	_apply_visual_palette()
+	_initialize_split_line_pools()
 	_initialize_shed_geometry_pieces()
 	_update_trail_lines()
 	_update_rim_breath()
@@ -270,8 +283,7 @@ func _update_rim_breath() -> void:
 
 func _update_trail_lines() -> void:
 	if _points.size() < 2:
-		_energy_line.clear_points()
-		_trail_aura.clear_points()
+		_clear_shed_line_spans()
 		if _unified_shape != null:
 			_unified_shape.polygon = PackedVector2Array()
 			_unified_shape.uv = PackedVector2Array()
@@ -280,22 +292,248 @@ func _update_trail_lines() -> void:
 			_unified_contour.clear_points()
 		return
 
-	_energy_line.clear_points()
-	_trail_aura.clear_points()
-
-	# Rebuild the stream every frame with a tiny animated lateral drift.
-	# This keeps the energy alive at the jump apex even when the ball itself
-	# has almost no velocity and no new trail samples are being collected.
-	# Keep the inner energy line's recessed head, but give the translucent aura
-	# the same centreline as the unified skin and contour so their outer edges
-	# stay aligned through the narrow neck directly below the orb.
-	for i in range(_points.size()):
-		var point: Vector2 = _get_animated_trail_point(i)
-		_energy_line.add_point(_energy_line.to_local(point))
-		var aura_point: Vector2 = _get_animated_trail_point(i, false)
-		_trail_aura.add_point(_trail_aura.to_local(aura_point))
-
+	_rebuild_shed_line_spans()
 	_update_unified_comet_shape()
+
+
+func _initialize_split_line_pools() -> void:
+	_energy_base_gradient = _energy_line.gradient
+	_aura_base_gradient = _trail_aura.gradient
+	_energy_base_width_curve = _energy_line.width_curve
+	_aura_base_width_curve = _trail_aura.width_curve
+
+	_energy_line_slots.append(_energy_line)
+	_aura_line_slots.append(_trail_aura)
+	_energy_profile_gradients.append(_make_profile_gradient(_energy_base_gradient))
+	_aura_profile_gradients.append(_make_profile_gradient(_aura_base_gradient))
+	_energy_profile_curves.append(_make_profile_curve(_energy_base_width_curve))
+	_aura_profile_curves.append(_make_profile_curve(_aura_base_width_curve))
+
+	for slot_index in range(1, MAX_ACTIVE_SHED_BREAKS + 1):
+		var energy_span := _energy_line.duplicate() as Line2D
+		energy_span.name = "EnergyLineSplit_%02d" % slot_index
+		energy_span.clear_points()
+		var source_energy_material := _energy_line.material as ShaderMaterial
+		if source_energy_material != null:
+			energy_span.material = source_energy_material.duplicate() as ShaderMaterial
+		var energy_profile_gradient: Gradient = _make_profile_gradient(_energy_base_gradient)
+		var energy_profile_curve: Curve = _make_profile_curve(_energy_base_width_curve)
+		if energy_profile_gradient != null:
+			energy_span.gradient = energy_profile_gradient
+		if energy_profile_curve != null:
+			energy_span.width_curve = energy_profile_curve
+		add_child(energy_span)
+		_energy_line_slots.append(energy_span)
+		_energy_profile_gradients.append(energy_profile_gradient)
+		_energy_profile_curves.append(energy_profile_curve)
+
+		var aura_span := _trail_aura.duplicate() as Line2D
+		aura_span.name = "TrailAuraSplit_%02d" % slot_index
+		aura_span.clear_points()
+		var source_aura_material := _trail_aura.material as ShaderMaterial
+		if source_aura_material != null:
+			aura_span.material = source_aura_material.duplicate() as ShaderMaterial
+		var aura_profile_gradient: Gradient = _make_profile_gradient(_aura_base_gradient)
+		var aura_profile_curve: Curve = _make_profile_curve(_aura_base_width_curve)
+		if aura_profile_gradient != null:
+			aura_span.gradient = aura_profile_gradient
+		if aura_profile_curve != null:
+			aura_span.width_curve = aura_profile_curve
+		add_child(aura_span)
+		_aura_line_slots.append(aura_span)
+		_aura_profile_gradients.append(aura_profile_gradient)
+		_aura_profile_curves.append(aura_profile_curve)
+
+
+func _make_profile_gradient(source_gradient: Gradient) -> Gradient:
+	if source_gradient == null:
+		return null
+
+	var profile := Gradient.new()
+	profile.set_color(0, source_gradient.sample(0.0))
+	profile.set_color(1, source_gradient.sample(1.0))
+	for point_index in range(1, SPLIT_LINE_PROFILE_STEPS):
+		var t: float = float(point_index) / float(SPLIT_LINE_PROFILE_STEPS)
+		profile.add_point(t, source_gradient.sample(t))
+	return profile
+
+
+func _make_profile_curve(source_curve: Curve) -> Curve:
+	if source_curve == null:
+		return null
+
+	var profile := Curve.new()
+	profile.clear_points()
+	profile.min_value = source_curve.min_value
+	profile.max_value = source_curve.max_value
+	profile.bake_resolution = source_curve.bake_resolution
+	for point_index in range(SPLIT_LINE_PROFILE_STEPS + 1):
+		var t: float = float(point_index) / float(SPLIT_LINE_PROFILE_STEPS)
+		profile.add_point(Vector2(t, source_curve.sample_baked(t)))
+	return profile
+
+
+func _rebuild_shed_line_spans() -> void:
+	var energy_points: Array[Vector2] = []
+	var aura_points: Array[Vector2] = []
+	var energy_distances: Array[float] = [0.0]
+	var aura_distances: Array[float] = [0.0]
+	for point_index in range(_points.size()):
+		energy_points.append(_get_animated_trail_point(point_index, true))
+		aura_points.append(_get_animated_trail_point(point_index, false))
+		if point_index > 0:
+			energy_distances.append(
+				energy_distances[point_index - 1]
+				+ energy_points[point_index - 1].distance_to(energy_points[point_index])
+			)
+			aura_distances.append(
+				aura_distances[point_index - 1]
+				+ aura_points[point_index - 1].distance_to(aura_points[point_index])
+			)
+
+	var spans: Array[Vector2i] = _get_live_shed_line_spans()
+	var energy_total: float = energy_distances[energy_distances.size() - 1]
+	var aura_total: float = aura_distances[aura_distances.size() - 1]
+	var has_gaps: bool = true
+	if spans.size() == 1:
+		var only_span: Vector2i = spans[0]
+		has_gaps = only_span.x != 0 or only_span.y != _points.size() - 1
+
+	for slot_index in range(_energy_line_slots.size()):
+		var energy_line: Line2D = _energy_line_slots[slot_index]
+		var aura_line: Line2D = _aura_line_slots[slot_index]
+		energy_line.clear_points()
+		aura_line.clear_points()
+		if slot_index >= spans.size():
+			continue
+
+		var span: Vector2i = spans[slot_index]
+		if span.y - span.x < 1:
+			continue
+		for point_index in range(span.x, span.y + 1):
+			energy_line.add_point(energy_line.to_local(energy_points[point_index]))
+			aura_line.add_point(aura_line.to_local(aura_points[point_index]))
+
+		var energy_start_progress: float = 0.0
+		var energy_end_progress: float = 1.0
+		if energy_total > 0.001:
+			energy_start_progress = energy_distances[span.x] / energy_total
+			energy_end_progress = energy_distances[span.y] / energy_total
+		var aura_start_progress: float = 0.0
+		var aura_end_progress: float = 1.0
+		if aura_total > 0.001:
+			aura_start_progress = aura_distances[span.x] / aura_total
+			aura_end_progress = aura_distances[span.y] / aura_total
+
+		_apply_line_profile(
+			energy_line, _energy_base_gradient, _energy_base_width_curve,
+			_energy_profile_gradients[slot_index], _energy_profile_curves[slot_index],
+			energy_start_progress, energy_end_progress, has_gaps
+		)
+		_apply_line_profile(
+			aura_line, _aura_base_gradient, _aura_base_width_curve,
+			_aura_profile_gradients[slot_index], _aura_profile_curves[slot_index],
+			aura_start_progress, aura_end_progress, has_gaps
+		)
+		var energy_material := energy_line.material as ShaderMaterial
+		if energy_material != null:
+			energy_material.set_shader_parameter("trail_progress_start", energy_start_progress)
+			energy_material.set_shader_parameter(
+				"trail_progress_scale",
+				maxf(energy_end_progress - energy_start_progress, 0.0001)
+			)
+
+
+func _apply_line_profile(
+	line: Line2D,
+	source_gradient: Gradient,
+	source_curve: Curve,
+	profile_gradient: Gradient,
+	profile_curve: Curve,
+	start_progress: float,
+	end_progress: float,
+	profile_is_split: bool
+) -> void:
+	if not profile_is_split:
+		line.gradient = source_gradient
+		line.width_curve = source_curve
+		return
+
+	if source_gradient != null and profile_gradient != null:
+		for point_index in range(profile_gradient.get_point_count()):
+			var local_progress: float = profile_gradient.get_offset(point_index)
+			profile_gradient.set_color(
+				point_index,
+				source_gradient.sample(lerpf(start_progress, end_progress, local_progress))
+			)
+		line.gradient = profile_gradient
+	elif source_gradient == null:
+		line.gradient = null
+
+	if source_curve != null and profile_curve != null:
+		for point_index in range(profile_curve.get_point_count()):
+			var local_progress: float = profile_curve.get_point_position(point_index).x
+			profile_curve.set_point_value(
+				point_index,
+				source_curve.sample_baked(lerpf(start_progress, end_progress, local_progress))
+			)
+		line.width_curve = profile_curve
+	elif source_curve == null:
+		line.width_curve = null
+
+
+func _get_live_shed_line_spans() -> Array[Vector2i]:
+	var cut_ranges: Array[Vector2i] = []
+	if shedding_enabled:
+		for event in _shed_break_events:
+			var start_index: int = _point_ids.find(int(event["start_id"]))
+			var end_index: int = _point_ids.find(int(event["end_id"]))
+			if start_index < 0 and end_index < 0:
+				continue
+
+			var cut_start: int
+			var cut_end: int
+			if start_index >= 0 and end_index >= 0:
+				cut_start = mini(start_index, end_index)
+				cut_end = maxi(start_index, end_index)
+			elif start_index >= 0:
+				cut_start = start_index
+				cut_end = _points.size() - 1
+			else:
+				cut_start = 0
+				cut_end = end_index
+			cut_ranges.append(Vector2i(cut_start, cut_end))
+
+	cut_ranges.sort_custom(func(a: Vector2i, b: Vector2i) -> bool: return a.x < b.x)
+	var merged_ranges: Array[Vector2i] = []
+	for cut_range in cut_ranges:
+		if merged_ranges.is_empty():
+			merged_ranges.append(cut_range)
+			continue
+		var previous: Vector2i = merged_ranges[merged_ranges.size() - 1]
+		if cut_range.x <= previous.y + 1:
+			merged_ranges[merged_ranges.size() - 1] = Vector2i(
+				previous.x, maxi(previous.y, cut_range.y)
+			)
+		else:
+			merged_ranges.append(cut_range)
+
+	var spans: Array[Vector2i] = []
+	var next_start: int = 0
+	for cut_range in merged_ranges:
+		if cut_range.x - next_start >= 2:
+			spans.append(Vector2i(next_start, cut_range.x - 1))
+		next_start = maxi(next_start, cut_range.y + 1)
+	if _points.size() - next_start >= 2:
+		spans.append(Vector2i(next_start, _points.size() - 1))
+	return spans
+
+
+func _clear_shed_line_spans() -> void:
+	for line in _energy_line_slots:
+		line.clear_points()
+	for line in _aura_line_slots:
+		line.clear_points()
 
 
 func _get_animated_trail_point(index: int, apply_head_offset: bool = true) -> Vector2:
@@ -565,9 +803,19 @@ func _spawn_shed_fragment(
 
 	var start_id: int = int(selected["start_id"])
 	var end_id: int = int(selected["end_id"])
+	var start_anchor_index: int = _point_ids.find(start_id)
+	var end_anchor_index: int = _point_ids.find(end_id)
+	var start_offset: float = 0.0
+	var end_offset: float = 0.0
+	if start_anchor_index >= 0:
+		start_offset = float(selected["start_distance"]) - cumulative_distances[start_anchor_index]
+	if end_anchor_index >= 0:
+		end_offset = float(selected["end_distance"]) - cumulative_distances[end_anchor_index]
 	_shed_break_events.append({
 		"start_id": start_id,
-		"end_id": end_id
+		"end_id": end_id,
+		"start_offset": start_offset,
+		"end_offset": end_offset
 	})
 
 	# Remove this very section immediately. Its anchor IDs keep the matching
@@ -601,6 +849,7 @@ func _spawn_shed_fragment(
 	_shed_sequence += 1
 	_shed_spawn_clock = 0.0
 	_sync_shed_gap_materials(cumulative_distances, total_distance)
+	_rebuild_shed_line_spans()
 
 
 func _update_detached_shed_fragments(delta: float) -> void:
@@ -802,8 +1051,7 @@ func _update_shed_geometry_pieces(
 
 	# The connected head transitions into a nearly continuous segmented tail.
 	# Only an event-locked source interval creates a pronounced missing chunk.
-	var cursor: float = total_distance * SHED_CONNECTED_END_PROGRESS
-	cursor += clampf(total_distance * 0.04, 5.0, 11.0)
+	var cursor: float = maxf(total_distance * SHED_CONNECTED_END_PROGRESS - 3.5, 0.0)
 	var tail_limit: float = total_distance * 0.985
 	var slot_index: int = 0
 	while cursor < tail_limit and slot_index < _shed_geometry_pieces.size():
@@ -898,15 +1146,19 @@ func _shed_event_overlaps_interval(
 		var event_start: float = 0.0
 		var event_end: float = total_distance
 		if start_index >= 0 and end_index >= 0:
-			event_start = cumulative_distances[mini(start_index, end_index)]
-			event_end = cumulative_distances[maxi(start_index, end_index)]
+			var anchored_start: float = cumulative_distances[start_index] + float(event.get("start_offset", 0.0))
+			var anchored_end: float = cumulative_distances[end_index] + float(event.get("end_offset", 0.0))
+			event_start = minf(anchored_start, anchored_end)
+			event_end = maxf(anchored_start, anchored_end)
 		elif start_index >= 0:
-			event_start = cumulative_distances[start_index]
+			event_start = cumulative_distances[start_index] + float(event.get("start_offset", 0.0))
 		elif end_index >= 0:
-			event_end = cumulative_distances[end_index]
+			event_end = cumulative_distances[end_index] + float(event.get("end_offset", 0.0))
 
-		# If one boundary has aged out, extend only that side to the trail end.
-		# This keeps the remaining material absent until its samples age away.
+		event_start = clampf(event_start, 0.0, total_distance)
+		event_end = clampf(event_end, 0.0, total_distance)
+		# If one boundary ages out, extend only that side to the trail end.
+		# The surviving anchor and local offset keep the missing interval stable.
 		if event_start < interval_end - 0.8 and event_end > interval_start + 0.8:
 			return true
 	return false
@@ -932,38 +1184,31 @@ func _sync_shed_gap_materials(
 			var start_distance: float = 0.0
 			var end_distance: float = total_distance
 			if start_index >= 0 and end_index >= 0:
-				start_distance = cumulative_distances[mini(start_index, end_index)]
-				end_distance = cumulative_distances[maxi(start_index, end_index)]
+				var anchored_start: float = cumulative_distances[start_index] + float(event.get("start_offset", 0.0))
+				var anchored_end: float = cumulative_distances[end_index] + float(event.get("end_offset", 0.0))
+				start_distance = minf(anchored_start, anchored_end)
+				end_distance = maxf(anchored_start, anchored_end)
 			elif start_index >= 0:
-				start_distance = cumulative_distances[start_index]
+				start_distance = cumulative_distances[start_index] + float(event.get("start_offset", 0.0))
 			elif end_index >= 0:
-				end_distance = cumulative_distances[end_index]
+				end_distance = cumulative_distances[end_index] + float(event.get("end_offset", 0.0))
 
+			start_distance = clampf(start_distance, 0.0, total_distance)
+			end_distance = clampf(end_distance, 0.0, total_distance)
 			if end_distance - start_distance > 0.01:
 				intervals[event_index] = Vector2(
 					start_distance / total_distance,
 					end_distance / total_distance
 				)
 
-	var materials: Array[ShaderMaterial] = []
 	var unified_material: ShaderMaterial = null
-	var energy_material: ShaderMaterial = null
-	var aura_material: ShaderMaterial = null
 	if _unified_shape != null:
 		unified_material = _unified_shape.material as ShaderMaterial
-	if _energy_line != null:
-		energy_material = _energy_line.material as ShaderMaterial
-	if _trail_aura != null:
-		aura_material = _trail_aura.material as ShaderMaterial
-
-	for material in [unified_material, energy_material, aura_material, _shed_piece_material]:
-		if material != null and not materials.has(material):
-			materials.append(material)
-
-	for material in materials:
-		material.set_shader_parameter("shed_gap_0", intervals[0])
-		material.set_shader_parameter("shed_gap_1", intervals[1])
-		material.set_shader_parameter("shed_gap_2", intervals[2])
+	for material in [unified_material, _shed_piece_material]:
+		if material != null:
+			material.set_shader_parameter("shed_gap_0", intervals[0])
+			material.set_shader_parameter("shed_gap_1", intervals[1])
+			material.set_shader_parameter("shed_gap_2", intervals[2])
 
 
 func _update_particle_emitters(
@@ -1041,7 +1286,6 @@ func _apply_visual_palette() -> void:
 	if energy_material != null:
 		energy_material = energy_material.duplicate() as ShaderMaterial
 		energy_material.set_shader_parameter("palette_mode", visual_palette)
-		energy_material.set_shader_parameter("shedding_amount", 1.0 if shedding_enabled else 0.0)
 		_energy_line.material = energy_material
 
 	_set_line_gradient(_energy_line, energy_head, energy_tail)
@@ -1050,7 +1294,6 @@ func _apply_visual_palette() -> void:
 	var aura_material := _trail_aura.material as ShaderMaterial
 	if aura_material != null:
 		aura_material = aura_material.duplicate() as ShaderMaterial
-		aura_material.set_shader_parameter("shedding_amount", 1.0 if shedding_enabled else 0.0)
 		_trail_aura.material = aura_material
 
 	# All filaments share the contour hue; each strand's own gradient retains
