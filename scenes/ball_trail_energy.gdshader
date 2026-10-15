@@ -9,6 +9,9 @@ uniform float trail_progress_scale = 1.0;
 uniform float shedding_amount = 1.0;
 uniform float crack_along_scale = 1.0;
 uniform float crack_width_scale = 1.8;
+uniform bool alignment_test_single_crack = false;
+uniform bool use_crack_alignment_map = false;
+uniform sampler2D crack_alignment_map : filter_linear;
 
 // Small deterministic noise
 // ------------------------------------------------------------
@@ -97,6 +100,9 @@ float crack_keep(vec2 uv) {
 		)
 	);
 	float cut_long = 1.0 - smoothstep(0.020 * crack_width_scale, 0.043 * crack_width_scale, long_crack);
+	if (alignment_test_single_crack) {
+		return 1.0 - cut_long;
+	}
 
 	// A separate hooked split starts well inside the trail and runs out to one edge.
 	float side_crack = min(
@@ -295,8 +301,15 @@ void fragment()
 	float edge_strength = edge_ridge * edge_waver * trail_fade;
 	energy = max(energy, edge_strength * 0.42);
 
-	// Use the same fissure mask as the aura/body so the plasma cannot fill the cuts.
-	float crack_mask = mix(1.0, crack_keep(uv), clamp(shedding_amount, 0.0, 1.0));
+	// Map this Line2D's UVs into the outer aura's progress and width coordinates.
+	// This compensates for the recessed energy head and the different width curves.
+	vec2 crack_uv = uv;
+	if (use_crack_alignment_map) {
+		vec2 alignment = texture(crack_alignment_map, vec2(UV.x, 0.5)).rg;
+		crack_uv.x = alignment.r;
+		crack_uv.y = 0.5 + (UV.y - 0.5) * alignment.g;
+	}
+	float crack_mask = mix(1.0, crack_keep(crack_uv), clamp(shedding_amount, 0.0, 1.0));
 	energy *= crack_mask;
 	edge_strength *= crack_mask;
 
