@@ -14,6 +14,7 @@ extends Node2D
 const UNIFIED_HEAD_ARC_SEGMENTS: int = 20
 const ORB_RIM_CENTER_RADIUS_RATIO: float = 0.93
 const AURA_MASK_DIAGNOSTIC_SHADER = preload("res://scenes/trail_aura_mask_diagnostic.gdshader")
+const ENERGY_MASK_DIAGNOSTIC_SHADER = preload("res://scenes/trail_energy_mask_diagnostic.gdshader")
 const SURFACE_BURST_PIECE_COUNT: int = 4
 const CHEVRON_BURST_PIECE_COUNT: int = 5
 const SURFACE_BURST_SPACING: float = 0.055
@@ -25,6 +26,7 @@ const CHEVRON_BURST_SPACING: float = 0.035
 @export_category("Comet Shedding")
 @export var shedding_enabled: bool = true
 @export var aura_mask_diagnostic_mode: bool = false
+@export var energy_mask_diagnostic_mode: bool = false
 
 @onready var _energy_line: Line2D = $EnergyLine
 @onready var _trail_aura: Line2D = $TrailAura
@@ -79,6 +81,8 @@ func _ready() -> void:
 	_apply_visual_palette()
 	if aura_mask_diagnostic_mode:
 		_apply_aura_mask_diagnostic_mode()
+	elif energy_mask_diagnostic_mode:
+		_apply_energy_mask_diagnostic_mode()
 	_initialize_aura_fragment_material()
 	call_deferred("_connect_landing_feedback")
 	_update_trail_lines()
@@ -110,6 +114,29 @@ func _apply_aura_mask_diagnostic_mode() -> void:
 	diagnostic_material.set_shader_parameter("crack_width_scale", 1.8)
 	diagnostic_material.set_shader_parameter("diagnostic_mode", true)
 	_trail_aura.material = diagnostic_material
+
+
+func _apply_energy_mask_diagnostic_mode() -> void:
+	# Isolate the real EnergyLine so the aura/body cannot visually fill its alpha holes.
+	var diagnostic_ball := get_parent() as CharacterBody2D
+	if diagnostic_ball != null:
+		diagnostic_ball.set_physics_process(false)
+		diagnostic_ball.velocity = Vector2.ZERO
+
+	if _unified_shape != null:
+		_unified_shape.visible = false
+	_trail_aura.visible = false
+	if _unified_contour != null:
+		_unified_contour.visible = false
+	if _ball_visual != null:
+		_ball_visual.visible = false
+	for emitter in _particle_emitters:
+		emitter.emitting = false
+		emitter.visible = false
+
+	var diagnostic_material := ShaderMaterial.new()
+	diagnostic_material.shader = ENERGY_MASK_DIAGNOSTIC_SHADER
+	_energy_line.material = diagnostic_material
 
 
 func _initialize_aura_fragment_material() -> void:
@@ -282,7 +309,7 @@ func _process(delta: float) -> void:
 		return
 
 	_trail_time += delta
-	if aura_mask_diagnostic_mode:
+	if aura_mask_diagnostic_mode or energy_mask_diagnostic_mode:
 		ball.global_position = Vector2(
 			360.0 + sin(_trail_time * 0.92) * 210.0,
 			640.0 + sin(_trail_time * 0.57 + 0.8) * 145.0
@@ -359,7 +386,7 @@ func _rebuild_trail_lines() -> void:
 		_trail_aura.add_point(_trail_aura.to_local(aura_point))
 
 	var energy_material := _energy_line.material as ShaderMaterial
-	if energy_material != null:
+	if energy_material != null and not energy_mask_diagnostic_mode:
 		energy_material.set_shader_parameter("trail_progress_start", 0.0)
 		energy_material.set_shader_parameter("trail_progress_scale", 1.0)
 
@@ -376,6 +403,12 @@ func _update_fracture_shader_parameters(total_distance: float) -> void:
 		body_material.set_shader_parameter("crack_width_scale", 1.8)
 	if _surface_fragment_material != null:
 		_surface_fragment_material.set_shader_parameter("shedding_amount", shedding_strength)
+
+	if energy_mask_diagnostic_mode:
+		var energy_diagnostic_material := _energy_line.material as ShaderMaterial
+		if energy_diagnostic_material != null:
+			energy_diagnostic_material.set_shader_parameter("crack_along_scale", maxf(total_distance / maxf(_energy_line.width, 1.0), 1.0))
+			energy_diagnostic_material.set_shader_parameter("crack_width_scale", 1.8)
 
 	var aura_material := _trail_aura.material as ShaderMaterial
 	if aura_material != null:
@@ -568,7 +601,7 @@ func _connect_landing_feedback() -> void:
 
 
 func _on_landing_confirmed(event: LandingEvent) -> void:
-	if aura_mask_diagnostic_mode or not shedding_enabled or event == null:
+	if aura_mask_diagnostic_mode or energy_mask_diagnostic_mode or not shedding_enabled or event == null:
 		return
 
 	var ball := get_parent() as CharacterBody2D
