@@ -13,8 +13,6 @@ extends Node2D
 
 const UNIFIED_HEAD_ARC_SEGMENTS: int = 20
 const ORB_RIM_CENTER_RADIUS_RATIO: float = 0.93
-const AURA_MASK_DIAGNOSTIC_SHADER = preload("res://scenes/trail_aura_mask_diagnostic.gdshader")
-const ENERGY_MASK_DIAGNOSTIC_SHADER = preload("res://scenes/trail_energy_mask_diagnostic.gdshader")
 const SURFACE_BURST_PIECE_COUNT: int = 4
 const CHEVRON_BURST_PIECE_COUNT: int = 5
 const SURFACE_BURST_SPACING: float = 0.055
@@ -25,8 +23,6 @@ const CHEVRON_BURST_SPACING: float = 0.035
 
 @export_category("Comet Shedding")
 @export var shedding_enabled: bool = true
-@export var aura_mask_diagnostic_mode: bool = false
-@export var energy_mask_diagnostic_mode: bool = false
 
 @onready var _energy_line: Line2D = $EnergyLine
 @onready var _trail_aura: Line2D = $TrailAura
@@ -79,64 +75,10 @@ func _ready() -> void:
 			_particle_emitters.append(emitter)
 
 	_apply_visual_palette()
-	if aura_mask_diagnostic_mode:
-		_apply_aura_mask_diagnostic_mode()
-	elif energy_mask_diagnostic_mode:
-		_apply_energy_mask_diagnostic_mode()
 	_initialize_aura_fragment_material()
 	call_deferred("_connect_landing_feedback")
 	_update_trail_lines()
 	_update_rim_breath()
-
-
-func _apply_aura_mask_diagnostic_mode() -> void:
-	# Test the real TrailAura Line2D, with its live points and UVs. The mode is
-	# enabled only in scenes/aura_mask_diagnostic.tscn, never in the normal game.
-	var diagnostic_ball := get_parent() as CharacterBody2D
-	if diagnostic_ball != null:
-		diagnostic_ball.set_physics_process(false)
-		diagnostic_ball.velocity = Vector2.ZERO
-
-	if _unified_shape != null:
-		_unified_shape.visible = false
-	_energy_line.visible = false
-	if _unified_contour != null:
-		_unified_contour.visible = false
-	if _ball_visual != null:
-		_ball_visual.visible = false
-	for emitter in _particle_emitters:
-		emitter.emitting = false
-		emitter.visible = false
-
-	var diagnostic_material := ShaderMaterial.new()
-	diagnostic_material.shader = AURA_MASK_DIAGNOSTIC_SHADER
-	diagnostic_material.set_shader_parameter("crack_along_scale", 1.0)
-	diagnostic_material.set_shader_parameter("crack_width_scale", 1.8)
-	diagnostic_material.set_shader_parameter("diagnostic_mode", true)
-	_trail_aura.material = diagnostic_material
-
-
-func _apply_energy_mask_diagnostic_mode() -> void:
-	# Isolate the real EnergyLine so the aura/body cannot visually fill its alpha holes.
-	var diagnostic_ball := get_parent() as CharacterBody2D
-	if diagnostic_ball != null:
-		diagnostic_ball.set_physics_process(false)
-		diagnostic_ball.velocity = Vector2.ZERO
-
-	if _unified_shape != null:
-		_unified_shape.visible = false
-	_trail_aura.visible = false
-	if _unified_contour != null:
-		_unified_contour.visible = false
-	if _ball_visual != null:
-		_ball_visual.visible = false
-	for emitter in _particle_emitters:
-		emitter.emitting = false
-		emitter.visible = false
-
-	var diagnostic_material := ShaderMaterial.new()
-	diagnostic_material.shader = ENERGY_MASK_DIAGNOSTIC_SHADER
-	_energy_line.material = diagnostic_material
 
 
 func _initialize_aura_fragment_material() -> void:
@@ -309,14 +251,11 @@ func _process(delta: float) -> void:
 		return
 
 	_trail_time += delta
-	if aura_mask_diagnostic_mode or energy_mask_diagnostic_mode:
-		ball.global_position = Vector2(
-			360.0 + sin(_trail_time * 0.92) * 210.0,
-			640.0 + sin(_trail_time * 0.57 + 0.8) * 145.0
-		)
 	if not shedding_enabled:
 		_surface_burst_remaining = 0
 		_surface_burst_clock = 0.0
+		_chevron_burst_remaining = 0
+		_chevron_burst_clock = 0.0
 	var current_world_position: Vector2 = ball.global_position
 	var movement: Vector2 = current_world_position - _previous_ball_position
 	var distance_from_trail: float = movement.length()
@@ -357,13 +296,11 @@ func _update_trail_lines(delta: float = 0.0) -> void:
 		_latest_trail_normals.clear()
 		_latest_trail_half_widths.clear()
 		_latest_trail_total_distance = 0.0
-
 		_energy_line.clear_points()
 		_trail_aura.clear_points()
 		if _unified_shape != null:
 			_unified_shape.polygon = PackedVector2Array()
 			_unified_shape.uv = PackedVector2Array()
-
 		if _unified_contour != null:
 			_unified_contour.clear_points()
 		return
@@ -386,38 +323,9 @@ func _rebuild_trail_lines() -> void:
 		_trail_aura.add_point(_trail_aura.to_local(aura_point))
 
 	var energy_material := _energy_line.material as ShaderMaterial
-	if energy_material != null and not energy_mask_diagnostic_mode:
+	if energy_material != null:
 		energy_material.set_shader_parameter("trail_progress_start", 0.0)
 		energy_material.set_shader_parameter("trail_progress_scale", 1.0)
-
-
-
-func _update_fracture_shader_parameters(total_distance: float) -> void:
-	var shedding_strength: float = 1.0 if shedding_enabled else 0.0
-	var along_scale: float = maxf(total_distance / maxf(_trail_aura.width, 1.0), 1.0)
-
-	var body_material := _unified_shape.material as ShaderMaterial
-	if body_material != null:
-		body_material.set_shader_parameter("shedding_amount", shedding_strength)
-		body_material.set_shader_parameter("crack_along_scale", along_scale)
-		body_material.set_shader_parameter("crack_width_scale", 1.8)
-	if _surface_fragment_material != null:
-		_surface_fragment_material.set_shader_parameter("shedding_amount", shedding_strength)
-
-	if energy_mask_diagnostic_mode:
-		var energy_diagnostic_material := _energy_line.material as ShaderMaterial
-		if energy_diagnostic_material != null:
-			energy_diagnostic_material.set_shader_parameter("crack_along_scale", maxf(total_distance / maxf(_energy_line.width, 1.0), 1.0))
-			energy_diagnostic_material.set_shader_parameter("crack_width_scale", 1.8)
-
-	var aura_material := _trail_aura.material as ShaderMaterial
-	if aura_material != null:
-		aura_material.set_shader_parameter("crack_along_scale", along_scale)
-		aura_material.set_shader_parameter("crack_width_scale", 1.8)
-		if aura_mask_diagnostic_mode:
-			aura_material.set_shader_parameter("diagnostic_mode", true)
-		else:
-			aura_material.set_shader_parameter("shedding_amount", shedding_strength)
 
 
 func _get_animated_trail_point(index: int, apply_head_offset: bool = true) -> Vector2:
@@ -518,8 +426,6 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 	_latest_trail_half_widths = half_widths.duplicate()
 	_latest_trail_total_distance = total_distance
 
-	_update_fracture_shader_parameters(total_distance)
-
 	var polygon_points := PackedVector2Array()
 	var polygon_uvs := PackedVector2Array()
 	var root_direction: Vector2 = tangents[0]
@@ -538,9 +444,6 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 		polygon_points.append(_unified_shape.to_local(world_point))
 		polygon_uvs.append(Vector2(0.0, arc_t))
 
-
-	# Keep a single continuous ribbon. Shader alpha masks reveal the fractures;
-	# no surface sections are removed from the polygon or rendered as islands.
 	for i in range(1, path.size() - 1):
 		var right_point: Vector2 = path[i] - normals[i] * half_widths[i]
 		polygon_points.append(_unified_shape.to_local(right_point))
@@ -553,6 +456,7 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 		var left_point: Vector2 = path[i] + normals[i] * half_widths[i]
 		polygon_points.append(_unified_shape.to_local(left_point))
 		polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 0.0))
+
 
 	_unified_shape.polygon = polygon_points
 	_unified_shape.uv = polygon_uvs
@@ -580,7 +484,8 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 				)
 		_unified_contour.points = contour_points
 
-	# Release visual fragments from the geometry frozen at the landing moment.
+	# The trail geometry and candidate ranges have now been rebuilt for this
+	# frame. Release at most one queued fragment from those fresh surviving ranges.
 	_process_shed_burst(delta)
 
 
@@ -601,7 +506,7 @@ func _connect_landing_feedback() -> void:
 
 
 func _on_landing_confirmed(event: LandingEvent) -> void:
-	if aura_mask_diagnostic_mode or energy_mask_diagnostic_mode or not shedding_enabled or event == null:
+	if not shedding_enabled or event == null:
 		return
 
 	var ball := get_parent() as CharacterBody2D
@@ -685,12 +590,20 @@ func _spawn_surface_fragment(
 		return
 
 	var sequence_value: float = float(_shed_sequence)
-	var burst_progress: float = float(burst_index) / float(maxi(SURFACE_BURST_PIECE_COUNT - 1, 1))
+	var anchor_progress: float
+	match burst_index:
+		0:
+			anchor_progress = 0.34
+		1:
+			anchor_progress = 0.45
+		2:
+			anchor_progress = 0.57
+		_:
+			anchor_progress = 0.68
 	var progress: float = clampf(
-		lerpf(0.22, 0.56, burst_progress)
-		+ sin(sequence_value * 8.13 + 1.7) * 0.035,
-		0.18,
-		0.62
+		anchor_progress + sin(sequence_value * 8.13 + 1.7) * 0.024,
+		0.30,
+		0.73
 	)
 	var center_distance: float = total_distance * progress
 	var fragment_length: float = lerpf(

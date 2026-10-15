@@ -7,6 +7,8 @@ uniform int palette_mode = 0;
 uniform float trail_progress_start = 0.0;
 uniform float trail_progress_scale = 1.0;
 
+
+// ------------------------------------------------------------
 // Small deterministic noise
 // ------------------------------------------------------------
 
@@ -225,7 +227,6 @@ void fragment()
 	// Additive HDR accents stay subtle at rest but connect to the orb's bright rim.
 	final_color += edge_color * edge_strength * 0.43;
 
-	// The inner energy remains continuous; only the outer comet skin carries fissures.
 	COLOR = vec4(
 		final_color,
 		energy
