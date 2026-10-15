@@ -49,7 +49,7 @@ float shedding_pattern(vec2 uv) {
 void fragment() {
 	vec4 aura_color = COLOR;
 	float along = clamp(UV.x, 0.0, 1.0);
-	float fracture_progress = smoothstep(0.10, 0.38, along) * shedding_amount;
+	float fracture_progress = smoothstep(0.36, 0.78, along) * shedding_amount;
 	float fracture_mask = mix(1.0, shedding_pattern(UV), fracture_progress);
 	COLOR = vec4(aura_color.rgb, aura_color.a * fracture_mask);
 }
