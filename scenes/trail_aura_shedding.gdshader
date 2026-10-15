@@ -8,7 +8,6 @@ shader_type canvas_item;
 // UV.x = along the trail; UV.y = across its width.
 // The trail remains one continuous Line2D; only alpha is removed.
 uniform float cutout_strength = 1.0;
-uniform float cutout_width = 1.0;
 
 float crack_segment_distance(vec2 uv, vec2 start_uv, vec2 end_uv) {
 	vec2 pa = uv - start_uv;
@@ -23,72 +22,72 @@ float crack_segment_distance(vec2 uv, vec2 start_uv, vec2 end_uv) {
 float gap_0_distance(vec2 uv) {
 	return min(
 		min(
-			min(crack_segment_distance(uv, vec2(0.375, 0.015), vec2(0.389, 0.190)),
-				crack_segment_distance(uv, vec2(0.389, 0.190), vec2(0.380, 0.390))),
-			min(crack_segment_distance(uv, vec2(0.380, 0.390), vec2(0.397, 0.590)),
-				crack_segment_distance(uv, vec2(0.397, 0.590), vec2(0.384, 0.805)))
+			min(crack_segment_distance(uv, vec2(0.389, 0.000), vec2(0.405, 0.200)),
+				crack_segment_distance(uv, vec2(0.405, 0.200), vec2(0.394, 0.400))),
+			min(crack_segment_distance(uv, vec2(0.394, 0.400), vec2(0.412, 0.600)),
+				crack_segment_distance(uv, vec2(0.412, 0.600), vec2(0.399, 0.800)))
 		),
-		crack_segment_distance(uv, vec2(0.384, 0.805), vec2(0.393, 0.985))
+		crack_segment_distance(uv, vec2(0.399, 0.800), vec2(0.408, 1.000))
 	);
 }
 
 float gap_1_distance(vec2 uv) {
 	return min(
 		min(
-			min(crack_segment_distance(uv, vec2(0.492, 0.015), vec2(0.508, 0.205)),
-				crack_segment_distance(uv, vec2(0.508, 0.205), vec2(0.498, 0.405))),
-			min(crack_segment_distance(uv, vec2(0.498, 0.405), vec2(0.515, 0.610)),
-				crack_segment_distance(uv, vec2(0.515, 0.610), vec2(0.502, 0.805)))
+			min(crack_segment_distance(uv, vec2(0.492, 0.000), vec2(0.508, 0.200)),
+				crack_segment_distance(uv, vec2(0.508, 0.200), vec2(0.498, 0.400))),
+			min(crack_segment_distance(uv, vec2(0.498, 0.400), vec2(0.515, 0.600)),
+				crack_segment_distance(uv, vec2(0.515, 0.600), vec2(0.502, 0.800)))
 		),
-		crack_segment_distance(uv, vec2(0.502, 0.805), vec2(0.511, 0.985))
+		crack_segment_distance(uv, vec2(0.502, 0.800), vec2(0.511, 1.000))
 	);
 }
 
 float gap_2_distance(vec2 uv) {
 	return min(
 		min(
-			min(crack_segment_distance(uv, vec2(0.618, 0.015), vec2(0.602, 0.205)),
-				crack_segment_distance(uv, vec2(0.602, 0.205), vec2(0.615, 0.405))),
-			min(crack_segment_distance(uv, vec2(0.615, 0.405), vec2(0.598, 0.610)),
-				crack_segment_distance(uv, vec2(0.598, 0.610), vec2(0.611, 0.810)))
+			min(crack_segment_distance(uv, vec2(0.618, 0.000), vec2(0.602, 0.200)),
+				crack_segment_distance(uv, vec2(0.602, 0.200), vec2(0.615, 0.400))),
+			min(crack_segment_distance(uv, vec2(0.615, 0.400), vec2(0.598, 0.600)),
+				crack_segment_distance(uv, vec2(0.598, 0.600), vec2(0.611, 0.800)))
 		),
-		crack_segment_distance(uv, vec2(0.611, 0.810), vec2(0.602, 0.985))
+		crack_segment_distance(uv, vec2(0.611, 0.800), vec2(0.602, 1.000))
 	);
 }
 
 float gap_3_distance(vec2 uv) {
 	return min(
 		min(
-			min(crack_segment_distance(uv, vec2(0.700, 0.015), vec2(0.717, 0.200)),
-				crack_segment_distance(uv, vec2(0.717, 0.200), vec2(0.706, 0.405))),
-			min(crack_segment_distance(uv, vec2(0.706, 0.405), vec2(0.723, 0.610)),
-				crack_segment_distance(uv, vec2(0.723, 0.610), vec2(0.708, 0.805)))
+			min(crack_segment_distance(uv, vec2(0.700, 0.000), vec2(0.717, 0.200)),
+				crack_segment_distance(uv, vec2(0.717, 0.200), vec2(0.706, 0.400))),
+			min(crack_segment_distance(uv, vec2(0.706, 0.400), vec2(0.723, 0.600)),
+				crack_segment_distance(uv, vec2(0.723, 0.600), vec2(0.708, 0.800)))
 		),
-		crack_segment_distance(uv, vec2(0.708, 0.805), vec2(0.716, 0.985))
+		crack_segment_distance(uv, vec2(0.708, 0.800), vec2(0.716, 1.000))
 	);
 }
 
 float gap_4_distance(vec2 uv) {
 	return min(
 		min(
-			min(crack_segment_distance(uv, vec2(0.825, 0.015), vec2(0.807, 0.200)),
-				crack_segment_distance(uv, vec2(0.807, 0.200), vec2(0.821, 0.405))),
-			min(crack_segment_distance(uv, vec2(0.821, 0.405), vec2(0.803, 0.610)),
-				crack_segment_distance(uv, vec2(0.803, 0.610), vec2(0.817, 0.805)))
+			min(crack_segment_distance(uv, vec2(0.825, 0.000), vec2(0.807, 0.200)),
+				crack_segment_distance(uv, vec2(0.807, 0.200), vec2(0.821, 0.400))),
+			min(crack_segment_distance(uv, vec2(0.821, 0.400), vec2(0.803, 0.600)),
+				crack_segment_distance(uv, vec2(0.803, 0.600), vec2(0.817, 0.800)))
 		),
-		crack_segment_distance(uv, vec2(0.817, 0.805), vec2(0.808, 0.985))
+		crack_segment_distance(uv, vec2(0.817, 0.800), vec2(0.808, 1.000))
 	);
 }
 
 float gap_5_distance(vec2 uv) {
 	return min(
 		min(
-			min(crack_segment_distance(uv, vec2(0.905, 0.015), vec2(0.923, 0.200)),
-				crack_segment_distance(uv, vec2(0.923, 0.200), vec2(0.911, 0.405))),
-			min(crack_segment_distance(uv, vec2(0.911, 0.405), vec2(0.927, 0.610)),
-				crack_segment_distance(uv, vec2(0.927, 0.610), vec2(0.913, 0.805)))
+			min(crack_segment_distance(uv, vec2(0.905, 0.000), vec2(0.923, 0.200)),
+				crack_segment_distance(uv, vec2(0.923, 0.200), vec2(0.911, 0.400))),
+			min(crack_segment_distance(uv, vec2(0.911, 0.400), vec2(0.927, 0.600)),
+				crack_segment_distance(uv, vec2(0.927, 0.600), vec2(0.913, 0.800)))
 		),
-		crack_segment_distance(uv, vec2(0.913, 0.805), vec2(0.921, 0.985))
+		crack_segment_distance(uv, vec2(0.913, 0.800), vec2(0.921, 1.000))
 	);
 }
 
