@@ -376,9 +376,9 @@ func _update_fracture_shader_parameters(total_distance: float) -> void:
 	var along_scale: float = maxf(total_distance / maxf(_trail_aura.width, 1.0), 1.0)
 	var aura_material := _trail_aura.material as ShaderMaterial
 	if aura_material != null:
+		aura_material.set_shader_parameter("crack_along_scale", along_scale)
+		aura_material.set_shader_parameter("crack_width_scale", 1.8)
 		if aura_mask_diagnostic_mode:
-			aura_material.set_shader_parameter("crack_along_scale", along_scale)
-			aura_material.set_shader_parameter("crack_width_scale", 1.8)
 			aura_material.set_shader_parameter("diagnostic_mode", true)
 		else:
 			aura_material.set_shader_parameter("shedding_amount", shedding_strength)
