@@ -75,8 +75,8 @@ void fragment() {
 	body_color = mix(body_color, inner_energy_color, center_energy * (0.14 + 0.16 * head_energy));
 	body_color *= flow;
 
-	// Keep the translucent skin continuous from the orb into the tail.
-	// Landing fragments are supplied by the outer-aura layer, never this body.
+	// Keep the translucent skin and outer aura cutouts aligned. The separate
+	// EnergyLine is not masked, so its inner energy stays continuous.
 	float translucent_body_alpha = mix(0.30, 0.10, smoothstep(0.02, 0.92, along));
 	float body_alpha = translucent_body_alpha;
 	float core_alpha = center_energy * 0.10 * head_energy;
