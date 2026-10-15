@@ -215,17 +215,17 @@ func _update_crack_alignment_map() -> void:
 	var aura_begin_cap: float = 0.0
 	var aura_end_cap: float = 0.0
 	if _energy_line.begin_cap_mode == Line2D.LINE_CAP_BOX or _energy_line.begin_cap_mode == Line2D.LINE_CAP_ROUND:
-		var begin_factor: float = energy_curve.sample_baked(0.0) if energy_curve != null else 1.0
-		energy_begin_cap = _energy_line.width * 0.5 * begin_factor
+		var energy_begin_factor: float = energy_curve.sample_baked(0.0) if energy_curve != null else 1.0
+		energy_begin_cap = _energy_line.width * 0.5 * energy_begin_factor
 	if _energy_line.end_cap_mode == Line2D.LINE_CAP_BOX or _energy_line.end_cap_mode == Line2D.LINE_CAP_ROUND:
-		var end_factor: float = energy_curve.sample_baked(1.0) if energy_curve != null else 1.0
-		energy_end_cap = _energy_line.width * 0.5 * end_factor
+		var energy_end_factor: float = energy_curve.sample_baked(1.0) if energy_curve != null else 1.0
+		energy_end_cap = _energy_line.width * 0.5 * energy_end_factor
 	if _trail_aura.begin_cap_mode == Line2D.LINE_CAP_BOX or _trail_aura.begin_cap_mode == Line2D.LINE_CAP_ROUND:
-		var begin_factor: float = aura_curve.sample_baked(0.0) if aura_curve != null else 1.0
-		aura_begin_cap = _trail_aura.width * 0.5 * begin_factor
+		var aura_begin_factor: float = aura_curve.sample_baked(0.0) if aura_curve != null else 1.0
+		aura_begin_cap = _trail_aura.width * 0.5 * aura_begin_factor
 	if _trail_aura.end_cap_mode == Line2D.LINE_CAP_BOX or _trail_aura.end_cap_mode == Line2D.LINE_CAP_ROUND:
-		var end_factor: float = aura_curve.sample_baked(1.0) if aura_curve != null else 1.0
-		aura_end_cap = _trail_aura.width * 0.5 * end_factor
+		var aura_end_factor: float = aura_curve.sample_baked(1.0) if aura_curve != null else 1.0
+		aura_end_cap = _trail_aura.width * 0.5 * aura_end_factor
 
 	# LINE_TEXTURE_STRETCH includes round/box cap distance in its U-coordinate scale.
 	var energy_uv_length: float = energy_length + energy_begin_cap + energy_end_cap
