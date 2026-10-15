@@ -1000,7 +1000,6 @@ func _apply_visual_palette() -> void:
 	var aura_material := _trail_aura.material as ShaderMaterial
 	if aura_material != null:
 		aura_material = aura_material.duplicate() as ShaderMaterial
-		aura_material.set_shader_parameter("shedding_amount", 1.0 if shedding_enabled else 0.0)
 		_trail_aura.material = aura_material
 
 	# All filaments share the contour hue; each strand's own gradient retains
