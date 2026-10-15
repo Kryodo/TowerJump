@@ -13,6 +13,7 @@ extends Node2D
 
 const UNIFIED_HEAD_ARC_SEGMENTS: int = 20
 const ORB_RIM_CENTER_RADIUS_RATIO: float = 0.93
+const AURA_MASK_DIAGNOSTIC_SHADER = preload("res://scenes/trail_aura_mask_diagnostic.gdshader")
 const SURFACE_BURST_PIECE_COUNT: int = 4
 const CHEVRON_BURST_PIECE_COUNT: int = 5
 const SURFACE_BURST_SPACING: float = 0.055
@@ -23,6 +24,7 @@ const CHEVRON_BURST_SPACING: float = 0.035
 
 @export_category("Comet Shedding")
 @export var shedding_enabled: bool = true
+@export var aura_mask_diagnostic_mode: bool = false
 
 @onready var _energy_line: Line2D = $EnergyLine
 @onready var _trail_aura: Line2D = $TrailAura
@@ -75,10 +77,39 @@ func _ready() -> void:
 			_particle_emitters.append(emitter)
 
 	_apply_visual_palette()
+	if aura_mask_diagnostic_mode:
+		_apply_aura_mask_diagnostic_mode()
 	_initialize_aura_fragment_material()
 	call_deferred("_connect_landing_feedback")
 	_update_trail_lines()
 	_update_rim_breath()
+
+
+func _apply_aura_mask_diagnostic_mode() -> void:
+	# Test the real TrailAura Line2D, with its live points and UVs. The mode is
+	# enabled only in scenes/aura_mask_diagnostic.tscn, never in the normal game.
+	var diagnostic_ball := get_parent() as CharacterBody2D
+	if diagnostic_ball != null:
+		diagnostic_ball.set_physics_process(false)
+		diagnostic_ball.velocity = Vector2.ZERO
+
+	if _unified_shape != null:
+		_unified_shape.visible = false
+	_energy_line.visible = false
+	if _unified_contour != null:
+		_unified_contour.visible = false
+	if _ball_visual != null:
+		_ball_visual.visible = false
+	for emitter in _particle_emitters:
+		emitter.emitting = false
+		emitter.visible = false
+
+	var diagnostic_material := ShaderMaterial.new()
+	diagnostic_material.shader = AURA_MASK_DIAGNOSTIC_SHADER
+	diagnostic_material.set_shader_parameter("crack_along_scale", 1.0)
+	diagnostic_material.set_shader_parameter("crack_width_scale", 1.8)
+	diagnostic_material.set_shader_parameter("diagnostic_mode", true)
+	_trail_aura.material = diagnostic_material
 
 
 func _initialize_aura_fragment_material() -> void:
@@ -251,6 +282,11 @@ func _process(delta: float) -> void:
 		return
 
 	_trail_time += delta
+	if aura_mask_diagnostic_mode:
+		ball.global_position = Vector2(
+			360.0 + sin(_trail_time * 0.92) * 210.0,
+			640.0 + sin(_trail_time * 0.57 + 0.8) * 145.0
+		)
 	if not shedding_enabled:
 		_surface_burst_remaining = 0
 		_surface_burst_clock = 0.0
@@ -330,8 +366,6 @@ func _rebuild_trail_lines() -> void:
 
 
 func _update_fracture_shader_parameters(total_distance: float) -> void:
-	# Keep the continuous body/aura ribbon setup, but do not force one shader
-	# mask onto every layer. Their masks can be validated independently.
 	var shedding_strength: float = 1.0 if shedding_enabled else 0.0
 	var body_material := _unified_shape.material as ShaderMaterial
 	if body_material != null:
@@ -340,6 +374,15 @@ func _update_fracture_shader_parameters(total_distance: float) -> void:
 		_surface_fragment_material.set_shader_parameter("shedding_amount", shedding_strength)
 
 	var along_scale: float = maxf(total_distance / maxf(_trail_aura.width, 1.0), 1.0)
+	var aura_material := _trail_aura.material as ShaderMaterial
+	if aura_material != null:
+		if aura_mask_diagnostic_mode:
+			aura_material.set_shader_parameter("crack_along_scale", along_scale)
+			aura_material.set_shader_parameter("crack_width_scale", 1.8)
+			aura_material.set_shader_parameter("diagnostic_mode", true)
+		else:
+			aura_material.set_shader_parameter("shedding_amount", shedding_strength)
+
 	var energy_material := _energy_line.material as ShaderMaterial
 	if energy_material != null:
 		energy_material.set_shader_parameter("crack_along_scale", along_scale)
@@ -526,7 +569,7 @@ func _connect_landing_feedback() -> void:
 
 
 func _on_landing_confirmed(event: LandingEvent) -> void:
-	if not shedding_enabled or event == null:
+	if aura_mask_diagnostic_mode or not shedding_enabled or event == null:
 		return
 
 	var ball := get_parent() as CharacterBody2D
