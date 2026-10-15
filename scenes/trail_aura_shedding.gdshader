@@ -3,7 +3,8 @@ shader_type canvas_item;
 // Reference-inspired fracture mask for the outer translucent trail aura only.
 // TrailAura remains one continuous Line2D; these gaps are produced by alpha,
 // not by splitting the live trail into separate geometry.
-uniform float shedding_amount = 1.0;
+// Independent control for aura cutout visibility; not tied to detached fragments.
+uniform float cutout_strength = 1.0;
 
 float hash_cell(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
@@ -58,7 +59,7 @@ void fragment() {
 	float along = clamp(UV.x, 0.0, 1.0);
 	// The aura gradient is already fading rapidly after ~0.27, so bring the
 	// shard cutouts in while the body still has enough opacity to show them.
-	float fracture_progress = smoothstep(0.18, 0.46, along) * clamp(shedding_amount, 0.0, 1.0);
+	float fracture_progress = smoothstep(0.18, 0.46, along) * clamp(cutout_strength, 0.0, 1.0);
 	float fracture_mask = mix(1.0, shedding_pattern(UV), fracture_progress);
 
 	// Only the outer aura's alpha changes. RGB, trail points, and EnergyLine
