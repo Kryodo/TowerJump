@@ -3,6 +3,7 @@ shader_type canvas_item;
 uniform float crack_along_scale = 1.0;
 uniform float crack_width_scale = 1.8;
 uniform float shedding_amount = 1.0;
+uniform bool alignment_test_single_crack = false;
 
 float crack_segment_distance(vec2 uv, vec2 start_uv, vec2 end_uv) {
 	float scale = max(crack_along_scale, 1.0);
@@ -34,6 +35,9 @@ float crack_keep(vec2 uv) {
 		)
 	);
 	float cut_long = 1.0 - smoothstep(0.020 * crack_width_scale, 0.043 * crack_width_scale, long_crack);
+	if (alignment_test_single_crack) {
+		return 1.0 - cut_long;
+	}
 
 	// A separate hooked split starts well inside the trail and runs out to one edge.
 	float side_crack = min(
