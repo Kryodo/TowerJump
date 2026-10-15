@@ -56,7 +56,9 @@ void fragment() {
 	// Preserve the continuous neck near the orb; introduce fractures farther
 	// down the trail and reach the full reference pattern near the tail.
 	float along = clamp(UV.x, 0.0, 1.0);
-	float fracture_progress = smoothstep(0.36, 0.78, along) * clamp(shedding_amount, 0.0, 1.0);
+	// The aura gradient is already fading rapidly after ~0.27, so bring the
+	// shard cutouts in while the body still has enough opacity to show them.
+	float fracture_progress = smoothstep(0.18, 0.46, along) * clamp(shedding_amount, 0.0, 1.0);
 	float fracture_mask = mix(1.0, shedding_pattern(UV), fracture_progress);
 
 	// Only the outer aura's alpha changes. RGB, trail points, and EnergyLine
