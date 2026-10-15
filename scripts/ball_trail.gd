@@ -27,7 +27,6 @@ const CHEVRON_BURST_SPACING: float = 0.035
 @export var shedding_enabled: bool = true
 @export var aura_mask_diagnostic_mode: bool = false
 @export var energy_mask_diagnostic_mode: bool = false
-@export var crack_alignment_diagnostic_mode: bool = false
 
 @onready var _energy_line: Line2D = $EnergyLine
 @onready var _trail_aura: Line2D = $TrailAura
@@ -49,8 +48,6 @@ var _shed_sequence: int = 0
 var _detached_shed_fragments: Array[Dictionary] = []
 var _aura_fragment_material: CanvasItemMaterial
 var _surface_fragment_material: ShaderMaterial
-var _crack_alignment_map_image: Image
-var _crack_alignment_map_texture: ImageTexture
 
 var _latest_trail_path: Array[Vector2] = []
 var _latest_trail_distances: Array[float] = []
@@ -82,13 +79,10 @@ func _ready() -> void:
 			_particle_emitters.append(emitter)
 
 	_apply_visual_palette()
-	_initialize_crack_alignment_map()
 	if aura_mask_diagnostic_mode:
 		_apply_aura_mask_diagnostic_mode()
 	elif energy_mask_diagnostic_mode:
 		_apply_energy_mask_diagnostic_mode()
-	elif crack_alignment_diagnostic_mode:
-		_apply_crack_alignment_diagnostic_mode()
 	_initialize_aura_fragment_material()
 	call_deferred("_connect_landing_feedback")
 	_update_trail_lines()
@@ -143,130 +137,6 @@ func _apply_energy_mask_diagnostic_mode() -> void:
 	var diagnostic_material := ShaderMaterial.new()
 	diagnostic_material.shader = ENERGY_MASK_DIAGNOSTIC_SHADER
 	_energy_line.material = diagnostic_material
-
-
-func _apply_crack_alignment_diagnostic_mode() -> void:
-	# Isolate both active ribbons while preserving their real materials, widths, and UVs.
-	var diagnostic_ball := get_parent() as CharacterBody2D
-	if diagnostic_ball != null:
-		diagnostic_ball.set_physics_process(false)
-		diagnostic_ball.velocity = Vector2.ZERO
-
-	if _unified_shape != null:
-		_unified_shape.visible = false
-	if _unified_contour != null:
-		_unified_contour.visible = false
-	if _ball_visual != null:
-		_ball_visual.visible = false
-	_trail_aura.visible = true
-	_energy_line.visible = true
-	for emitter in _particle_emitters:
-		emitter.emitting = false
-		emitter.visible = false
-
-	var aura_material := _trail_aura.material as ShaderMaterial
-	if aura_material != null:
-		aura_material.set_shader_parameter("alignment_test_single_crack", true)
-		aura_material.set_shader_parameter("shedding_amount", 1.0)
-
-	var energy_material := _energy_line.material as ShaderMaterial
-	if energy_material != null:
-		energy_material.set_shader_parameter("alignment_test_single_crack", true)
-		energy_material.set_shader_parameter("use_crack_alignment_map", true)
-		energy_material.set_shader_parameter("crack_alignment_map", _crack_alignment_map_texture)
-		energy_material.set_shader_parameter("shedding_amount", 1.0)
-
-
-func _initialize_crack_alignment_map() -> void:
-	# RG stores common aura progress and the local energy/aura width ratio.
-	_crack_alignment_map_image = Image.create(256, 1, false, Image.FORMAT_RGBAF)
-	_crack_alignment_map_image.fill(Color(0.0, 1.0, 0.0, 1.0))
-	_crack_alignment_map_texture = ImageTexture.create_from_image(_crack_alignment_map_image)
-	var energy_material := _energy_line.material as ShaderMaterial
-	if energy_material != null:
-		energy_material.set_shader_parameter("crack_alignment_map", _crack_alignment_map_texture)
-
-
-func _update_crack_alignment_map() -> void:
-	if _crack_alignment_map_image == null or _crack_alignment_map_texture == null or _points.size() < 2:
-		return
-
-	var energy_path: Array[Vector2] = []
-	var aura_path: Array[Vector2] = []
-	for point_index in range(_points.size()):
-		energy_path.append(_get_animated_trail_point(point_index, true))
-		aura_path.append(_get_animated_trail_point(point_index, false))
-
-	var energy_distances: Array[float] = [0.0]
-	var aura_distances: Array[float] = [0.0]
-	for point_index in range(1, _points.size()):
-		energy_distances.append(energy_distances[point_index - 1] + energy_path[point_index - 1].distance_to(energy_path[point_index]))
-		aura_distances.append(aura_distances[point_index - 1] + aura_path[point_index - 1].distance_to(aura_path[point_index]))
-
-	var energy_length: float = energy_distances[energy_distances.size() - 1]
-	var aura_length: float = aura_distances[aura_distances.size() - 1]
-	if energy_length < 0.001 or aura_length < 0.001:
-		return
-
-	var aura_curve: Curve = _trail_aura.width_curve
-	var energy_curve: Curve = _energy_line.width_curve
-	var energy_begin_cap: float = 0.0
-	var energy_end_cap: float = 0.0
-	var aura_begin_cap: float = 0.0
-	var aura_end_cap: float = 0.0
-	if _energy_line.begin_cap_mode == Line2D.LINE_CAP_BOX or _energy_line.begin_cap_mode == Line2D.LINE_CAP_ROUND:
-		var energy_begin_factor: float = energy_curve.sample_baked(0.0) if energy_curve != null else 1.0
-		energy_begin_cap = _energy_line.width * 0.5 * energy_begin_factor
-	if _energy_line.end_cap_mode == Line2D.LINE_CAP_BOX or _energy_line.end_cap_mode == Line2D.LINE_CAP_ROUND:
-		var energy_end_factor: float = energy_curve.sample_baked(1.0) if energy_curve != null else 1.0
-		energy_end_cap = _energy_line.width * 0.5 * energy_end_factor
-	if _trail_aura.begin_cap_mode == Line2D.LINE_CAP_BOX or _trail_aura.begin_cap_mode == Line2D.LINE_CAP_ROUND:
-		var aura_begin_factor: float = aura_curve.sample_baked(0.0) if aura_curve != null else 1.0
-		aura_begin_cap = _trail_aura.width * 0.5 * aura_begin_factor
-	if _trail_aura.end_cap_mode == Line2D.LINE_CAP_BOX or _trail_aura.end_cap_mode == Line2D.LINE_CAP_ROUND:
-		var aura_end_factor: float = aura_curve.sample_baked(1.0) if aura_curve != null else 1.0
-		aura_end_cap = _trail_aura.width * 0.5 * aura_end_factor
-
-	# LINE_TEXTURE_STRETCH includes round/box cap distance in its U-coordinate scale.
-	var energy_uv_length: float = energy_length + energy_begin_cap + energy_end_cap
-	var aura_uv_length: float = aura_length + aura_begin_cap + aura_end_cap
-	var energy_uv_progress: Array[float] = [0.0]
-	var aura_uv_progress: Array[float] = [0.0]
-	for point_index in range(1, _points.size()):
-		energy_uv_progress.append((energy_begin_cap + energy_distances[point_index]) / energy_uv_length)
-		aura_uv_progress.append((aura_begin_cap + aura_distances[point_index]) / aura_uv_length)
-
-	var energy_material := _energy_line.material as ShaderMaterial
-	if energy_material == null:
-		return
-
-	var sample_count: int = _crack_alignment_map_image.get_width()
-	var segment_index: int = 0
-	for sample_index in range(sample_count):
-		var energy_progress: float = float(sample_index) / float(sample_count - 1)
-		while segment_index < _points.size() - 2 and energy_uv_progress[segment_index + 1] < energy_progress:
-			segment_index += 1
-
-		var energy_start: float = energy_uv_progress[segment_index]
-		var energy_end: float = energy_uv_progress[segment_index + 1]
-		var segment_span: float = maxf(energy_end - energy_start, 0.000001)
-		var segment_t: float = clampf((energy_progress - energy_start) / segment_span, 0.0, 1.0)
-		var aura_progress: float = lerpf(
-			aura_uv_progress[segment_index],
-			aura_uv_progress[segment_index + 1],
-			segment_t
-		)
-
-		var aura_width_factor: float = aura_curve.sample_baked(aura_progress) if aura_curve != null else 1.0
-		var energy_width_factor: float = energy_curve.sample_baked(energy_progress) if energy_curve != null else 1.0
-		var aura_width: float = maxf(_trail_aura.width * aura_width_factor, 0.001)
-		var energy_width: float = maxf(_energy_line.width * energy_width_factor, 0.0)
-		var width_ratio: float = energy_width / aura_width
-
-		_crack_alignment_map_image.set_pixel(sample_index, 0, Color(aura_progress, width_ratio, 0.0, 1.0))
-
-	_crack_alignment_map_texture.update(_crack_alignment_map_image)
-	energy_material.set_shader_parameter("crack_alignment_map", _crack_alignment_map_texture)
 
 
 func _initialize_aura_fragment_material() -> void:
@@ -439,7 +309,7 @@ func _process(delta: float) -> void:
 		return
 
 	_trail_time += delta
-	if aura_mask_diagnostic_mode or energy_mask_diagnostic_mode or crack_alignment_diagnostic_mode:
+	if aura_mask_diagnostic_mode or energy_mask_diagnostic_mode:
 		ball.global_position = Vector2(
 			360.0 + sin(_trail_time * 0.92) * 210.0,
 			640.0 + sin(_trail_time * 0.57 + 0.8) * 145.0
@@ -514,9 +384,6 @@ func _rebuild_trail_lines() -> void:
 		var aura_point: Vector2 = _get_animated_trail_point(point_index, false)
 		_energy_line.add_point(_energy_line.to_local(energy_point))
 		_trail_aura.add_point(_trail_aura.to_local(aura_point))
-
-	if crack_alignment_diagnostic_mode:
-		_update_crack_alignment_map()
 
 	var energy_material := _energy_line.material as ShaderMaterial
 	if energy_material != null and not energy_mask_diagnostic_mode:
@@ -741,7 +608,7 @@ func _connect_landing_feedback() -> void:
 
 
 func _on_landing_confirmed(event: LandingEvent) -> void:
-	if aura_mask_diagnostic_mode or energy_mask_diagnostic_mode or crack_alignment_diagnostic_mode or not shedding_enabled or event == null:
+	if aura_mask_diagnostic_mode or energy_mask_diagnostic_mode or not shedding_enabled or event == null:
 		return
 
 	var ball := get_parent() as CharacterBody2D
