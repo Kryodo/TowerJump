@@ -42,10 +42,10 @@ float shedding_pattern(vec2 uv) {
 
 	// Keep selected shard interiors and remove the irregular seams between them.
 	float border_distance = max(second_distance - nearest_distance, 0.0);
-	float shard_interior = smoothstep(0.018, 0.072, border_distance);
+	float shard_interior = smoothstep(0.045, 0.145, border_distance);
 	float shard_kept = 1.0 - smoothstep(
-		0.40,
-		0.70,
+		0.32,
+		0.62,
 		hash_cell(nearest_cell + vec2(7.7, 19.3))
 	);
 	return shard_interior * shard_kept;
@@ -59,8 +59,15 @@ void fragment() {
 	float along = clamp(UV.x, 0.0, 1.0);
 	// The aura gradient is already fading rapidly after ~0.27, so bring the
 	// shard cutouts in while the body still has enough opacity to show them.
-	float fracture_progress = smoothstep(0.18, 0.46, along) * clamp(cutout_strength, 0.0, 1.0);
-	float fracture_mask = mix(1.0, shedding_pattern(UV), fracture_progress);
+	float fracture_progress = smoothstep(0.14, 0.38, along) * clamp(cutout_strength, 0.0, 1.0);
+	float shard_mask = shedding_pattern(UV);
+	float fracture_mask = mix(1.0, shard_mask, fracture_progress);
+
+	// Hard-discard deeply cut regions once the fracture pattern is established.
+	// EnergyLine is a separate draw call and remains continuous underneath.
+	if (fracture_progress >= 0.80 && cutout_strength >= 0.99 && fracture_mask < 0.25) {
+		discard;
+	}
 
 	// Only the outer aura's alpha changes. RGB, trail points, and EnergyLine
 	// remain untouched, so the Line2D geometry is never split into islands.
