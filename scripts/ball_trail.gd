@@ -23,6 +23,7 @@ const CHEVRON_BURST_SPACING: float = 0.035
 
 @export_category("Comet Shedding")
 @export var shedding_enabled: bool = true
+@export var aura_mask_diagnostic_mode: bool = false
 
 @onready var _energy_line: Line2D = $EnergyLine
 @onready var _trail_aura: Line2D = $TrailAura
@@ -75,10 +76,26 @@ func _ready() -> void:
 			_particle_emitters.append(emitter)
 
 	_apply_visual_palette()
+	if aura_mask_diagnostic_mode:
+		_apply_aura_mask_diagnostic_visibility()
 	_initialize_aura_fragment_material()
 	call_deferred("_connect_landing_feedback")
 	_update_trail_lines()
 	_update_rim_breath()
+
+
+func _apply_aura_mask_diagnostic_visibility() -> void:
+	# This temporary test deliberately renders only TrailAura. Keep geometry
+	# intact, but hide layers that could fill or obscure the mask's alpha holes.
+	if _unified_shape != null:
+		_unified_shape.visible = false
+	_energy_line.visible = false
+	if _unified_contour != null:
+		_unified_contour.visible = false
+	if _ball_visual != null:
+		_ball_visual.visible = false
+	for emitter in _particle_emitters:
+		emitter.visible = false
 
 
 func _initialize_aura_fragment_material() -> void:
@@ -322,23 +339,34 @@ func _rebuild_trail_lines() -> void:
 		_energy_line.add_point(_energy_line.to_local(energy_point))
 		_trail_aura.add_point(_trail_aura.to_local(aura_point))
 
+	var energy_material := _energy_line.material as ShaderMaterial
+	if energy_material != null:
+		energy_material.set_shader_parameter("trail_progress_start", 0.0)
+		energy_material.set_shader_parameter("trail_progress_scale", 1.0)
 
 
-func _update_fracture_shader_parameters() -> void:
-	# All visible trail layers share one stable shader mask. This prevents the
-	# energy stream or aura from filling transparent fractures in the body.
+
+func _update_fracture_shader_parameters(total_distance: float) -> void:
+	# Keep the unified body shader's existing mask controls separate from the
+	# test's hand-shaped aura mask and the pre-31cc energy mask.
 	var shedding_strength: float = 1.0 if shedding_enabled else 0.0
 	var body_material := _unified_shape.material as ShaderMaterial
-	var aura_material := _trail_aura.material as ShaderMaterial
-	var energy_material := _energy_line.material as ShaderMaterial
 	if body_material != null:
 		body_material.set_shader_parameter("shedding_amount", shedding_strength)
-	if aura_material != null:
-		aura_material.set_shader_parameter("shedding_amount", shedding_strength)
-	if energy_material != null:
-		energy_material.set_shader_parameter("shedding_amount", shedding_strength)
 	if _surface_fragment_material != null:
 		_surface_fragment_material.set_shader_parameter("shedding_amount", shedding_strength)
+
+	var along_scale: float = maxf(total_distance / maxf(_trail_aura.width, 1.0), 1.0)
+	var aura_material := _trail_aura.material as ShaderMaterial
+	if aura_material != null:
+		aura_material.set_shader_parameter("crack_along_scale", along_scale)
+		aura_material.set_shader_parameter("crack_width_scale", 1.80)
+		aura_material.set_shader_parameter("diagnostic_mode", aura_mask_diagnostic_mode)
+
+	var energy_material := _energy_line.material as ShaderMaterial
+	if energy_material != null:
+		energy_material.set_shader_parameter("crack_along_scale", along_scale)
+		energy_material.set_shader_parameter("crack_width_scale", 0.90)
 
 func _get_animated_trail_point(index: int, apply_head_offset: bool = true) -> Vector2:
 	var point: Vector2 = _points[index]
@@ -438,7 +466,7 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 	_latest_trail_half_widths = half_widths.duplicate()
 	_latest_trail_total_distance = total_distance
 
-	_update_fracture_shader_parameters()
+	_update_fracture_shader_parameters(total_distance)
 
 	var polygon_points := PackedVector2Array()
 	var polygon_uvs := PackedVector2Array()
@@ -521,7 +549,7 @@ func _connect_landing_feedback() -> void:
 
 
 func _on_landing_confirmed(event: LandingEvent) -> void:
-	if not shedding_enabled or event == null:
+	if aura_mask_diagnostic_mode or not shedding_enabled or event == null:
 		return
 
 	var ball := get_parent() as CharacterBody2D
