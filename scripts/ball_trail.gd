@@ -404,6 +404,13 @@ func _update_fracture_shader_parameters(total_distance: float) -> void:
 	if _surface_fragment_material != null:
 		_surface_fragment_material.set_shader_parameter("shedding_amount", shedding_strength)
 
+	if not energy_mask_diagnostic_mode:
+		var energy_material := _energy_line.material as ShaderMaterial
+		if energy_material != null:
+			energy_material.set_shader_parameter("shedding_amount", shedding_strength)
+			energy_material.set_shader_parameter("crack_along_scale", along_scale)
+			energy_material.set_shader_parameter("crack_width_scale", 1.8)
+
 	if energy_mask_diagnostic_mode:
 		var energy_diagnostic_material := _energy_line.material as ShaderMaterial
 		if energy_diagnostic_material != null:
