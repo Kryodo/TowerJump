@@ -208,26 +208,52 @@ func _update_crack_alignment_map() -> void:
 	if energy_length < 0.001 or aura_length < 0.001:
 		return
 
+	var aura_curve: Curve = _trail_aura.width_curve
+	var energy_curve: Curve = _energy_line.width_curve
+	var energy_begin_cap: float = 0.0
+	var energy_end_cap: float = 0.0
+	var aura_begin_cap: float = 0.0
+	var aura_end_cap: float = 0.0
+	if _energy_line.begin_cap_mode == Line2D.LINE_CAP_BOX or _energy_line.begin_cap_mode == Line2D.LINE_CAP_ROUND:
+		var begin_factor: float = energy_curve.sample_baked(0.0) if energy_curve != null else 1.0
+		energy_begin_cap = _energy_line.width * 0.5 * begin_factor
+	if _energy_line.end_cap_mode == Line2D.LINE_CAP_BOX or _energy_line.end_cap_mode == Line2D.LINE_CAP_ROUND:
+		var end_factor: float = energy_curve.sample_baked(1.0) if energy_curve != null else 1.0
+		energy_end_cap = _energy_line.width * 0.5 * end_factor
+	if _trail_aura.begin_cap_mode == Line2D.LINE_CAP_BOX or _trail_aura.begin_cap_mode == Line2D.LINE_CAP_ROUND:
+		var begin_factor: float = aura_curve.sample_baked(0.0) if aura_curve != null else 1.0
+		aura_begin_cap = _trail_aura.width * 0.5 * begin_factor
+	if _trail_aura.end_cap_mode == Line2D.LINE_CAP_BOX or _trail_aura.end_cap_mode == Line2D.LINE_CAP_ROUND:
+		var end_factor: float = aura_curve.sample_baked(1.0) if aura_curve != null else 1.0
+		aura_end_cap = _trail_aura.width * 0.5 * end_factor
+
+	# LINE_TEXTURE_STRETCH includes round/box cap distance in its U-coordinate scale.
+	var energy_uv_length: float = energy_length + energy_begin_cap + energy_end_cap
+	var aura_uv_length: float = aura_length + aura_begin_cap + aura_end_cap
+	var energy_uv_progress: Array[float] = [0.0]
+	var aura_uv_progress: Array[float] = [0.0]
+	for point_index in range(1, _points.size()):
+		energy_uv_progress.append((energy_begin_cap + energy_distances[point_index]) / energy_uv_length)
+		aura_uv_progress.append((aura_begin_cap + aura_distances[point_index]) / aura_uv_length)
+
 	var energy_material := _energy_line.material as ShaderMaterial
 	if energy_material == null:
 		return
 
-	var aura_curve: Curve = _trail_aura.width_curve
-	var energy_curve: Curve = _energy_line.width_curve
 	var sample_count: int = _crack_alignment_map_image.get_width()
 	var segment_index: int = 0
 	for sample_index in range(sample_count):
 		var energy_progress: float = float(sample_index) / float(sample_count - 1)
-		while segment_index < _points.size() - 2 and energy_distances[segment_index + 1] / energy_length < energy_progress:
+		while segment_index < _points.size() - 2 and energy_uv_progress[segment_index + 1] < energy_progress:
 			segment_index += 1
 
-		var energy_start: float = energy_distances[segment_index] / energy_length
-		var energy_end: float = energy_distances[segment_index + 1] / energy_length
+		var energy_start: float = energy_uv_progress[segment_index]
+		var energy_end: float = energy_uv_progress[segment_index + 1]
 		var segment_span: float = maxf(energy_end - energy_start, 0.000001)
 		var segment_t: float = clampf((energy_progress - energy_start) / segment_span, 0.0, 1.0)
 		var aura_progress: float = lerpf(
-			aura_distances[segment_index] / aura_length,
-			aura_distances[segment_index + 1] / aura_length,
+			aura_uv_progress[segment_index],
+			aura_uv_progress[segment_index + 1],
 			segment_t
 		)
 
