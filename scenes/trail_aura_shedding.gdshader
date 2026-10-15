@@ -1,75 +1,128 @@
 shader_type canvas_item;
 
-// Reference-inspired fracture mask for the outer translucent trail aura only.
-// TrailAura remains one continuous Line2D; these gaps are produced by alpha,
-// not by splitting the live trail into separate geometry.
-// Independent control for aura cutout visibility; not tied to detached fragments.
+// Transverse alpha cutouts adapted from the proven crack-distance mask in
+// experiment-comet-crack-masking. Positions follow the fragment-gap rhythm
+// of experiment-comet-shedding, starting after the connected ~38% head.
+//
+// Line2D UV convention used by the working crack mask:
+// UV.x = along the trail; UV.y = across its width.
+// The trail remains one continuous Line2D; only alpha is removed.
 uniform float cutout_strength = 1.0;
+uniform float cutout_width = 1.0;
 
-float hash_cell(vec2 p) {
-	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+float crack_segment_distance(vec2 uv, vec2 start_uv, vec2 end_uv) {
+	vec2 pa = uv - start_uv;
+	vec2 ba = end_uv - start_uv;
+	float h = clamp(dot(pa, ba) / max(dot(ba, ba), 0.000001), 0.0, 1.0);
+	return length(pa - ba * h);
 }
 
-// Deterministic, irregular shard cells adapted directly from
-// experiment-comet-shedding so the pattern and longitudinal layout match.
-float shedding_pattern(vec2 uv) {
-	vec2 p = vec2(uv.x * 10.5, uv.y * 3.0);
-	vec2 base_cell = floor(p);
-	vec2 local_pos = fract(p);
-	float nearest_distance = 10.0;
-	float second_distance = 10.0;
-	vec2 nearest_cell = base_cell;
-
-	for (int y = -1; y <= 1; y++) {
-		for (int x = -1; x <= 1; x++) {
-			vec2 neighbor = vec2(float(x), float(y));
-			vec2 cell_id = base_cell + neighbor;
-			vec2 jitter = vec2(
-				hash_cell(cell_id + vec2(2.71, 8.13)),
-				hash_cell(cell_id + vec2(17.23, 4.21))
-			);
-			vec2 site = neighbor + vec2(0.20) + jitter * 0.60;
-			float site_distance = length(local_pos - site);
-			if (site_distance < nearest_distance) {
-				second_distance = nearest_distance;
-				nearest_distance = site_distance;
-				nearest_cell = cell_id;
-			} else if (site_distance < second_distance) {
-				second_distance = site_distance;
-			}
-		}
-	}
-
-	// Keep selected shard interiors and remove the irregular seams between them.
-	float border_distance = max(second_distance - nearest_distance, 0.0);
-	float shard_interior = smoothstep(0.045, 0.145, border_distance);
-	float shard_kept = 1.0 - smoothstep(
-		0.32,
-		0.62,
-		hash_cell(nearest_cell + vec2(7.7, 19.3))
+// Each fracture crosses almost the entire ribbon width, with small alternating
+// jogs along the trail axis. This reproduces chipped, oblique fragment edges
+// rather than producing a field of isolated interior cells.
+float gap_0_distance(vec2 uv) {
+	return min(
+		min(
+			min(crack_segment_distance(uv, vec2(0.375, 0.015), vec2(0.389, 0.190)),
+				crack_segment_distance(uv, vec2(0.389, 0.190), vec2(0.380, 0.390))),
+			min(crack_segment_distance(uv, vec2(0.380, 0.390), vec2(0.397, 0.590)),
+				crack_segment_distance(uv, vec2(0.397, 0.590), vec2(0.384, 0.805)))
+		),
+		crack_segment_distance(uv, vec2(0.384, 0.805), vec2(0.393, 0.985))
 	);
-	return shard_interior * shard_kept;
+}
+
+float gap_1_distance(vec2 uv) {
+	return min(
+		min(
+			min(crack_segment_distance(uv, vec2(0.492, 0.015), vec2(0.508, 0.205)),
+				crack_segment_distance(uv, vec2(0.508, 0.205), vec2(0.498, 0.405))),
+			min(crack_segment_distance(uv, vec2(0.498, 0.405), vec2(0.515, 0.610)),
+				crack_segment_distance(uv, vec2(0.515, 0.610), vec2(0.502, 0.805)))
+		),
+		crack_segment_distance(uv, vec2(0.502, 0.805), vec2(0.511, 0.985))
+	);
+}
+
+float gap_2_distance(vec2 uv) {
+	return min(
+		min(
+			min(crack_segment_distance(uv, vec2(0.618, 0.015), vec2(0.602, 0.205)),
+				crack_segment_distance(uv, vec2(0.602, 0.205), vec2(0.615, 0.405))),
+			min(crack_segment_distance(uv, vec2(0.615, 0.405), vec2(0.598, 0.610)),
+				crack_segment_distance(uv, vec2(0.598, 0.610), vec2(0.611, 0.810)))
+		),
+		crack_segment_distance(uv, vec2(0.611, 0.810), vec2(0.602, 0.985))
+	);
+}
+
+float gap_3_distance(vec2 uv) {
+	return min(
+		min(
+			min(crack_segment_distance(uv, vec2(0.700, 0.015), vec2(0.717, 0.200)),
+				crack_segment_distance(uv, vec2(0.717, 0.200), vec2(0.706, 0.405))),
+			min(crack_segment_distance(uv, vec2(0.706, 0.405), vec2(0.723, 0.610)),
+				crack_segment_distance(uv, vec2(0.723, 0.610), vec2(0.708, 0.805)))
+		),
+		crack_segment_distance(uv, vec2(0.708, 0.805), vec2(0.716, 0.985))
+	);
+}
+
+float gap_4_distance(vec2 uv) {
+	return min(
+		min(
+			min(crack_segment_distance(uv, vec2(0.825, 0.015), vec2(0.807, 0.200)),
+				crack_segment_distance(uv, vec2(0.807, 0.200), vec2(0.821, 0.405))),
+			min(crack_segment_distance(uv, vec2(0.821, 0.405), vec2(0.803, 0.610)),
+				crack_segment_distance(uv, vec2(0.803, 0.610), vec2(0.817, 0.805)))
+		),
+		crack_segment_distance(uv, vec2(0.817, 0.805), vec2(0.808, 0.985))
+	);
+}
+
+float gap_5_distance(vec2 uv) {
+	return min(
+		min(
+			min(crack_segment_distance(uv, vec2(0.905, 0.015), vec2(0.923, 0.200)),
+				crack_segment_distance(uv, vec2(0.923, 0.200), vec2(0.911, 0.405))),
+			min(crack_segment_distance(uv, vec2(0.911, 0.405), vec2(0.927, 0.610)),
+				crack_segment_distance(uv, vec2(0.927, 0.610), vec2(0.913, 0.805)))
+		),
+		crack_segment_distance(uv, vec2(0.913, 0.805), vec2(0.921, 0.985))
+	);
+}
+
+float fracture_keep(vec2 uv) {
+	// The first cut marks the end of the connected head. Subsequent cuts
+	// separate long surviving sections all the way toward the tail.
+	float d0 = gap_0_distance(uv);
+	float d1 = gap_1_distance(uv);
+	float d2 = gap_2_distance(uv);
+	float d3 = gap_3_distance(uv);
+	float d4 = gap_4_distance(uv);
+	float d5 = gap_5_distance(uv);
+
+	float cut0 = 1.0 - smoothstep(0.008, 0.023, d0);
+	float cut1 = 1.0 - smoothstep(0.010, 0.027, d1);
+	float cut2 = 1.0 - smoothstep(0.008, 0.024, d2);
+	float cut3 = 1.0 - smoothstep(0.011, 0.028, d3);
+	float cut4 = 1.0 - smoothstep(0.008, 0.023, d4);
+	float cut5 = 1.0 - smoothstep(0.010, 0.026, d5);
+
+	float cut = max(max(max(cut0, cut1), max(cut2, cut3)), max(cut4, cut5));
+	return 1.0 - cut;
 }
 
 void fragment() {
-	vec4 aura_color = COLOR;
+	vec4 aura = COLOR;
+	float crack_mask = fracture_keep(UV);
+	float keep_surface = mix(1.0, crack_mask, clamp(cutout_strength, 0.0, 1.0));
 
-	// Preserve the continuous neck near the orb; introduce fractures farther
-	// down the trail and reach the full reference pattern near the tail.
-	float along = clamp(UV.x, 0.0, 1.0);
-	// The aura gradient is already fading rapidly after ~0.27, so bring the
-	// shard cutouts in while the body still has enough opacity to show them.
-	float fracture_progress = smoothstep(0.14, 0.38, along) * clamp(cutout_strength, 0.0, 1.0);
-	float shard_mask = shedding_pattern(UV);
-	float fracture_mask = mix(1.0, shard_mask, fracture_progress);
-
-	// Hard-discard deeply cut regions once the fracture pattern is established.
-	// EnergyLine is a separate draw call and remains continuous underneath.
-	if (fracture_progress >= 0.80 && cutout_strength >= 0.99 && fracture_mask < 0.25) {
+	// Fully remove the core of each cut; the soft edge is only anti-aliasing.
+	// EnergyLine is a separate draw call and is intentionally left untouched.
+	if (keep_surface < 0.08 && cutout_strength >= 0.99) {
 		discard;
 	}
-
-	// Only the outer aura's alpha changes. RGB, trail points, and EnergyLine
-	// remain untouched, so the Line2D geometry is never split into islands.
-	COLOR = vec4(aura_color.rgb, aura_color.a * fracture_mask);
+	aura.a *= keep_surface;
+	COLOR = aura;
 }
