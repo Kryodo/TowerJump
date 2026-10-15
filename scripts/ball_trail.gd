@@ -367,13 +367,16 @@ func _rebuild_trail_lines() -> void:
 
 func _update_fracture_shader_parameters(total_distance: float) -> void:
 	var shedding_strength: float = 1.0 if shedding_enabled else 0.0
+	var along_scale: float = maxf(total_distance / maxf(_trail_aura.width, 1.0), 1.0)
+
 	var body_material := _unified_shape.material as ShaderMaterial
 	if body_material != null:
 		body_material.set_shader_parameter("shedding_amount", shedding_strength)
+		body_material.set_shader_parameter("crack_along_scale", along_scale)
+		body_material.set_shader_parameter("crack_width_scale", 1.8)
 	if _surface_fragment_material != null:
 		_surface_fragment_material.set_shader_parameter("shedding_amount", shedding_strength)
 
-	var along_scale: float = maxf(total_distance / maxf(_trail_aura.width, 1.0), 1.0)
 	var aura_material := _trail_aura.material as ShaderMaterial
 	if aura_material != null:
 		aura_material.set_shader_parameter("crack_along_scale", along_scale)
@@ -386,7 +389,8 @@ func _update_fracture_shader_parameters(total_distance: float) -> void:
 	var energy_material := _energy_line.material as ShaderMaterial
 	if energy_material != null:
 		energy_material.set_shader_parameter("crack_along_scale", along_scale)
-		energy_material.set_shader_parameter("crack_width_scale", 0.90)
+		energy_material.set_shader_parameter("crack_width_scale", 1.8)
+		energy_material.set_shader_parameter("shedding_amount", shedding_strength)
 
 func _get_animated_trail_point(index: int, apply_head_offset: bool = true) -> Vector2:
 	var point: Vector2 = _points[index]

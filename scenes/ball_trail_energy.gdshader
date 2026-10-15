@@ -3,6 +3,7 @@ shader_type canvas_item;
 uniform float flow_speed : hint_range(0.0, 4.0) = 0.9;
 uniform float energy_strength : hint_range(0.0, 3.0) = 1.35;
 uniform float filament_strength : hint_range(0.0, 4.0) = 1.7;
+uniform float shedding_amount = 1.0;
 uniform int palette_mode = 0;
 uniform float trail_progress_start = 0.0;
 uniform float trail_progress_scale = 1.0;
@@ -327,9 +328,10 @@ void fragment()
 	// Additive HDR accents stay subtle at rest but connect to the orb's bright rim.
 	final_color += edge_color * edge_strength * 0.43;
 
-	float crack_visibility = crack_keep(UV);
+	float crack_visibility = crack_keep(uv);
+	float keep_energy = mix(1.0, crack_visibility, clamp(shedding_amount, 0.0, 1.0));
 	COLOR = vec4(
 		final_color,
-		energy * crack_visibility
+		energy * keep_energy
 	);
 }
