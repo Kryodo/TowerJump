@@ -2,6 +2,52 @@ shader_type canvas_item;
 
 uniform int palette_mode = 0;
 uniform float fragment_alpha_boost = 1.0;
+// Independent alpha cutouts for the translucent skin; never controlled by fragment shedding.
+uniform float cutout_strength = 1.0;
+// Shared irregular shard pattern used by the outer aura. Keeping the same
+// cell function lets both translucent layers open in corresponding areas.
+float hash_cell(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float shedding_pattern(vec2 uv) {
+	vec2 p = vec2(uv.x * 10.5, uv.y * 3.0);
+	vec2 base_cell = floor(p);
+	vec2 local_pos = fract(p);
+	float nearest_distance = 10.0;
+	float second_distance = 10.0;
+	vec2 nearest_cell = base_cell;
+
+	for (int y = -1; y <= 1; y++) {
+		for (int x = -1; x <= 1; x++) {
+			vec2 neighbor = vec2(float(x), float(y));
+			vec2 cell_id = base_cell + neighbor;
+			vec2 jitter = vec2(
+				hash_cell(cell_id + vec2(2.71, 8.13)),
+				hash_cell(cell_id + vec2(17.23, 4.21))
+			);
+			vec2 site = neighbor + vec2(0.20) + jitter * 0.60;
+			float site_distance = length(local_pos - site);
+			if (site_distance < nearest_distance) {
+				second_distance = nearest_distance;
+				nearest_distance = site_distance;
+				nearest_cell = cell_id;
+			} else if (site_distance < second_distance) {
+				second_distance = site_distance;
+			}
+		}
+	}
+
+	float border_distance = max(second_distance - nearest_distance, 0.0);
+	float shard_interior = smoothstep(0.018, 0.072, border_distance);
+	float shard_kept = 1.0 - smoothstep(
+		0.40,
+		0.70,
+		hash_cell(nearest_cell + vec2(7.7, 19.3))
+	);
+	return shard_interior * shard_kept;
+}
+
 // UV.x follows the shared trail from head (0) to tail (1).
 // UV.y runs across the shape: edge (0/1), centre (0.5).
 void fragment() {
@@ -36,6 +82,13 @@ void fragment() {
 	float core_alpha = center_energy * 0.10 * head_energy;
 	float alpha = clamp((body_alpha + core_alpha) * tail_fade, 0.0, 0.94);
 	alpha = clamp(alpha * fragment_alpha_boost, 0.0, 0.94);
+
+	// Cut the translucent skin too. Otherwise this continuous lower layer
+	// fills the aura's transparent openings. EnergyLine is a separate node
+	// and remains untouched and continuous above these masked layers.
+	float fracture_progress = smoothstep(0.18, 0.46, along) * clamp(cutout_strength, 0.0, 1.0);
+	float fracture_mask = mix(1.0, shedding_pattern(UV), fracture_progress);
+	alpha *= fracture_mask;
 
 	COLOR = vec4(body_color, alpha);
 }
