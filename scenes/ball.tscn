@@ -9,6 +9,7 @@
 [ext_resource type="Texture2D" uid="uid://x4vri0ghb2xn" path="res://Assets/energy_particle_atlas.png" id="5_energy_atlas"]
 [ext_resource type="Shader" path="res://scenes/unified_comet.gdshader" id="7_unified_comet"]
 [ext_resource type="Shader" path="res://scenes/trail_aura_shedding.gdshader" id="8_aura_shedding"]
+[ext_resource type="Shader" uid="uid://b6opk25aat210" path="res://scenes/ball_rim_halo.gdshader" id="9_rim_halo"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_unified_comet"]
 shader = ExtResource("7_unified_comet")
@@ -16,6 +17,11 @@ shader_parameter/palette_mode = 0
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_aura_shedding"]
 shader = ExtResource("8_aura_shedding")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_rim_halo"]
+shader = ExtResource("9_rim_halo")
+shader_parameter/palette_mode = 0
+shader_parameter/body_radius = 0.755
 
 [sub_resource type="Gradient" id="Gradient_unified_contour"]
 offsets = PackedFloat32Array(0, 0.04, 0.12, 0.44, 0.56, 0.88, 0.96, 1)
@@ -250,6 +256,12 @@ texture = SubResource("AtlasTexture_ball_shard")
 lifetime = 0.85
 randomness = 0.65
 process_material = SubResource("ParticleProcessMaterial_comet_fragments")
+
+[node name="RimAura" type="Sprite2D" parent="."]
+material = SubResource("ShaderMaterial_rim_halo")
+z_index = -1
+scale = Vector2(0.62, 0.62)
+texture = ExtResource("3_f7cbr")
 
 [node name="Visual" type="Sprite2D" parent="." unique_id=213819786]
 material = SubResource("ShaderMaterial_4dx81")

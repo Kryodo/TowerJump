@@ -83,13 +83,13 @@ void fragment() {
 	float outer_transition = 1.0 - smoothstep(0.36, 0.99, d);
 	color += transition_color * outer_transition * 0.18;
 
-	// Restore the full orb rim. It is no longer directionally faded, so the
-	// trail cannot cut accidental gaps into the left or right sides.
+	// Keep a restrained interior contour. The broader force-field glow is
+	// rendered behind the orb, so this no longer needs to read as a hard border.
 	float outer_ring =
 		smoothstep(0.90, 0.93, d)
 		-
 		smoothstep(0.956, 0.982, d);
-	color += ring_color * outer_ring * rim_breath * 0.86;
+	color += ring_color * outer_ring * rim_breath * 0.22;
 
 	// The luminous centre gently pulses, but its edge is deliberately organic:
 	// low-frequency angular waves break the perfect circular silhouette.
