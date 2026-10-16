@@ -8,14 +8,10 @@
 [ext_resource type="Texture2D" uid="uid://cxkt5pn1abx0k" path="res://Assets/soft_energy_particle.png" id="4_jj7gd"]
 [ext_resource type="Texture2D" uid="uid://x4vri0ghb2xn" path="res://Assets/energy_particle_atlas.png" id="5_energy_atlas"]
 [ext_resource type="Shader" path="res://scenes/unified_comet.gdshader" id="7_unified_comet"]
-[ext_resource type="Shader" path="res://scenes/trail_aura_shedding.gdshader" id="8_aura_shedding"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_unified_comet"]
 shader = ExtResource("7_unified_comet")
 shader_parameter/palette_mode = 0
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_aura_shedding"]
-shader = ExtResource("8_aura_shedding")
 
 [sub_resource type="Gradient" id="Gradient_unified_contour"]
 offsets = PackedFloat32Array(0, 0.04, 0.12, 0.44, 0.56, 0.88, 0.96, 1)
@@ -200,7 +196,6 @@ end_cap_mode = 2
 antialiased = true
 
 [node name="TrailAura" type="Line2D" parent="TrailVisual" unique_id=333510001]
-material = SubResource("ShaderMaterial_aura_shedding")
 width = 40.0
 width_curve = SubResource("Curve_iijjg")
 gradient = SubResource("Gradient_f7kxq")
