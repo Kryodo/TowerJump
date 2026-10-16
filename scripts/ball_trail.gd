@@ -1009,11 +1009,6 @@ func _apply_visual_palette() -> void:
 	_set_line_gradient(_energy_line, energy_head, energy_tail)
 	_set_line_gradient(_trail_aura, aura_head, aura_tail)
 
-	var aura_material := _trail_aura.material as ShaderMaterial
-	if aura_material != null:
-		aura_material = aura_material.duplicate() as ShaderMaterial
-		_trail_aura.material = aura_material
-
 	# All filaments share the contour hue; each strand's own gradient retains
 	# its lower opacity so the lines feel grown from the same outer energy.
 	if _unified_contour != null:
