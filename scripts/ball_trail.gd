@@ -26,7 +26,7 @@ const CHEVRON_BURST_SPACING: float = 0.035
 
 @onready var _energy_line: Line2D = $EnergyLine
 @onready var _trail_aura: Line2D = $TrailAura
-@onready var _unified_shape: Polygon2D = get_node_or_null("UnifiedCometShape") as Polygon2D
+@onready var _unified_shape: MeshInstance2D = get_node_or_null("UnifiedCometShape") as MeshInstance2D
 @onready var _unified_contour: Line2D = get_node_or_null("UnifiedCometContour") as Line2D
 @onready var _ball_visual: Sprite2D = get_parent().get_node("Visual") as Sprite2D
 
@@ -63,6 +63,8 @@ func _ready() -> void:
 	z_index = -1
 	_previous_ball_position = global_position
 	_ball_surface_radius = _measure_ball_surface_radius()
+	if _unified_shape != null:
+		_unified_shape.mesh = ArrayMesh.new()
 
 	for node_name in [
 		"TrailParticles",
@@ -298,9 +300,7 @@ func _update_trail_lines(delta: float = 0.0) -> void:
 		_latest_trail_total_distance = 0.0
 		_energy_line.clear_points()
 		_trail_aura.clear_points()
-		if _unified_shape != null:
-			_unified_shape.polygon = PackedVector2Array()
-			_unified_shape.uv = PackedVector2Array()
+		_clear_unified_comet_mesh()
 		if _unified_contour != null:
 			_unified_contour.clear_points()
 		return
@@ -376,8 +376,7 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 		cumulative_distances.append(total_distance)
 
 	if total_distance < 0.01:
-		_unified_shape.polygon = PackedVector2Array()
-		_unified_shape.uv = PackedVector2Array()
+		_clear_unified_comet_mesh()
 		if _unified_contour != null:
 			_unified_contour.clear_points()
 		return
@@ -426,13 +425,15 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 	_latest_trail_half_widths = half_widths.duplicate()
 	_latest_trail_total_distance = total_distance
 
-	var polygon_points := PackedVector2Array()
-	var polygon_uvs := PackedVector2Array()
+	var mesh_vertices: Array[Vector2] = []
+	var mesh_uvs: Array[Vector2] = []
 	var root_direction: Vector2 = tangents[0]
 	var root_normal: Vector2 = normals[0]
+	var head_arc_points: Array[Vector2] = []
+	var head_arc_uvs: Array[Vector2] = []
 
-	# The living comet body always remains one uninterrupted ribbon. Landing
-	# fragments are built separately from narrow strips of the outer aura only.
+	# Triangulate the half-disc explicitly. Its curved boundary stays tucked
+	# beneath the orb, and its open diameter feeds into the trail strip below.
 	for arc_index in range(UNIFIED_HEAD_ARC_SEGMENTS + 1):
 		var arc_t: float = float(arc_index) / float(UNIFIED_HEAD_ARC_SEGMENTS)
 		var angle: float = PI * 0.5 + PI * arc_t
@@ -441,25 +442,59 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 			+ root_direction * _ball_surface_radius * cos(angle)
 			+ root_normal * _ball_surface_radius * sin(angle)
 		)
-		polygon_points.append(_unified_shape.to_local(world_point))
-		polygon_uvs.append(Vector2(0.0, arc_t))
+		head_arc_points.append(world_point)
+		head_arc_uvs.append(Vector2(0.0, arc_t))
 
-	for i in range(1, path.size() - 1):
-		var right_point: Vector2 = path[i] - normals[i] * half_widths[i]
-		polygon_points.append(_unified_shape.to_local(right_point))
-		polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 1.0))
+	var center_uv := Vector2(0.0, 0.5)
+	for arc_index in range(UNIFIED_HEAD_ARC_SEGMENTS):
+		_append_comet_mesh_triangle(
+			mesh_vertices, mesh_uvs,
+			path[0], head_arc_points[arc_index], head_arc_points[arc_index + 1],
+			center_uv, head_arc_uvs[arc_index], head_arc_uvs[arc_index + 1]
+		)
 
-	polygon_points.append(_unified_shape.to_local(path[path.size() - 1]))
-	polygon_uvs.append(Vector2(1.0, 0.5))
+	# Build each ribbon section from two triangles. Unlike one concave polygon,
+	# every primitive has a fixed topology, so moving vertices cannot alter
+	# Polygon2D's triangulation across frames.
+	var previous_left: Vector2 = head_arc_points[0]
+	var previous_right: Vector2 = head_arc_points[head_arc_points.size() - 1]
+	var previous_progress: float = 0.0
+	for i in range(1, path.size()):
+		var progress: float = cumulative_distances[i] / total_distance
+		var current_left: Vector2 = path[i] + normals[i] * half_widths[i]
+		var current_right: Vector2 = path[i] - normals[i] * half_widths[i]
+		var previous_left_uv := Vector2(previous_progress, 0.0)
+		var previous_right_uv := Vector2(previous_progress, 1.0)
+		var current_left_uv := Vector2(progress, 0.0)
+		var current_right_uv := Vector2(progress, 1.0)
 
-	for i in range(path.size() - 2, 0, -1):
-		var left_point: Vector2 = path[i] + normals[i] * half_widths[i]
-		polygon_points.append(_unified_shape.to_local(left_point))
-		polygon_uvs.append(Vector2(cumulative_distances[i] / total_distance, 0.0))
+		_append_comet_mesh_triangle(
+			mesh_vertices, mesh_uvs,
+			previous_left, previous_right, current_right,
+			previous_left_uv, previous_right_uv, current_right_uv
+		)
+		_append_comet_mesh_triangle(
+			mesh_vertices, mesh_uvs,
+			previous_left, current_right, current_left,
+			previous_left_uv, current_right_uv, current_left_uv
+		)
 
+		previous_left = current_left
+		previous_right = current_right
+		previous_progress = progress
 
-	_unified_shape.polygon = polygon_points
-	_unified_shape.uv = polygon_uvs
+	var surface_arrays: Array = []
+	surface_arrays.resize(Mesh.ARRAY_MAX)
+	surface_arrays[Mesh.ARRAY_VERTEX] = PackedVector2Array(mesh_vertices)
+	surface_arrays[Mesh.ARRAY_TEX_UV] = PackedVector2Array(mesh_uvs)
+
+	var unified_mesh := _unified_shape.mesh as ArrayMesh
+	if unified_mesh == null:
+		unified_mesh = ArrayMesh.new()
+		_unified_shape.mesh = unified_mesh
+	unified_mesh.clear_surfaces()
+	if mesh_vertices.size() >= 3:
+		unified_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, surface_arrays)
 
 	# Draw only the part of each flank that is outside the orb. Both ends begin
 	# at true circle intersections on the bright rim ridge, not at the ball's
@@ -487,6 +522,32 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 	# The trail geometry and candidate ranges have now been rebuilt for this
 	# frame. Release at most one queued fragment from those fresh surviving ranges.
 	_process_shed_burst(delta)
+
+
+func _append_comet_mesh_triangle(
+	vertices: Array[Vector2],
+	uvs: Array[Vector2],
+	point_a: Vector2,
+	point_b: Vector2,
+	point_c: Vector2,
+	uv_a: Vector2,
+	uv_b: Vector2,
+	uv_c: Vector2
+) -> void:
+	vertices.append(_unified_shape.to_local(point_a))
+	vertices.append(_unified_shape.to_local(point_b))
+	vertices.append(_unified_shape.to_local(point_c))
+	uvs.append(uv_a)
+	uvs.append(uv_b)
+	uvs.append(uv_c)
+
+
+func _clear_unified_comet_mesh() -> void:
+	if _unified_shape == null:
+		return
+	var unified_mesh := _unified_shape.mesh as ArrayMesh
+	if unified_mesh != null:
+		unified_mesh.clear_surfaces()
 
 
 func _connect_landing_feedback() -> void:
