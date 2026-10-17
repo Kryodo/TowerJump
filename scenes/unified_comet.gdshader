@@ -6,8 +6,6 @@ uniform float fragment_alpha_boost = 1.0;
 uniform float flow_speed = 0.9;
 // Controls how strongly the moving current appears in the translucent skin.
 uniform float surface_flow_strength : hint_range(0.0, 0.5) = 0.16;
-// Low-amplitude edge waves alter the membrane's visible silhouette without moving geometry.
-uniform float edge_undulation_strength : hint_range(0.0, 0.12) = 0.06;
 uniform float pulse_progress = -1.0;
 uniform float pulse_strength = 0.0;
 
@@ -55,18 +53,6 @@ void fragment() {
 	float center_energy = 1.0 - smoothstep(0.0, 0.95, abs(across * 2.0 - 1.0));
 	float tail_fade = 1.0 - smoothstep(0.74, 1.0, along);
 	float head_energy = 1.0 - smoothstep(0.02, 0.42, along);
-
-	// Broad, layered waves travel along the outer boundary. They move the
-	// visible membrane edge subtly, without perturbing the stable triangle mesh.
-	float edge_time = TIME * flow_speed;
-	float edge_wave =
-		0.62 * sin(along * 12.0 - edge_time * 1.15
-			+ sin(along * 4.8 + edge_time * 0.48) * 0.7)
-		+ 0.25 * sin(along * 23.0 - edge_time * 1.65 + 1.2)
-		+ 0.13 * sin(along * 7.0 + edge_time * 0.68);
-	float edge_distance = abs(across * 2.0 - 1.0);
-	float edge_threshold = 0.91 + edge_wave * edge_undulation_strength;
-	float edge_fade = 1.0 - smoothstep(edge_threshold, edge_threshold + 0.075, edge_distance);
 
 	float pulse_gate = step(0.0, pulse_progress);
 	float pulse_band = (
@@ -129,15 +115,14 @@ void fragment() {
 	// The travelling current briefly lights the membrane's outer edges as well as its core.
 	body_color += pulse_color * travelling_pulse * edge_mask * 0.52;
 
-	// Keep the skin continuous and translucent; the pulse changes its visible light
-	// without disturbing mesh geometry or physically shifting the outer edges.
+	// Keep the skin continuous and translucent. Its visible silhouette is now
+	// carried by the live mesh edge geometry; pulses add light without reshaping it.
 	float translucent_body_alpha = mix(0.30, 0.10, smoothstep(0.02, 0.92, along));
 	float body_alpha = translucent_body_alpha * mix(0.93, 1.06, surface_presence);
 	float core_alpha = center_energy * (0.10 + surface_current * 0.02) * head_energy;
 	float pulse_alpha = travelling_pulse * (0.025 + edge_mask * 0.11);
 	float alpha = clamp((body_alpha + core_alpha + pulse_alpha) * tail_fade, 0.0, 0.94);
 	alpha = clamp(alpha * fragment_alpha_boost, 0.0, 0.94);
-	alpha *= edge_fade;
 
 	COLOR = vec4(body_color, alpha);
 }
