@@ -6,6 +6,8 @@ uniform float filament_strength : hint_range(0.0, 4.0) = 1.7;
 uniform int palette_mode = 0;
 uniform float trail_progress_start = 0.0;
 uniform float trail_progress_scale = 1.0;
+uniform float pulse_progress = -1.0;
+uniform float pulse_strength = 0.0;
 
 
 // ------------------------------------------------------------
@@ -195,7 +197,18 @@ void fragment()
 	float edge_waver =
 		0.78 + 0.22 * sin(uv.x * 25.0 - time * 1.7 + sin(uv.x * 8.0 + time * 0.4));
 	float edge_strength = edge_ridge * edge_waver * trail_fade;
+
+	// The same travelling pulse used by the body and outer aura briefly
+	// strengthens the core and pushes a bright ridge toward the ribbon edges.
+	float pulse_gate = step(0.0, pulse_progress);
+	float pulse_band = (
+		1.0 - smoothstep(0.022, 0.105, abs(uv.x - pulse_progress))
+	) * pulse_gate;
+	float travelling_pulse = pulse_band * pulse_strength * trail_fade;
+	float pulse_edge = travelling_pulse * smoothstep(0.42, 0.82, edge_distance);
+	edge_strength = max(edge_strength, pulse_edge * 0.95);
 	energy = max(energy, edge_strength * 0.42);
+	energy = min(energy + travelling_pulse * 0.46, 2.0);
 
 
 	// Palette-matched energy stream: saturated blue or rich violet.
@@ -224,8 +237,9 @@ void fragment()
 		brightness
 	);
 
-	// Additive HDR accents stay subtle at rest but connect to the orb's bright rim.
+	// Additive HDR accents stay subtle at rest but flare briefly as the pulse passes.
 	final_color += edge_color * edge_strength * 0.43;
+	final_color += edge_color * travelling_pulse * 0.30;
 
 	COLOR = vec4(
 		final_color,
