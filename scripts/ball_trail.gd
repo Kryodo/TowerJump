@@ -26,6 +26,7 @@ const CHEVRON_BURST_SPACING: float = 0.035
 
 @onready var _energy_line: Line2D = $EnergyLine
 @onready var _trail_aura: Line2D = $TrailAura
+@onready var _trail_aura_halo: Line2D = $TrailAuraHalo
 @onready var _unified_shape: MeshInstance2D = get_node_or_null("UnifiedCometShape") as MeshInstance2D
 @onready var _unified_contour: Line2D = get_node_or_null("UnifiedCometContour") as Line2D
 @onready var _ball_visual: Sprite2D = get_parent().get_node("Visual") as Sprite2D
@@ -291,6 +292,9 @@ func _update_rim_breath() -> void:
 		var rim_aura_material := _rim_aura.material as ShaderMaterial
 		if rim_aura_material != null:
 			rim_aura_material.set_shader_parameter("rim_breath", rim_breath)
+	var aura_halo_material := _trail_aura_halo.material as ShaderMaterial
+	if aura_halo_material != null:
+		aura_halo_material.set_shader_parameter("rim_breath", rim_breath)
 	if _unified_contour != null:
 		_unified_contour.modulate = Color(rim_breath, rim_breath, rim_breath, 1.0)
 
@@ -305,6 +309,7 @@ func _update_trail_lines(delta: float = 0.0) -> void:
 		_latest_trail_total_distance = 0.0
 		_energy_line.clear_points()
 		_trail_aura.clear_points()
+		_trail_aura_halo.clear_points()
 		_clear_unified_comet_mesh()
 		if _unified_contour != null:
 			_unified_contour.clear_points()
@@ -317,6 +322,7 @@ func _update_trail_lines(delta: float = 0.0) -> void:
 func _rebuild_trail_lines() -> void:
 	_energy_line.clear_points()
 	_trail_aura.clear_points()
+	_trail_aura_halo.clear_points()
 	if _points.size() < 2:
 		return
 
@@ -325,6 +331,7 @@ func _rebuild_trail_lines() -> void:
 		var energy_point: Vector2 = _get_animated_trail_point(point_index, true)
 		var aura_point: Vector2 = _get_animated_trail_point(point_index, false)
 		_energy_line.add_point(_energy_line.to_local(energy_point))
+		_trail_aura_halo.add_point(_trail_aura_halo.to_local(aura_point))
 		_trail_aura.add_point(_trail_aura.to_local(aura_point))
 
 	var energy_material := _energy_line.material as ShaderMaterial
@@ -1046,6 +1053,12 @@ func _apply_visual_palette() -> void:
 			rim_aura_material.set_shader_parameter("palette_mode", visual_palette)
 			_rim_aura.material = rim_aura_material
 
+	var aura_halo_material := _trail_aura_halo.material as ShaderMaterial
+	if aura_halo_material != null:
+		aura_halo_material = aura_halo_material.duplicate() as ShaderMaterial
+		aura_halo_material.set_shader_parameter("palette_mode", visual_palette)
+		_trail_aura_halo.material = aura_halo_material
+
 	if _unified_shape != null:
 		var unified_material := _unified_shape.material as ShaderMaterial
 		if unified_material != null:
@@ -1061,6 +1074,7 @@ func _apply_visual_palette() -> void:
 
 	_set_line_gradient(_energy_line, energy_head, energy_tail)
 	_set_line_gradient(_trail_aura, aura_head, aura_tail)
+	_set_line_gradient(_trail_aura_halo, aura_head, aura_tail)
 
 	# All filaments share the contour hue; each strand's own gradient retains
 	# its lower opacity so the lines feel grown from the same outer energy.
