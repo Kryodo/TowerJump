@@ -6,6 +6,8 @@ uniform float fragment_alpha_boost = 1.0;
 uniform float flow_speed = 0.9;
 // Controls how strongly the moving current appears in the translucent skin.
 uniform float surface_flow_strength : hint_range(0.0, 0.5) = 0.16;
+uniform float pulse_progress = -1.0;
+uniform float pulse_strength = 0.0;
 
 // Deterministic noise shared with the inner energy shader.
 float hash21(vec2 p) {
@@ -51,6 +53,12 @@ void fragment() {
 	float center_energy = 1.0 - smoothstep(0.0, 0.95, abs(across * 2.0 - 1.0));
 	float tail_fade = 1.0 - smoothstep(0.74, 1.0, along);
 	float head_energy = 1.0 - smoothstep(0.02, 0.42, along);
+	float pulse_gate = step(0.0, pulse_progress);
+	float pulse_band = (
+		1.0 - smoothstep(0.025, 0.105, abs(along - pulse_progress))
+	) * pulse_gate;
+	float travelling_pulse = pulse_band * pulse_strength * tail_fade;
+	float edge_mask = smoothstep(0.24, 0.82, abs(across * 2.0 - 1.0));
 
 	float time = TIME * flow_speed;
 
@@ -84,28 +92,35 @@ void fragment() {
 	vec3 head_color;
 	vec3 tail_color;
 	vec3 inner_energy_color;
+	vec3 pulse_color;
 	if (palette_mode == 1) {
 		head_color = vec3(0.52, 0.10, 0.96);
 		tail_color = vec3(0.11, 0.014, 0.34);
 		inner_energy_color = vec3(1.12, 0.52, 1.65);
+		pulse_color = vec3(1.55, 0.78, 1.95);
 	} else {
 		head_color = vec3(0.035, 0.36, 0.92);
 		tail_color = vec3(0.006, 0.035, 0.25);
 		inner_energy_color = vec3(0.22, 0.88, 1.42);
+		pulse_color = vec3(0.70, 1.38, 1.90);
 	}
 
 	vec3 body_color = mix(head_color, tail_color, smoothstep(0.06, 0.94, along));
 	float core_influence = center_energy * (0.14 + 0.16 * head_energy);
 	core_influence += surface_presence * surface_flow_strength;
+	core_influence += travelling_pulse * 0.20;
 	body_color = mix(body_color, inner_energy_color, clamp(core_influence, 0.0, 0.65));
 	body_color *= flow;
+	// The travelling current briefly lights the membrane's outer edges as well as its core.
+	body_color += pulse_color * travelling_pulse * edge_mask * 0.52;
 
-	// Keep the skin continuous and translucent. The current only changes its
-	// apparent density slightly; geometry and outer edges remain untouched.
+	// Keep the skin continuous and translucent; the pulse changes its visible light
+	// without disturbing mesh geometry or physically shifting the outer edges.
 	float translucent_body_alpha = mix(0.30, 0.10, smoothstep(0.02, 0.92, along));
 	float body_alpha = translucent_body_alpha * mix(0.93, 1.06, surface_presence);
 	float core_alpha = center_energy * (0.10 + surface_current * 0.02) * head_energy;
-	float alpha = clamp((body_alpha + core_alpha) * tail_fade, 0.0, 0.94);
+	float pulse_alpha = travelling_pulse * (0.025 + edge_mask * 0.11);
+	float alpha = clamp((body_alpha + core_alpha + pulse_alpha) * tail_fade, 0.0, 0.94);
 	alpha = clamp(alpha * fragment_alpha_boost, 0.0, 0.94);
 
 	COLOR = vec4(body_color, alpha);
