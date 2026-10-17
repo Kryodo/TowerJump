@@ -45,6 +45,18 @@ var _shed_sequence: int = 0
 var _detached_shed_fragments: Array[Dictionary] = []
 var _aura_fragment_material: CanvasItemMaterial
 var _surface_fragment_material: ShaderMaterial
+var _visual_rng := RandomNumberGenerator.new()
+var _energy_filaments: Array[Dictionary] = []
+var _pulse_active: bool = false
+var _pulse_progress: float = -1.0
+var _pulse_cooldown: float = 0.55
+var _pulse_filament_progress: float = 0.48
+var _pulse_filament_enabled: bool = false
+var _pulse_filament_spawned: bool = false
+
+const ENERGY_PULSE_SPEED: float = 0.62
+const ENERGY_PULSE_END: float = 0.94
+const ENERGY_FILAMENT_MAX_ACTIVE: int = 8
 
 var _latest_trail_path: Array[Vector2] = []
 var _latest_trail_distances: Array[float] = []
@@ -63,6 +75,8 @@ var _landing_burst_snapshot_valid: bool = false
 func _ready() -> void:
 	z_index = -1
 	_previous_ball_position = global_position
+	_visual_rng.randomize()
+	_pulse_cooldown = _visual_rng.randf_range(0.35, 0.65)
 	_ball_surface_radius = _measure_ball_surface_radius()
 	if _unified_shape != null:
 		_unified_shape.mesh = ArrayMesh.new()
@@ -274,7 +288,9 @@ func _process(delta: float) -> void:
 			_points.pop_back()
 
 	_update_trail_lines(delta)
+	_update_energy_pulse(delta)
 	_update_detached_shed_fragments(delta)
+	_update_energy_filaments(delta)
 	_update_rim_breath()
 	_update_particle_emitters(current_world_position, movement, distance_from_trail)
 	_previous_ball_position = current_world_position
@@ -1000,6 +1016,198 @@ func _update_particle_emitters(
 			)
 
 
+
+func _update_energy_pulse(delta: float) -> void:
+	# A pulse travels from the orb toward the tail. Both shaders receive the
+	# same progress so the translucent skin, aura edges, and inner current flash together.
+	if (
+		_latest_trail_path.size() < 6
+		or _latest_trail_total_distance < 70.0
+	):
+		_pulse_active = false
+		_pulse_progress = -1.0
+		_pulse_cooldown = minf(_pulse_cooldown, 0.25)
+	else:
+		if not _pulse_active:
+			_pulse_cooldown -= delta
+			if _pulse_cooldown <= 0.0:
+				_start_energy_pulse()
+		else:
+			var previous_progress: float = _pulse_progress
+			_pulse_progress = minf(_pulse_progress + delta * ENERGY_PULSE_SPEED, 1.0)
+
+			if (
+				_pulse_filament_enabled
+				and not _pulse_filament_spawned
+				and previous_progress < _pulse_filament_progress
+				and _pulse_progress >= _pulse_filament_progress
+			):
+				_spawn_pulse_filament(_pulse_filament_progress)
+				_pulse_filament_spawned = true
+
+			if _pulse_progress >= ENERGY_PULSE_END:
+				_pulse_active = false
+				_pulse_progress = -1.0
+				_pulse_cooldown = _visual_rng.randf_range(0.65, 1.05)
+
+	var progress_for_shader: float = _pulse_progress if _pulse_active else -1.0
+	var strength_for_shader: float = 1.0 if _pulse_active else 0.0
+	var materials: Array[ShaderMaterial] = [
+		_unified_shape.material as ShaderMaterial,
+		_energy_line.material as ShaderMaterial,
+		_trail_aura.material as ShaderMaterial
+	]
+	for shader_material in materials:
+		if shader_material != null:
+			shader_material.set_shader_parameter("pulse_progress", progress_for_shader)
+			shader_material.set_shader_parameter("pulse_strength", strength_for_shader)
+
+
+func _start_energy_pulse() -> void:
+	_pulse_active = true
+	_pulse_progress = 0.0
+	_pulse_filament_progress = _visual_rng.randf_range(0.34, 0.67)
+	# Keep the ribbon lively, not electrically noisy: most pulses create a
+	# filament, while some remain pure travelling illumination.
+	_pulse_filament_enabled = _visual_rng.randf() < 0.72
+	_pulse_filament_spawned = false
+
+
+func _spawn_pulse_filament(progress: float) -> void:
+	if (
+		_latest_trail_path.size() < 6
+		or _latest_trail_total_distance < 90.0
+		or _energy_filaments.size() >= ENERGY_FILAMENT_MAX_ACTIVE
+	):
+		return
+
+	var section: Dictionary = _sample_trail_cross_section(
+		_latest_trail_total_distance * progress,
+		_latest_trail_path,
+		_latest_trail_distances,
+		_latest_trail_tangents,
+		_latest_trail_normals,
+		_latest_trail_half_widths
+	)
+	var center: Vector2 = section["position"]
+	var tangent: Vector2 = section["tangent"]
+	var normal: Vector2 = section["normal"]
+	var half_width: float = float(section["half_width"])
+	var side: float = -1.0 if _visual_rng.randf() < 0.5 else 1.0
+	var outward: Vector2 = normal * side
+	var anchor: Vector2 = center + outward * half_width * 0.86
+	var length: float = _visual_rng.randf_range(24.0, 40.0)
+
+	var offsets := PackedVector2Array()
+	offsets.append(Vector2.ZERO)
+	offsets.append(outward * length * 0.22 + tangent * _visual_rng.randf_range(-3.0, 3.0))
+	offsets.append(outward * length * 0.46 + tangent * _visual_rng.randf_range(-7.0, 7.0))
+	offsets.append(outward * length * 0.73 + tangent * _visual_rng.randf_range(-5.0, 8.0))
+	offsets.append(outward * length + tangent * _visual_rng.randf_range(-7.0, 7.0))
+
+	var lifetime: float = _visual_rng.randf_range(0.20, 0.31)
+	_spawn_energy_filament_line(
+		anchor,
+		offsets,
+		_visual_rng.randf_range(2.0, 2.8),
+		lifetime
+	)
+
+	# A minority of events split near the outer half into a shorter secondary arc.
+	if _visual_rng.randf() < 0.32 and _energy_filaments.size() < ENERGY_FILAMENT_MAX_ACTIVE:
+		var branch_origin: Vector2 = anchor + offsets[2]
+		var branch_direction: Vector2 = (outward + tangent * _visual_rng.randf_range(-0.48, 0.48)).normalized()
+		var branch_length: float = length * _visual_rng.randf_range(0.42, 0.62)
+		var branch_offsets := PackedVector2Array()
+		branch_offsets.append(Vector2.ZERO)
+		branch_offsets.append(branch_direction * branch_length * 0.36 + tangent * _visual_rng.randf_range(-3.0, 3.0))
+		branch_offsets.append(branch_direction * branch_length * 0.72 + tangent * _visual_rng.randf_range(-4.0, 4.0))
+		branch_offsets.append(branch_direction * branch_length)
+		_spawn_energy_filament_line(
+			branch_origin,
+			branch_offsets,
+			_visual_rng.randf_range(1.1, 1.6),
+			lifetime * 0.88
+		)
+
+
+func _spawn_energy_filament_line(
+	origin: Vector2,
+	point_offsets: PackedVector2Array,
+	line_width: float,
+	lifetime: float
+) -> void:
+	var world_root: Node2D = get_tree().current_scene as Node2D
+	if world_root == null:
+		world_root = get_parent() as Node2D
+	if world_root == null or point_offsets.size() < 2:
+		return
+
+	var filament := Line2D.new()
+	filament.name = "CometPulseFilament"
+	filament.z_as_relative = false
+	filament.z_index = -1
+	filament.width = line_width
+	filament.joint_mode = 2
+	filament.begin_cap_mode = 2
+	filament.end_cap_mode = 2
+	filament.antialiased = true
+
+	var additive := CanvasItemMaterial.new()
+	additive.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	filament.material = additive
+	filament.gradient = _make_filament_gradient()
+	world_root.add_child(filament)
+	filament.global_position = origin
+	for point_offset in point_offsets:
+		filament.add_point(point_offset)
+
+	_energy_filaments.append({
+		"line": filament,
+		"age": 0.0,
+		"lifetime": lifetime,
+		"base_width": line_width
+	})
+
+
+func _make_filament_gradient() -> Gradient:
+	var gradient := Gradient.new()
+	if visual_palette == 1:
+		gradient.set_color(0, Color(1.20, 0.82, 1.65, 0.92))
+		gradient.set_color(1, Color(0.58, 0.14, 1.25, 0.0))
+	else:
+		gradient.set_color(0, Color(0.62, 1.20, 1.70, 0.92))
+		gradient.set_color(1, Color(0.10, 0.42, 1.25, 0.0))
+	return gradient
+
+
+func _update_energy_filaments(delta: float) -> void:
+	for index in range(_energy_filaments.size() - 1, -1, -1):
+		var filament_data: Dictionary = _energy_filaments[index]
+		var line := filament_data.get("line") as Line2D
+		if not is_instance_valid(line):
+			_energy_filaments.remove_at(index)
+			continue
+
+		var age: float = float(filament_data["age"]) + delta
+		var lifetime: float = float(filament_data["lifetime"])
+		var t: float = clampf(age / maxf(lifetime, 0.001), 0.0, 1.0)
+		var attack: float = smoothstep(0.0, 0.10, t)
+		var fade: float = 1.0 - smoothstep(0.22, 1.0, t)
+		var modulate_color: Color = line.modulate
+		modulate_color.a = attack * fade
+		line.modulate = modulate_color
+		line.width = float(filament_data["base_width"]) * lerpf(1.0, 0.42, t)
+
+		filament_data["age"] = age
+		if age >= lifetime:
+			line.queue_free()
+			_energy_filaments.remove_at(index)
+		else:
+			_energy_filaments[index] = filament_data
+
+
+
 func _apply_visual_palette() -> void:
 	var energy_head: Color
 	var energy_tail: Color
@@ -1058,6 +1266,12 @@ func _apply_visual_palette() -> void:
 		energy_material = energy_material.duplicate() as ShaderMaterial
 		energy_material.set_shader_parameter("palette_mode", visual_palette)
 		_energy_line.material = energy_material
+
+	var aura_material := _trail_aura.material as ShaderMaterial
+	if aura_material != null:
+		aura_material = aura_material.duplicate() as ShaderMaterial
+		aura_material.set_shader_parameter("palette_mode", visual_palette)
+		_trail_aura.material = aura_material
 
 	_set_line_gradient(_energy_line, energy_head, energy_tail)
 	_set_line_gradient(_trail_aura, aura_head, aura_tail)
