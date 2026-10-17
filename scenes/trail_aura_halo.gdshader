@@ -24,8 +24,8 @@ void fragment() {
 	// Reveal the rim only at / outside the original aura edge. The wider
 	// carrier line gives the soft field room to fall away without clipping.
 	float outer_reveal = smoothstep(
-		rim_position - 0.012,
-		rim_position + 0.035,
+		rim_position - 0.008,
+		rim_position + 0.002,
 		edge_distance
 	);
 	float outer_falloff = 1.0 - smoothstep(
