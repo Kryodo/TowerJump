@@ -1,6 +1,8 @@
 shader_type canvas_item;
 
 uniform int palette_mode = 0;
+uniform float flow_speed = 0.9;
+uniform float edge_undulation_strength : hint_range(0.0, 0.12) = 0.06;
 uniform float pulse_progress = -1.0;
 uniform float pulse_strength = 0.0;
 
@@ -10,7 +12,19 @@ void fragment() {
 	vec4 aura = COLOR;
 	float along = clamp(UV.x, 0.0, 1.0);
 	float across = clamp(UV.y, 0.0, 1.0);
-	float edge_factor = smoothstep(0.42, 0.82, abs(across * 2.0 - 1.0));
+	float edge_distance = abs(across * 2.0 - 1.0);
+
+	// Keep the same wave phases as the translucent body so their silhouettes
+	// breathe together instead of revealing two separate, mismatched ribbons.
+	float edge_time = TIME * flow_speed;
+	float edge_wave =
+		0.62 * sin(along * 12.0 - edge_time * 1.15
+			+ sin(along * 4.8 + edge_time * 0.48) * 0.7)
+		+ 0.25 * sin(along * 23.0 - edge_time * 1.65 + 1.2)
+		+ 0.13 * sin(along * 7.0 + edge_time * 0.68);
+	float edge_threshold = 0.91 + edge_wave * edge_undulation_strength;
+	float edge_fade = 1.0 - smoothstep(edge_threshold, edge_threshold + 0.075, edge_distance);
+	float edge_factor = smoothstep(0.42, 0.82, edge_distance);
 	float pulse_gate = step(0.0, pulse_progress);
 	float pulse_band = (
 		1.0 - smoothstep(0.02, 0.105, abs(along - pulse_progress))
@@ -28,5 +42,6 @@ void fragment() {
 	aura.rgb = mix(aura.rgb, pulse_color, pulse * 0.12);
 	aura.rgb += pulse_color * edge_flash * 0.72;
 	aura.a = clamp(aura.a + pulse * 0.025 + edge_flash * 0.24, 0.0, 0.98);
+	aura.a *= edge_fade;
 	COLOR = aura;
 }
