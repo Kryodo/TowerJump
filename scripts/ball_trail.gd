@@ -297,9 +297,12 @@ func _process(delta: float) -> void:
 
 
 func _update_rim_breath() -> void:
-	# Keep the orb's rim shader and shared trail contour on the same pulse curve.
+	# Keep the orb rim, its outer halo, and the trail pulse origin visually linked.
 	var breathing: float = 0.5 + 0.5 * sin(_trail_time * 1.35)
 	var rim_breath: float = lerp(0.72, 1.0, breathing)
+	if _pulse_active:
+		var pulse_origin_flash: float = 1.0 - smoothstep(0.0, 0.18, _pulse_progress)
+		rim_breath = minf(rim_breath + pulse_origin_flash * 0.18, 1.18)
 	var orb_material := _ball_visual.material as ShaderMaterial
 	if orb_material != null:
 		orb_material.set_shader_parameter("rim_breath", rim_breath)
