@@ -1086,6 +1086,10 @@ func _update_energy_pulse(delta: float) -> void:
 
 	var progress_for_shader: float = _pulse_progress if _pulse_active else -1.0
 	var strength_for_shader: float = 1.0 if _pulse_active else 0.0
+	var aura_shader_material := _trail_aura.material as ShaderMaterial
+	if aura_shader_material != null:
+		aura_shader_material.set_shader_parameter("edge_time", _trail_time)
+
 	var materials: Array[ShaderMaterial] = [
 		_unified_shape.material as ShaderMaterial,
 		_energy_line.material as ShaderMaterial,
