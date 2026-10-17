@@ -77,7 +77,7 @@ func _ready() -> void:
 	z_index = -1
 	_previous_ball_position = global_position
 	_visual_rng.randomize()
-	_pulse_cooldown = _visual_rng.randf_range(1.25, 2.0)
+	_pulse_cooldown = _visual_rng.randf_range(3.0, 4.5)
 	_ball_surface_radius = _measure_ball_surface_radius()
 	if _unified_shape != null:
 		_unified_shape.mesh = ArrayMesh.new()
@@ -179,11 +179,11 @@ func _measure_ball_surface_radius() -> float:
 	return texture_radius * world_scale
 
 
-func _sample_image_alpha_bilinear(texture_image: Image, position: Vector2) -> float:
+func _sample_image_alpha_bilinear(texture_image: Image, image_position: Vector2) -> float:
 	var max_x: float = float(texture_image.get_width() - 1)
 	var max_y: float = float(texture_image.get_height() - 1)
-	var x: float = clampf(position.x, 0.0, max_x)
-	var y: float = clampf(position.y, 0.0, max_y)
+	var x: float = clampf(image_position.x, 0.0, max_x)
+	var y: float = clampf(image_position.y, 0.0, max_y)
 	var x0: int = int(floor(x))
 	var y0: int = int(floor(y))
 	var x1: int = mini(x0 + 1, texture_image.get_width() - 1)
@@ -382,6 +382,21 @@ func _get_animated_trail_point(index: int, apply_head_offset: bool = true) -> Ve
 	return point - tangent * head_offset + perpendicular * drift
 
 
+func _get_membrane_edge_wave(progress: float, phase_offset: float = 0.0) -> float:
+	var edge_time: float = _trail_time
+	var broad_wave: float = sin(
+		progress * 12.0 - edge_time * 1.15
+		+ sin(progress * 4.8 + edge_time * 0.48) * 0.7
+		+ phase_offset
+	)
+	var fine_wave: float = sin(
+		progress * 23.0 - edge_time * 1.65 + 1.2 + phase_offset * 0.8
+	)
+	var slow_wave: float = sin(
+		progress * 7.0 + edge_time * 0.68 + phase_offset * 0.6
+	)
+	return broad_wave * 0.62 + fine_wave * 0.25 + slow_wave * 0.13
+
 
 func _update_unified_comet_shape(delta: float = 0.0) -> void:
 	if _unified_shape == null or _points.size() < 2:
@@ -436,9 +451,24 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 
 	var upper_edge_points: Array[Vector2] = []
 	var lower_edge_points: Array[Vector2] = []
+	var upper_half_widths: Array[float] = []
+	var lower_half_widths: Array[float] = []
 	for i in range(path.size()):
-		upper_edge_points.append(path[i] + normals[i] * half_widths[i])
-		lower_edge_points.append(path[i] - normals[i] * half_widths[i])
+		var progress: float = cumulative_distances[i] / total_distance
+		# Leave the orb connection untouched, then let two differently phased
+		# edge waves pull the membrane edges independently as they travel rearward.
+		var edge_envelope: float = smoothstep(0.025, 0.16, progress)
+		var upper_wave: float = _get_membrane_edge_wave(progress)
+		var lower_wave: float = _get_membrane_edge_wave(progress, 1.65)
+		var base_half_width: float = half_widths[i]
+		var upper_width: float = base_half_width * maxf(0.78, 1.0 + upper_wave * 0.18 * edge_envelope)
+		var lower_width: float = base_half_width * maxf(0.78, 1.0 + lower_wave * 0.18 * edge_envelope)
+		upper_half_widths.append(upper_width)
+		lower_half_widths.append(lower_width)
+		upper_edge_points.append(path[i] + normals[i] * upper_width)
+		lower_edge_points.append(path[i] - normals[i] * lower_width)
+		# Landing fragments and pulse anchors use a representative live width.
+		half_widths[i] = (upper_width + lower_width) * 0.5
 
 	_latest_trail_path = path.duplicate()
 	_latest_trail_distances = cumulative_distances.duplicate()
@@ -483,8 +513,8 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 	var previous_progress: float = 0.0
 	for i in range(1, path.size()):
 		var progress: float = cumulative_distances[i] / total_distance
-		var current_left: Vector2 = path[i] + normals[i] * half_widths[i]
-		var current_right: Vector2 = path[i] - normals[i] * half_widths[i]
+		var current_left: Vector2 = path[i] + normals[i] * upper_half_widths[i]
+		var current_right: Vector2 = path[i] - normals[i] * lower_half_widths[i]
 		var previous_left_uv := Vector2(previous_progress, 0.0)
 		var previous_right_uv := Vector2(previous_progress, 1.0)
 		var current_left_uv := Vector2(progress, 0.0)
@@ -1011,9 +1041,9 @@ func _update_particle_emitters(
 	)
 	for emitter in _particle_emitters:
 		emitter.global_position = emission_position
-		var material := emitter.process_material as ParticleProcessMaterial
-		if material != null:
-			material.direction = Vector3(
+		var particle_material := emitter.process_material as ParticleProcessMaterial
+		if particle_material != null:
+			particle_material.direction = Vector3(
 				_last_emission_direction.x,
 				_last_emission_direction.y,
 				0.0
@@ -1030,7 +1060,7 @@ func _update_energy_pulse(delta: float) -> void:
 	):
 		_pulse_active = false
 		_pulse_progress = -1.0
-		_pulse_cooldown = minf(_pulse_cooldown, 0.25)
+		_pulse_cooldown = maxf(_pulse_cooldown, 3.0)
 	else:
 		if not _pulse_active:
 			_pulse_cooldown -= delta
@@ -1052,7 +1082,7 @@ func _update_energy_pulse(delta: float) -> void:
 			if _pulse_progress >= ENERGY_PULSE_END:
 				_pulse_active = false
 				_pulse_progress = -1.0
-				_pulse_cooldown = _visual_rng.randf_range(2.0, 3.0)
+				_pulse_cooldown = _visual_rng.randf_range(5.0, 7.0)
 
 	var progress_for_shader: float = _pulse_progress if _pulse_active else -1.0
 	var strength_for_shader: float = 1.0 if _pulse_active else 0.0
@@ -1152,9 +1182,9 @@ func _spawn_energy_filament_line(
 	filament.z_as_relative = false
 	filament.z_index = -1
 	filament.width = line_width
-	filament.joint_mode = 2
-	filament.begin_cap_mode = 2
-	filament.end_cap_mode = 2
+	filament.joint_mode = Line2D.LINE_JOINT_ROUND
+	filament.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	filament.end_cap_mode = Line2D.LINE_CAP_ROUND
 	filament.antialiased = true
 
 	var additive := CanvasItemMaterial.new()
