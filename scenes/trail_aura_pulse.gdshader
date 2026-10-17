@@ -31,7 +31,7 @@ void fragment() {
 		+ 0.25 * sin(along * 15.2 + edge_time * 1.07 + 1.7 + lower_phase * 1.13)
 		+ 0.14 * sin(along * 26.7 - edge_time * 1.45 + 0.6 - lower_phase * 0.72)
 		+ 0.18 * sin(along * 4.1 + edge_time * 0.43 + lower_phase * 0.75);
-	float edge_envelope = smoothstep(0.025, 0.16, along);
+	float edge_envelope = smoothstep(0.025, 0.19, along);
 	float upper_threshold = 0.91 + upper_wave * edge_undulation_strength * edge_envelope;
 	float lower_threshold = 0.91 + lower_wave * edge_undulation_strength * edge_envelope;
 	float edge_threshold = mix(upper_threshold, lower_threshold, step(0.5, across));
