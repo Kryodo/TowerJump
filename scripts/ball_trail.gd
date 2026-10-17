@@ -54,6 +54,7 @@ var _pulse_filament_progress: float = 0.48
 var _pulse_filament_enabled: bool = false
 var _pulse_filament_spawned: bool = false
 
+# Keep ambient pulses occasional; filaments retain their existing appearance and chance.
 const ENERGY_PULSE_SPEED: float = 0.62
 const ENERGY_PULSE_END: float = 0.94
 const ENERGY_FILAMENT_MAX_ACTIVE: int = 8
@@ -76,7 +77,7 @@ func _ready() -> void:
 	z_index = -1
 	_previous_ball_position = global_position
 	_visual_rng.randomize()
-	_pulse_cooldown = _visual_rng.randf_range(0.35, 0.65)
+	_pulse_cooldown = _visual_rng.randf_range(1.25, 2.0)
 	_ball_surface_radius = _measure_ball_surface_radius()
 	if _unified_shape != null:
 		_unified_shape.mesh = ArrayMesh.new()
@@ -1051,7 +1052,7 @@ func _update_energy_pulse(delta: float) -> void:
 			if _pulse_progress >= ENERGY_PULSE_END:
 				_pulse_active = false
 				_pulse_progress = -1.0
-				_pulse_cooldown = _visual_rng.randf_range(0.65, 1.05)
+				_pulse_cooldown = _visual_rng.randf_range(2.0, 3.0)
 
 	var progress_for_shader: float = _pulse_progress if _pulse_active else -1.0
 	var strength_for_shader: float = 1.0 if _pulse_active else 0.0
