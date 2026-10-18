@@ -117,11 +117,13 @@ func _update_trail_dissolution(delta: float) -> void:
 		1.0
 	)
 	var enabled_value: float = 1.0 if dissolution_enabled else 0.0
-	var materials: Array[ShaderMaterial] = [
-		_unified_shape.material as ShaderMaterial,
-		_trail_aura.material as ShaderMaterial,
-		_energy_line.material as ShaderMaterial
-	]
+	var materials: Array[ShaderMaterial] = []
+	if _unified_shape != null:
+		materials.append(_unified_shape.material as ShaderMaterial)
+	if _trail_aura != null:
+		materials.append(_trail_aura.material as ShaderMaterial)
+	if _energy_line != null:
+		materials.append(_energy_line.material as ShaderMaterial)
 	for shader_material in materials:
 		if shader_material != null:
 			shader_material.set_shader_parameter("dissolve_start", safe_start)
