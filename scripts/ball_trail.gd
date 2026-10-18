@@ -53,7 +53,6 @@ var _pulse_cooldown: float = 0.55
 var _pulse_filament_progress: float = 0.48
 var _pulse_filament_enabled: bool = false
 var _pulse_filament_spawned: bool = false
-var _pulse_bulge_side: float = 1.0
 
 # Keep ambient pulses occasional; filaments retain their existing appearance and chance.
 const ENERGY_PULSE_SPEED: float = 0.62
@@ -405,15 +404,6 @@ func _get_membrane_edge_wave(progress: float, phase_offset: float = 0.0) -> floa
 	return broad_wave * 0.43 + medium_wave * 0.25 + detail_wave * 0.14 + slow_wave * 0.18
 
 
-func _get_pulse_pressure_bulge(progress: float) -> float:
-	if not _pulse_active:
-		return 0.0
-	# A broad Gaussian swell follows the same head-to-tail progress as the light pulse.
-	# Its soft shoulders keep the silhouette smooth instead of creating a sharp bump.
-	var normalized_distance: float = (progress - _pulse_progress) / 0.14
-	return exp(-normalized_distance * normalized_distance)
-
-
 func _update_unified_comet_shape(delta: float = 0.0) -> void:
 	if _unified_shape == null or _points.size() < 2:
 		return
@@ -477,18 +467,8 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 		var upper_wave: float = _get_membrane_edge_wave(progress)
 		var lower_wave: float = _get_membrane_edge_wave(progress, 2.05)
 		var base_half_width: float = half_widths[i]
-		# The passing pulse pushes one flank outward, with a smaller response on the other.
-		var pressure_bulge: float = _get_pulse_pressure_bulge(progress) * edge_envelope
-		var strong_bulge: float = pressure_bulge * 0.28
-		var soft_bulge: float = pressure_bulge * 0.08
-		var upper_bulge: float = strong_bulge if _pulse_bulge_side > 0.0 else soft_bulge
-		var lower_bulge: float = soft_bulge if _pulse_bulge_side > 0.0 else strong_bulge
-		var upper_width: float = base_half_width * maxf(
-			0.72, 1.0 + upper_wave * 0.26 * edge_envelope + upper_bulge
-		)
-		var lower_width: float = base_half_width * maxf(
-			0.72, 1.0 + lower_wave * 0.26 * edge_envelope + lower_bulge
-		)
+		var upper_width: float = base_half_width * maxf(0.72, 1.0 + upper_wave * 0.26 * edge_envelope)
+		var lower_width: float = base_half_width * maxf(0.72, 1.0 + lower_wave * 0.26 * edge_envelope)
 		upper_half_widths.append(upper_width)
 		lower_half_widths.append(lower_width)
 		upper_edge_points.append(path[i] + normals[i] * upper_width)
@@ -1130,11 +1110,6 @@ func _update_energy_pulse(delta: float) -> void:
 func _start_energy_pulse() -> void:
 	_pulse_active = true
 	_pulse_progress = 0.0
-	# Alternate the dominant flank so successive pressure waves do not repeat identically.
-	_pulse_bulge_side = 1.0 if _visual_rng.randf() < 0.5 else -1.0
-	var aura_material := _trail_aura.material as ShaderMaterial
-	if aura_material != null:
-		aura_material.set_shader_parameter("pulse_bulge_side", _pulse_bulge_side)
 	_pulse_filament_progress = _visual_rng.randf_range(0.34, 0.67)
 	# Keep the ribbon lively, not electrically noisy: most pulses create a
 	# filament, while some remain pure travelling illumination.
