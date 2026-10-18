@@ -17,9 +17,9 @@ const SURFACE_BURST_PIECE_COUNT: int = 4
 const CHEVRON_BURST_PIECE_COUNT: int = 5
 const SURFACE_BURST_SPACING: float = 0.055
 const CHEVRON_BURST_SPACING: float = 0.035
-const DISSOLUTION_FRAGMENT_INTERVAL_MIN: float = 0.065
-const DISSOLUTION_FRAGMENT_INTERVAL_MAX: float = 0.095
-const DISSOLUTION_MAX_ACTIVE_FRAGMENTS: int = 28
+const DISSOLUTION_FRAGMENT_INTERVAL_MIN: float = 0.055
+const DISSOLUTION_FRAGMENT_INTERVAL_MAX: float = 0.080
+const DISSOLUTION_MAX_ACTIVE_FRAGMENTS: int = 32
 
 @export_category("Visual Palette")
 @export_enum("Electric Blue", "Rich Violet") var visual_palette: int = 0
@@ -29,8 +29,8 @@ const DISSOLUTION_MAX_ACTIVE_FRAGMENTS: int = 28
 
 @export_category("Trail Dissolution")
 @export var dissolution_enabled: bool = true
-@export_range(0.45, 0.84, 0.01) var dissolution_start_progress: float = 0.66
-@export_range(0.75, 1.0, 0.01) var dissolution_end_progress: float = 0.94
+@export_range(0.35, 0.75, 0.01) var dissolution_start_progress: float = 0.48
+@export_range(0.78, 1.0, 0.01) var dissolution_end_progress: float = 0.94
 
 @onready var _energy_line: Line2D = $EnergyLine
 @onready var _trail_aura: Line2D = $TrailAura
@@ -143,7 +143,7 @@ func _update_trail_dissolution(delta: float) -> void:
 		return
 
 	_spawn_dissolution_fragment(safe_start, safe_end)
-	if _visual_rng.randf() < 0.34:
+	if _visual_rng.randf() < 0.42:
 		_spawn_dissolution_fragment(safe_start, safe_end)
 	_dissolution_fragment_clock = _visual_rng.randf_range(
 		DISSOLUTION_FRAGMENT_INTERVAL_MIN,
@@ -161,7 +161,7 @@ func _spawn_dissolution_fragment(start_progress: float, end_progress: float) -> 
 
 	# Emit only in the visibly breaking band, not along the full length of the trail.
 	var progress: float = start_progress + (
-		(end_progress - start_progress) * _visual_rng.randf_range(0.36, 0.58)
+		(end_progress - start_progress) * _visual_rng.randf_range(0.38, 0.60)
 	)
 	var center_distance: float = _latest_trail_total_distance * progress
 	var section: Dictionary = _sample_trail_cross_section(
@@ -176,12 +176,12 @@ func _spawn_dissolution_fragment(start_progress: float, end_progress: float) -> 
 	var tangent: Vector2 = section["tangent"]
 	var normal: Vector2 = section["normal"]
 	var half_width: float = maxf(float(section["half_width"]), 2.5)
-	var lateral_center: float = _visual_rng.randf_range(-0.70, 0.70)
+	var lateral_center: float = _visual_rng.randf_range(-0.62, 0.62)
 	var lateral_extent: float = minf(
-		_visual_rng.randf_range(0.13, 0.25),
-		(1.0 - absf(lateral_center)) * 0.72
+		_visual_rng.randf_range(0.22, 0.38),
+		(1.0 - absf(lateral_center)) * 0.78
 	)
-	var longitudinal_half_length: float = _visual_rng.randf_range(3.5, 6.5)
+	var longitudinal_half_length: float = _visual_rng.randf_range(6.5, 10.5)
 	var lateral_offsets: Array[float] = [
 		-lateral_extent * _visual_rng.randf_range(0.35, 0.8),
 		-lateral_extent,
