@@ -5,6 +5,49 @@ uniform float edge_time = 0.0;
 uniform float edge_undulation_strength : hint_range(0.0, 0.26) = 0.20;
 uniform float pulse_progress = -1.0;
 uniform float pulse_strength = 0.0;
+uniform float dissolve_start = 0.66;
+uniform float dissolve_end = 0.94;
+uniform float dissolve_enabled = 1.0;
+
+
+float hash21(vec2 p) {
+	p = fract(p * vec2(123.34, 456.21));
+	p += dot(p, p + 45.32);
+	return fract(p.x * p.y);
+}
+
+float noise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	float a = hash21(i);
+	float b = hash21(i + vec2(1.0, 0.0));
+	float c = hash21(i + vec2(0.0, 1.0));
+	float d = hash21(i + vec2(1.0, 1.0));
+	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+float comet_dissolve_mask(vec2 uv) {
+	float along = clamp(uv.x, 0.0, 1.0);
+	float mirrored_across = abs(clamp(uv.y, 0.0, 1.0) * 2.0 - 1.0);
+	float coarse_pattern = noise(vec2(
+		along * 27.0 + mirrored_across * 2.2,
+		mirrored_across * 4.6 + 1.7
+	));
+	float detail_pattern = noise(vec2(
+		along * 53.0 + mirrored_across * 3.4 + 13.7,
+		mirrored_across * 9.0 + 5.3
+	));
+	float breakup_pattern = mix(coarse_pattern, detail_pattern, 0.28);
+	float dissolve_amount = smoothstep(dissolve_start, dissolve_end, along);
+	float dissolve_threshold = mix(-0.14, 1.14, dissolve_amount);
+	float visible_mask = smoothstep(
+		dissolve_threshold - 0.075,
+		dissolve_threshold + 0.075,
+		breakup_pattern
+	);
+	return mix(1.0, visible_mask, clamp(dissolve_enabled, 0.0, 1.0));
+}
 
 // Preserve the TrailAura gradient as the base color. A passing pulse adds a
 // short-lived highlight strongest along each outside edge of the ribbon.
@@ -55,5 +98,6 @@ void fragment() {
 	aura.rgb += pulse_color * edge_flash * 0.72;
 	aura.a = clamp(aura.a + pulse * 0.025 + edge_flash * 0.24, 0.0, 0.98);
 	aura.a *= edge_fade;
+	aura.a *= comet_dissolve_mask(UV);
 	COLOR = aura;
 }
