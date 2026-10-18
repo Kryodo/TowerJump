@@ -383,25 +383,18 @@ func _get_animated_trail_point(index: int, apply_head_offset: bool = true) -> Ve
 
 
 func _get_membrane_edge_wave(progress: float, phase_offset: float = 0.0) -> float:
+	# Slow, broad waves travel from the orb toward the tail. A small secondary
+	# swell makes the motion less mechanical without introducing rapid ripples.
 	var edge_time: float = _trail_time
-	# A broad rolling swell sets the silhouette; offset nested waves keep it
-	# from reading as a regular sine ripple. Each flank uses its own phase.
 	var broad_wave: float = sin(
-		progress * 8.3 - edge_time * 0.82
-		+ sin(progress * 3.1 + edge_time * 0.31 + phase_offset * 0.28) * 0.95
-		+ sin(progress * 5.7 - edge_time * 0.47 + 1.4 - phase_offset * 0.35) * 0.42
+		progress * 7.4 - edge_time * 0.72
+		+ sin(progress * 3.2 - edge_time * 0.24 + phase_offset * 0.35) * 0.58
 		+ phase_offset
 	)
-	var medium_wave: float = sin(
-		progress * 15.2 + edge_time * 1.07 + 1.7 + phase_offset * 1.13
+	var secondary_wave: float = sin(
+		progress * 3.7 - edge_time * 0.33 + phase_offset * 0.62
 	)
-	var detail_wave: float = sin(
-		progress * 26.7 - edge_time * 1.45 + 0.6 - phase_offset * 0.72
-	)
-	var slow_wave: float = sin(
-		progress * 4.1 + edge_time * 0.43 + phase_offset * 0.75
-	)
-	return broad_wave * 0.43 + medium_wave * 0.25 + detail_wave * 0.14 + slow_wave * 0.18
+	return broad_wave * 0.76 + secondary_wave * 0.24
 
 
 func _update_unified_comet_shape(delta: float = 0.0) -> void:
@@ -461,14 +454,15 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 	var lower_half_widths: Array[float] = []
 	for i in range(path.size()):
 		var progress: float = cumulative_distances[i] / total_distance
-		# Leave the orb connection untouched, then let two differently phased
-		# edge waves pull the membrane edges independently as they travel rearward.
+		# The membrane edges swell gently toward the tail. Keep left/right
+		# phases distinct, but reduce the original deformation so the whole comet
+		# remains one clean silhouette under the independent outer-aura motion.
 		var edge_envelope: float = smoothstep(0.025, 0.19, progress)
-		var upper_wave: float = _get_membrane_edge_wave(progress)
-		var lower_wave: float = _get_membrane_edge_wave(progress, 2.05)
+		var upper_wave: float = _get_membrane_edge_wave(progress, 0.0)
+		var lower_wave: float = _get_membrane_edge_wave(progress, 1.8)
 		var base_half_width: float = half_widths[i]
-		var upper_width: float = base_half_width * maxf(0.72, 1.0 + upper_wave * 0.26 * edge_envelope)
-		var lower_width: float = base_half_width * maxf(0.72, 1.0 + lower_wave * 0.26 * edge_envelope)
+		var upper_width: float = base_half_width * maxf(0.88, 1.0 + upper_wave * 0.12 * edge_envelope)
+		var lower_width: float = base_half_width * maxf(0.89, 1.0 + lower_wave * 0.105 * edge_envelope)
 		upper_half_widths.append(upper_width)
 		lower_half_widths.append(lower_width)
 		upper_edge_points.append(path[i] + normals[i] * upper_width)
