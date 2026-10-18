@@ -8,6 +8,9 @@ uniform float flow_speed = 0.9;
 uniform float surface_flow_strength : hint_range(0.0, 0.5) = 0.16;
 uniform float pulse_progress = -1.0;
 uniform float pulse_strength = 0.0;
+uniform float dissolve_start = 0.66;
+uniform float dissolve_end = 0.94;
+uniform float dissolve_enabled = 1.0;
 
 // Deterministic noise shared with the inner energy shader.
 float hash21(vec2 p) {
@@ -44,6 +47,29 @@ float fbm(vec2 p) {
 	value += noise(p) * amplitude;
 	return value;
 }
+
+float comet_dissolve_mask(vec2 uv) {
+	float along = clamp(uv.x, 0.0, 1.0);
+	float mirrored_across = abs(clamp(uv.y, 0.0, 1.0) * 2.0 - 1.0);
+	float coarse_pattern = noise(vec2(
+		along * 27.0 + mirrored_across * 2.2,
+		mirrored_across * 4.6 + 1.7
+	));
+	float detail_pattern = noise(vec2(
+		along * 53.0 + mirrored_across * 3.4 + 13.7,
+		mirrored_across * 9.0 + 5.3
+	));
+	float breakup_pattern = mix(coarse_pattern, detail_pattern, 0.28);
+	float dissolve_amount = smoothstep(dissolve_start, dissolve_end, along);
+	float dissolve_threshold = mix(-0.14, 1.14, dissolve_amount);
+	float visible_mask = smoothstep(
+		dissolve_threshold - 0.075,
+		dissolve_threshold + 0.075,
+		breakup_pattern
+	);
+	return mix(1.0, visible_mask, clamp(dissolve_enabled, 0.0, 1.0));
+}
+
 
 // UV.x follows the shared trail from head (0) to tail (1).
 // UV.y runs across the shape: edge (0/1), centre (0.5).
@@ -123,6 +149,7 @@ void fragment() {
 	float pulse_alpha = travelling_pulse * (0.025 + edge_mask * 0.11);
 	float alpha = clamp((body_alpha + core_alpha + pulse_alpha) * tail_fade, 0.0, 0.94);
 	alpha = clamp(alpha * fragment_alpha_boost, 0.0, 0.94);
+	alpha *= comet_dissolve_mask(UV);
 
 	COLOR = vec4(body_color, alpha);
 }
