@@ -17,12 +17,20 @@ const SURFACE_BURST_PIECE_COUNT: int = 4
 const CHEVRON_BURST_PIECE_COUNT: int = 5
 const SURFACE_BURST_SPACING: float = 0.055
 const CHEVRON_BURST_SPACING: float = 0.035
+const DISSOLUTION_FRAGMENT_INTERVAL_MIN: float = 0.065
+const DISSOLUTION_FRAGMENT_INTERVAL_MAX: float = 0.095
+const DISSOLUTION_MAX_ACTIVE_FRAGMENTS: int = 28
 
 @export_category("Visual Palette")
 @export_enum("Electric Blue", "Rich Violet") var visual_palette: int = 0
 
 @export_category("Comet Shedding")
 @export var shedding_enabled: bool = true
+
+@export_category("Trail Dissolution")
+@export var dissolution_enabled: bool = true
+@export_range(0.45, 0.84, 0.01) var dissolution_start_progress: float = 0.66
+@export_range(0.75, 1.0, 0.01) var dissolution_end_progress: float = 0.94
 
 @onready var _energy_line: Line2D = $EnergyLine
 @onready var _trail_aura: Line2D = $TrailAura
@@ -43,6 +51,8 @@ var _chevron_burst_remaining: int = 0
 var _chevron_burst_clock: float = 0.0
 var _shed_sequence: int = 0
 var _detached_shed_fragments: Array[Dictionary] = []
+var _detached_dissolution_fragments: Array[Dictionary] = []
+var _dissolution_fragment_clock: float = 0.0
 var _aura_fragment_material: CanvasItemMaterial
 var _surface_fragment_material: ShaderMaterial
 var _visual_rng := RandomNumberGenerator.new()
@@ -99,6 +109,154 @@ func _ready() -> void:
 	_update_rim_breath()
 
 
+func _update_trail_dissolution(delta: float) -> void:
+	var safe_start: float = clampf(dissolution_start_progress, 0.0, 0.94)
+	var safe_end: float = clampf(
+		maxf(dissolution_end_progress, safe_start + 0.05),
+		safe_start + 0.05,
+		1.0
+	)
+	var enabled_value: float = 1.0 if dissolution_enabled else 0.0
+	var materials: Array[ShaderMaterial] = [
+		_unified_shape.material as ShaderMaterial,
+		_trail_aura.material as ShaderMaterial,
+		_energy_line.material as ShaderMaterial
+	]
+	for shader_material in materials:
+		if shader_material != null:
+			shader_material.set_shader_parameter("dissolve_start", safe_start)
+			shader_material.set_shader_parameter("dissolve_end", safe_end)
+			shader_material.set_shader_parameter("dissolve_enabled", enabled_value)
+
+	if (
+		not dissolution_enabled
+		or _latest_trail_path.size() < 6
+		or _latest_trail_total_distance < 110.0
+	):
+		_dissolution_fragment_clock = 0.0
+		return
+
+	_dissolution_fragment_clock -= delta
+	if _dissolution_fragment_clock > 0.0:
+		return
+
+	_spawn_dissolution_fragment(safe_start, safe_end)
+	if _visual_rng.randf() < 0.34:
+		_spawn_dissolution_fragment(safe_start, safe_end)
+	_dissolution_fragment_clock = _visual_rng.randf_range(
+		DISSOLUTION_FRAGMENT_INTERVAL_MIN,
+		DISSOLUTION_FRAGMENT_INTERVAL_MAX
+	)
+
+
+func _spawn_dissolution_fragment(start_progress: float, end_progress: float) -> void:
+	if (
+		_surface_fragment_material == null
+		or _detached_dissolution_fragments.size() >= DISSOLUTION_MAX_ACTIVE_FRAGMENTS
+		or _latest_trail_path.size() < 6
+	):
+		return
+
+	# Emit only in the visibly breaking band, not along the full length of the trail.
+	var progress: float = start_progress + (
+		(end_progress - start_progress) * _visual_rng.randf_range(0.36, 0.58)
+	)
+	var center_distance: float = _latest_trail_total_distance * progress
+	var section: Dictionary = _sample_trail_cross_section(
+		center_distance,
+		_latest_trail_path,
+		_latest_trail_distances,
+		_latest_trail_tangents,
+		_latest_trail_normals,
+		_latest_trail_half_widths
+	)
+	var center: Vector2 = section["position"]
+	var tangent: Vector2 = section["tangent"]
+	var normal: Vector2 = section["normal"]
+	var half_width: float = maxf(float(section["half_width"]), 2.5)
+	var lateral_center: float = _visual_rng.randf_range(-0.70, 0.70)
+	var lateral_extent: float = minf(
+		_visual_rng.randf_range(0.13, 0.25),
+		(1.0 - absf(lateral_center)) * 0.72
+	)
+	var longitudinal_half_length: float = _visual_rng.randf_range(3.5, 6.5)
+	var lateral_offsets: Array[float] = [
+		-lateral_extent * _visual_rng.randf_range(0.35, 0.8),
+		-lateral_extent,
+		lateral_extent * _visual_rng.randf_range(0.3, 0.8),
+		lateral_extent * _visual_rng.randf_range(0.4, 0.9)
+	]
+	var tangent_offsets: Array[float] = [
+		-longitudinal_half_length,
+		longitudinal_half_length * 0.55,
+		longitudinal_half_length,
+		-longitudinal_half_length * 0.35
+	]
+
+	var global_vertices: Array[Vector2] = []
+	var fragment_uvs := PackedVector2Array()
+	var centroid_global := Vector2.ZERO
+	for vertex_index in range(4):
+		var along_offset: float = tangent_offsets[vertex_index]
+		var across_offset: float = lateral_center + lateral_offsets[vertex_index]
+		var world_vertex: Vector2 = (
+			center
+			+ tangent * along_offset
+			+ normal * half_width * across_offset
+		)
+		global_vertices.append(world_vertex)
+		fragment_uvs.append(Vector2(
+			clampf(progress + along_offset / maxf(_latest_trail_total_distance, 0.001), 0.0, 1.0),
+			clampf(0.5 - across_offset * 0.5, 0.0, 1.0)
+		))
+		centroid_global += world_vertex
+	centroid_global /= float(global_vertices.size())
+
+	var fragment_polygon := PackedVector2Array()
+	for vertex in global_vertices:
+		fragment_polygon.append(vertex - centroid_global)
+
+	var shard := Polygon2D.new()
+	shard.name = "DetachedDissolvingTrailFragment"
+	shard.z_as_relative = false
+	shard.z_index = -2
+	shard.polygon = fragment_polygon
+	shard.uv = fragment_uvs
+	shard.material = _surface_fragment_material
+	shard.modulate = Color(1.08, 1.12, 1.24, 1.0)
+
+	var world_root: Node2D = get_tree().current_scene as Node2D
+	if world_root == null:
+		world_root = get_parent() as Node2D
+	if world_root == null:
+		shard.queue_free()
+		return
+	world_root.add_child(shard)
+	shard.global_position = centroid_global
+	shard.global_rotation = 0.0
+
+	var side: float = 1.0 if lateral_center >= 0.0 else -1.0
+	if absf(lateral_center) < 0.18:
+		side = -1.0 if _visual_rng.randf() < 0.5 else 1.0
+	var outward_speed: float = _visual_rng.randf_range(28.0, 60.0)
+	var tangent_drift: float = _visual_rng.randf_range(-22.0, 22.0)
+	var velocity: Vector2 = (
+		normal * side * outward_speed
+		+ tangent * tangent_drift
+		+ Vector2(0.0, _visual_rng.randf_range(10.0, 26.0))
+	)
+	var lifetime: float = _visual_rng.randf_range(0.48, 0.78)
+	_detached_dissolution_fragments.append({
+		"node": shard,
+		"velocity": velocity,
+		"age": 0.0,
+		"lifetime": lifetime,
+		"angular_velocity": _visual_rng.randf_range(-3.0, 3.0),
+		"base_alpha": 1.0,
+		"fade_start_fraction": 0.34
+	})
+
+
 func _initialize_aura_fragment_material() -> void:
 	# Small chevron flecks use additive blending; broad surface fragments use
 	# the same comet shader as the body, with alpha boosted on the copied mesh.
@@ -110,6 +268,7 @@ func _initialize_aura_fragment_material() -> void:
 	if body_material != null:
 		_surface_fragment_material = body_material.duplicate() as ShaderMaterial
 		_surface_fragment_material.set_shader_parameter("fragment_alpha_boost", 2.25)
+		_surface_fragment_material.set_shader_parameter("dissolve_enabled", 0.0)
 
 
 
@@ -289,6 +448,7 @@ func _process(delta: float) -> void:
 			_points.pop_back()
 
 	_update_trail_lines(delta)
+	_update_trail_dissolution(delta)
 	_update_energy_pulse(delta)
 	_update_detached_shed_fragments(delta)
 	_update_energy_filaments(delta)
@@ -957,11 +1117,19 @@ func _aura_fragment_tint(progress: float) -> Color:
 
 
 func _update_detached_shed_fragments(delta: float) -> void:
-	for fragment_index in range(_detached_shed_fragments.size() - 1, -1, -1):
-		var fragment: Dictionary = _detached_shed_fragments[fragment_index]
+	_update_detached_fragment_collection(_detached_shed_fragments, delta)
+	_update_detached_fragment_collection(_detached_dissolution_fragments, delta)
+
+
+func _update_detached_fragment_collection(
+	fragments: Array[Dictionary],
+	delta: float
+) -> void:
+	for fragment_index in range(fragments.size() - 1, -1, -1):
+		var fragment: Dictionary = fragments[fragment_index]
 		var shard := fragment.get("node") as Polygon2D
 		if not is_instance_valid(shard):
-			_detached_shed_fragments.remove_at(fragment_index)
+			fragments.remove_at(fragment_index)
 			continue
 
 		var age: float = float(fragment["age"]) + delta
@@ -980,9 +1148,9 @@ func _update_detached_shed_fragments(delta: float) -> void:
 		fragment["velocity"] = velocity
 		if age >= lifetime:
 			shard.queue_free()
-			_detached_shed_fragments.remove_at(fragment_index)
+			fragments.remove_at(fragment_index)
 		else:
-			_detached_shed_fragments[fragment_index] = fragment
+			fragments[fragment_index] = fragment
 
 
 func _sample_trail_cross_section(
