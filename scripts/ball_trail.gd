@@ -382,26 +382,23 @@ func _get_animated_trail_point(index: int, apply_head_offset: bool = true) -> Ve
 	return point - tangent * head_offset + perpendicular * drift
 
 
-func _get_membrane_edge_wave(progress: float, phase_offset: float = 0.0) -> float:
-	var edge_time: float = _trail_time
-	# A broad rolling swell sets the silhouette; offset nested waves keep it
-	# from reading as a regular sine ripple. Each flank uses its own phase.
-	var broad_wave: float = sin(
-		progress * 8.3 - edge_time * 0.82
-		+ sin(progress * 3.1 + edge_time * 0.31 + phase_offset * 0.28) * 0.95
-		+ sin(progress * 5.7 - edge_time * 0.47 + 1.4 - phase_offset * 0.35) * 0.42
-		+ phase_offset
+func _get_membrane_swell(progress: float, side_offset: float = 0.0) -> float:
+	# One broad bulge travels slowly from the upper ribbon toward the tail, then
+	# fades before looping. A small trailing relaxation makes it feel elastic,
+	# without turning the silhouette into a row of rapid sinusoidal ripples.
+	var cycle: float = fposmod(_trail_time * 0.14, 1.0)
+	var swell_center: float = lerpf(0.18, 0.82, cycle)
+	var activation: float = (
+		smoothstep(0.0, 0.14, cycle)
+		* (1.0 - smoothstep(0.78, 0.98, cycle))
 	)
-	var medium_wave: float = sin(
-		progress * 15.2 + edge_time * 1.07 + 1.7 + phase_offset * 1.13
+	var offset: float = progress - (swell_center + side_offset)
+	var broad_bulge: float = exp(-offset * offset * 32.0)
+	var relaxation_offset: float = progress - (swell_center + side_offset + 0.16)
+	var trailing_relaxation: float = exp(
+		-relaxation_offset * relaxation_offset * 180.0
 	)
-	var detail_wave: float = sin(
-		progress * 26.7 - edge_time * 1.45 + 0.6 - phase_offset * 0.72
-	)
-	var slow_wave: float = sin(
-		progress * 4.1 + edge_time * 0.43 + phase_offset * 0.75
-	)
-	return broad_wave * 0.43 + medium_wave * 0.25 + detail_wave * 0.14 + slow_wave * 0.18
+	return activation * (broad_bulge - trailing_relaxation * 0.28)
 
 
 func _update_unified_comet_shape(delta: float = 0.0) -> void:
@@ -461,14 +458,24 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 	var lower_half_widths: Array[float] = []
 	for i in range(path.size()):
 		var progress: float = cumulative_distances[i] / total_distance
-		# Leave the orb connection untouched, then let two differently phased
-		# edge waves pull the membrane edges independently as they travel rearward.
+		# Keep the orb connection stable. A broad asymmetric swell moves down the
+		# membrane, while a passing energy pulse adds only a small local response.
 		var edge_envelope: float = smoothstep(0.025, 0.19, progress)
-		var upper_wave: float = _get_membrane_edge_wave(progress)
-		var lower_wave: float = _get_membrane_edge_wave(progress, 2.05)
+		var upper_swell: float = _get_membrane_swell(progress, -0.025)
+		var lower_swell: float = _get_membrane_swell(progress, 0.035)
+		var pulse_swell: float = 0.0
+		if _pulse_active:
+			var pulse_offset: float = progress - _pulse_progress
+			pulse_swell = exp(-pulse_offset * pulse_offset * 110.0)
 		var base_half_width: float = half_widths[i]
-		var upper_width: float = base_half_width * maxf(0.72, 1.0 + upper_wave * 0.26 * edge_envelope)
-		var lower_width: float = base_half_width * maxf(0.72, 1.0 + lower_wave * 0.26 * edge_envelope)
+		var upper_modulation: float = upper_swell * 0.075 + pulse_swell * 0.035
+		var lower_modulation: float = lower_swell * 0.075 + pulse_swell * 0.025
+		var upper_width: float = base_half_width * maxf(
+			0.90, 1.0 + upper_modulation * edge_envelope
+		)
+		var lower_width: float = base_half_width * maxf(
+			0.90, 1.0 + lower_modulation * edge_envelope
+		)
 		upper_half_widths.append(upper_width)
 		lower_half_widths.append(lower_width)
 		upper_edge_points.append(path[i] + normals[i] * upper_width)
