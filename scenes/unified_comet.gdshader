@@ -51,20 +51,21 @@ float fbm(vec2 p) {
 float comet_dissolve_mask(vec2 uv) {
 	float along = clamp(uv.x, 0.0, 1.0);
 	float mirrored_across = abs(clamp(uv.y, 0.0, 1.0) * 2.0 - 1.0);
+	// Lower-frequency noise makes larger, readable chunks rather than tiny pinholes.
 	float coarse_pattern = noise(vec2(
-		along * 27.0 + mirrored_across * 2.2,
-		mirrored_across * 4.6 + 1.7
+		along * 12.0 + mirrored_across * 1.8,
+		mirrored_across * 3.2 + 1.7
 	));
 	float detail_pattern = noise(vec2(
-		along * 53.0 + mirrored_across * 3.4 + 13.7,
-		mirrored_across * 9.0 + 5.3
+		along * 23.0 + mirrored_across * 2.7 + 13.7,
+		mirrored_across * 5.6 + 5.3
 	));
-	float breakup_pattern = mix(coarse_pattern, detail_pattern, 0.28);
+	float breakup_pattern = mix(coarse_pattern, detail_pattern, 0.18);
 	float dissolve_amount = smoothstep(dissolve_start, dissolve_end, along);
-	float dissolve_threshold = mix(-0.14, 1.14, dissolve_amount);
+	float dissolve_threshold = mix(-0.22, 1.22, dissolve_amount);
 	float visible_mask = smoothstep(
-		dissolve_threshold - 0.075,
-		dissolve_threshold + 0.075,
+		dissolve_threshold - 0.06,
+		dissolve_threshold + 0.06,
 		breakup_pattern
 	);
 	return mix(1.0, visible_mask, clamp(dissolve_enabled, 0.0, 1.0));
