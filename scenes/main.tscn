@@ -12,6 +12,7 @@
 [ext_resource type="Script" uid="uid://w2ijwcyipbda" path="res://scripts/landing/landing_feedback_controller.gd" id="10_landing_feedback"]
 [ext_resource type="Script" uid="uid://cg3nexhcchxia" path="res://scripts/landing/landing_platform_reaction.gd" id="11_landing_platform_reaction"]
 [ext_resource type="Texture2D" uid="uid://bfduv7ff6742p" path="res://scenes/ambient_mote.svg" id="12_ambient_mote"]
+[ext_resource type="Shader" path="res://scenes/ambient_mote_dof.gdshader" id="13_mote_dof"]
 
 [sub_resource type="Gradient" id="Gradient_ambient_motes"]
 offsets = PackedFloat32Array(0, 0.12, 0.7, 1)
@@ -81,6 +82,21 @@ color = Color(0.9, 0.96, 1.04, 1)
 color_initial_ramp = SubResource("GradientTexture1D_ambient_mote_palette")
 color_ramp = SubResource("GradientTexture1D_ambient_motes")
 
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_mote_dof_far"]
+shader = ExtResource("13_mote_dof")
+shader_parameter/blur_radius = 2.1
+shader_parameter/blur_amount = 0.62
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_mote_dof_highlights"]
+shader = ExtResource("13_mote_dof")
+shader_parameter/blur_radius = 1.9
+shader_parameter/blur_amount = 0.54
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_mote_dof_near"]
+shader = ExtResource("13_mote_dof")
+shader_parameter/blur_radius = 1.2
+shader_parameter/blur_amount = 0.36
+
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
 bg_color = Color(0.12, 0.13, 0.18, 0.95)
 corner_radius_top_left = 16
@@ -121,6 +137,7 @@ offset_bottom = 640.0
 color = Color(0.007843138, 0.023529412, 0.050980393, 1)
 
 [node name="AmbientMotes" type="GPUParticles2D" parent="GameCamera" unique_id=1267258197]
+material = SubResource("ShaderMaterial_mote_dof_far")
 z_index = -30
 amount = 60
 texture = ExtResource("12_ambient_mote")
@@ -130,6 +147,7 @@ visibility_rect = Rect2(-520, -900, 1040, 1800)
 process_material = SubResource("ParticleProcessMaterial_ambient_motes")
 
 [node name="AmbientMotesNear" type="GPUParticles2D" parent="GameCamera" unique_id=1200261143]
+material = SubResource("ShaderMaterial_mote_dof_near")
 z_index = -28
 amount = 16
 texture = ExtResource("12_ambient_mote")
@@ -139,6 +157,7 @@ visibility_rect = Rect2(-520, -900, 1040, 1800)
 process_material = SubResource("ParticleProcessMaterial_ambient_motes_near")
 
 [node name="AmbientMoteHighlights" type="GPUParticles2D" parent="GameCamera" unique_id=1584820793]
+material = SubResource("ShaderMaterial_mote_dof_highlights")
 z_index = -29
 amount = 4
 texture = ExtResource("12_ambient_mote")
