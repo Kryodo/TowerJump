@@ -194,7 +194,7 @@ visual_palette = 1
 [node name="UnifiedCometShape" type="MeshInstance2D" parent="TrailVisual" unique_id=1770062203]
 material = SubResource("ShaderMaterial_unified_comet")
 z_index = -1
-visible = false
+visible = true
 
 
 [node name="UnifiedCometContour" type="Line2D" parent="TrailVisual" unique_id=1770062204]
