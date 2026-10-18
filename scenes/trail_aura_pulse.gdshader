@@ -2,46 +2,52 @@ shader_type canvas_item;
 
 uniform int palette_mode = 0;
 uniform float edge_time = 0.0;
-uniform float edge_undulation_strength : hint_range(0.0, 0.26) = 0.20;
 uniform float pulse_progress = -1.0;
 uniform float pulse_strength = 0.0;
 
-// Preserve the TrailAura gradient as the base color. A passing pulse adds a
-// short-lived highlight strongest along each outside edge of the ribbon.
+// Preserve the TrailAura gradient as the base color. Its edge fade follows
+// the same broad swell as the mesh; the travelling pulse gives the membrane a
+// small local expansion as it passes, without turning the whole silhouette wavy.
+// Mirrors _get_membrane_swell() in ball_trail.gd so both visible layers
+// reveal the same slow, localized bulge rather than independent edge waves.
+float membrane_swell(float along, float time_value, float side_offset) {
+	float cycle = mod(time_value * 0.14, 1.0);
+	float swell_center = mix(0.18, 0.82, cycle);
+	float activation = smoothstep(0.0, 0.14, cycle)
+		* (1.0 - smoothstep(0.78, 0.98, cycle));
+	float offset = along - (swell_center + side_offset);
+	float broad_bulge = exp(-offset * offset * 32.0);
+	float relaxation_offset = along - (swell_center + side_offset + 0.16);
+	float trailing_relaxation = exp(-relaxation_offset * relaxation_offset * 180.0);
+	return activation * (broad_bulge - trailing_relaxation * 0.28);
+}
+
 void fragment() {
 	vec4 aura = COLOR;
 	float along = clamp(UV.x, 0.0, 1.0);
 	float across = clamp(UV.y, 0.0, 1.0);
 	float edge_distance = abs(across * 2.0 - 1.0);
 
-	// Match the broad, nested waves used by the live membrane geometry.
-	float upper_wave =
-		0.43 * sin(along * 8.3 - edge_time * 0.82
-			+ sin(along * 3.1 + edge_time * 0.31) * 0.95
-			+ sin(along * 5.7 - edge_time * 0.47 + 1.4) * 0.42)
-		+ 0.25 * sin(along * 15.2 + edge_time * 1.07 + 1.7)
-		+ 0.14 * sin(along * 26.7 - edge_time * 1.45 + 0.6)
-		+ 0.18 * sin(along * 4.1 + edge_time * 0.43);
-	float lower_phase = 2.05;
-	float lower_wave =
-		0.43 * sin(along * 8.3 - edge_time * 0.82
-			+ sin(along * 3.1 + edge_time * 0.31 + lower_phase * 0.28) * 0.95
-			+ sin(along * 5.7 - edge_time * 0.47 + 1.4 - lower_phase * 0.35) * 0.42
-			+ lower_phase)
-		+ 0.25 * sin(along * 15.2 + edge_time * 1.07 + 1.7 + lower_phase * 1.13)
-		+ 0.14 * sin(along * 26.7 - edge_time * 1.45 + 0.6 - lower_phase * 0.72)
-		+ 0.18 * sin(along * 4.1 + edge_time * 0.43 + lower_phase * 0.75);
+	// Keep the aura's edge fade synchronized with the mesh's single broad swell.
+	float upper_swell = membrane_swell(along, edge_time, -0.025);
+	float lower_swell = membrane_swell(along, edge_time, 0.035);
 	float edge_envelope = smoothstep(0.025, 0.19, along);
-	float upper_threshold = 0.91 + upper_wave * edge_undulation_strength * edge_envelope;
-	float lower_threshold = 0.91 + lower_wave * edge_undulation_strength * edge_envelope;
-	float edge_threshold = mix(upper_threshold, lower_threshold, step(0.5, across));
-	float edge_fade = 1.0 - smoothstep(edge_threshold, edge_threshold + 0.075, edge_distance);
-	float edge_factor = smoothstep(0.42, 0.82, edge_distance);
 	float pulse_gate = step(0.0, pulse_progress);
 	float pulse_band = (
 		1.0 - smoothstep(0.02, 0.105, abs(along - pulse_progress))
 	) * pulse_gate;
 	float pulse = pulse_band * pulse_strength;
+	float pulse_offset = along - pulse_progress;
+	float pulse_swell = exp(-pulse_offset * pulse_offset * 110.0) * pulse_gate * pulse_strength;
+	float upper_threshold = 0.91 + (
+		upper_swell * 0.075 + pulse_swell * 0.035
+	) * edge_envelope;
+	float lower_threshold = 0.91 + (
+		lower_swell * 0.075 + pulse_swell * 0.025
+	) * edge_envelope;
+	float edge_threshold = mix(upper_threshold, lower_threshold, step(0.5, across));
+	float edge_fade = 1.0 - smoothstep(edge_threshold, edge_threshold + 0.075, edge_distance);
+	float edge_factor = smoothstep(0.42, 0.82, edge_distance);
 
 	vec3 pulse_color;
 	if (palette_mode == 1) {
