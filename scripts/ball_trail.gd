@@ -382,28 +382,6 @@ func _get_animated_trail_point(index: int, apply_head_offset: bool = true) -> Ve
 	return point - tangent * head_offset + perpendicular * drift
 
 
-func _get_membrane_edge_wave(progress: float, phase_offset: float = 0.0) -> float:
-	var edge_time: float = _trail_time
-	# A broad rolling swell sets the silhouette; offset nested waves keep it
-	# from reading as a regular sine ripple. Each flank uses its own phase.
-	var broad_wave: float = sin(
-		progress * 8.3 - edge_time * 0.82
-		+ sin(progress * 3.1 + edge_time * 0.31 + phase_offset * 0.28) * 0.95
-		+ sin(progress * 5.7 - edge_time * 0.47 + 1.4 - phase_offset * 0.35) * 0.42
-		+ phase_offset
-	)
-	var medium_wave: float = sin(
-		progress * 15.2 + edge_time * 1.07 + 1.7 + phase_offset * 1.13
-	)
-	var detail_wave: float = sin(
-		progress * 26.7 - edge_time * 1.45 + 0.6 - phase_offset * 0.72
-	)
-	var slow_wave: float = sin(
-		progress * 4.1 + edge_time * 0.43 + phase_offset * 0.75
-	)
-	return broad_wave * 0.43 + medium_wave * 0.25 + detail_wave * 0.14 + slow_wave * 0.18
-
-
 func _update_unified_comet_shape(delta: float = 0.0) -> void:
 	if _unified_shape == null or _points.size() < 2:
 		return
@@ -457,24 +435,12 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 
 	var upper_edge_points: Array[Vector2] = []
 	var lower_edge_points: Array[Vector2] = []
-	var upper_half_widths: Array[float] = []
-	var lower_half_widths: Array[float] = []
 	for i in range(path.size()):
-		var progress: float = cumulative_distances[i] / total_distance
-		# Leave the orb connection untouched, then let two differently phased
-		# edge waves pull the membrane edges independently as they travel rearward.
-		var edge_envelope: float = smoothstep(0.025, 0.19, progress)
-		var upper_wave: float = _get_membrane_edge_wave(progress)
-		var lower_wave: float = _get_membrane_edge_wave(progress, 2.05)
+		# Keep the original clean, consistent ribbon width. Organic movement is
+		# already supplied by the trail path, plasma flow and travelling pulses.
 		var base_half_width: float = half_widths[i]
-		var upper_width: float = base_half_width * maxf(0.72, 1.0 + upper_wave * 0.26 * edge_envelope)
-		var lower_width: float = base_half_width * maxf(0.72, 1.0 + lower_wave * 0.26 * edge_envelope)
-		upper_half_widths.append(upper_width)
-		lower_half_widths.append(lower_width)
-		upper_edge_points.append(path[i] + normals[i] * upper_width)
-		lower_edge_points.append(path[i] - normals[i] * lower_width)
-		# Landing fragments and pulse anchors use a representative live width.
-		half_widths[i] = (upper_width + lower_width) * 0.5
+		upper_edge_points.append(path[i] + normals[i] * base_half_width)
+		lower_edge_points.append(path[i] - normals[i] * base_half_width)
 
 	_latest_trail_path = path.duplicate()
 	_latest_trail_distances = cumulative_distances.duplicate()
@@ -519,8 +485,8 @@ func _update_unified_comet_shape(delta: float = 0.0) -> void:
 	var previous_progress: float = 0.0
 	for i in range(1, path.size()):
 		var progress: float = cumulative_distances[i] / total_distance
-		var current_left: Vector2 = path[i] + normals[i] * upper_half_widths[i]
-		var current_right: Vector2 = path[i] - normals[i] * lower_half_widths[i]
+		var current_left: Vector2 = path[i] + normals[i] * half_widths[i]
+		var current_right: Vector2 = path[i] - normals[i] * half_widths[i]
 		var previous_left_uv := Vector2(previous_progress, 0.0)
 		var previous_right_uv := Vector2(previous_progress, 1.0)
 		var current_left_uv := Vector2(progress, 0.0)
@@ -1092,10 +1058,6 @@ func _update_energy_pulse(delta: float) -> void:
 
 	var progress_for_shader: float = _pulse_progress if _pulse_active else -1.0
 	var strength_for_shader: float = 1.0 if _pulse_active else 0.0
-	var aura_shader_material := _trail_aura.material as ShaderMaterial
-	if aura_shader_material != null:
-		aura_shader_material.set_shader_parameter("edge_time", _trail_time)
-
 	var materials: Array[ShaderMaterial] = [
 		_unified_shape.material as ShaderMaterial,
 		_energy_line.material as ShaderMaterial,
