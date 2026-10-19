@@ -46,29 +46,28 @@ void fragment() {
 		* field_falloff
 		* organic_variation
 		* rim_breath
-		* (1.0 + landing_charge * 0.28 + landing_flash * 1.20);
+		* (1.0 + landing_charge * 0.28 + landing_flash * 0.62);
 
 	float contour = exp(-pow((d - contour_radius) / 0.027, 2.0));
-	float contour_strength = contour * edge_reveal * field_falloff * 0.24 * rim_breath * (1.0 + landing_charge * 0.30 + landing_flash * 1.35);
+	float contour_strength = contour * edge_reveal * field_falloff * 0.24 * rim_breath * (1.0 + landing_charge * 0.30 + landing_flash * 0.72);
 	float strength = clamp(field_strength + contour_strength, 0.0, 0.86);
 
 	vec3 glow_color;
 	vec3 contour_color;
-	vec3 confirmation_color;
 	if (palette_mode == 1) {
 		glow_color = vec3(0.42, 0.055, 1.0);
 		contour_color = vec3(1.20, 0.45, 2.3);
-		confirmation_color = vec3(3.4, 2.8, 4.0);
 	} else {
 		glow_color = vec3(0.045, 0.52, 1.15);
 		contour_color = vec3(0.34, 1.22, 2.35);
-		confirmation_color = vec3(2.8, 3.8, 4.2);
 	}
 
 	float contour_mix = clamp(contour_strength / max(strength, 0.001), 0.0, 1.0);
 	vec3 field_color = mix(glow_color, contour_color, contour_mix);
+	// Confirmation brightens the existing cyan/violet contour instead of
+	// bleaching the rim to white on every frequent landing.
 	float charge_tint = clamp(landing_charge * 0.12, 0.0, 0.12);
-	field_color = mix(field_color, confirmation_color, charge_tint);
-	field_color = mix(field_color, confirmation_color, landing_flash * 0.78);
+	float contact_tint = clamp(landing_flash * 0.24, 0.0, 0.24);
+	field_color = mix(field_color, contour_color, charge_tint + contact_tint);
 	COLOR = vec4(field_color, strength);
 }
