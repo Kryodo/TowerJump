@@ -62,7 +62,7 @@ var _landing_confirmation_strength: float = 0.0
 var _landing_trail_kick_elapsed: float = -1.0
 var _landing_trail_kick_strength: float = 0.0
 
-# Ambient pulses remain occasional; landings use a separate, faster discharge.
+# Ambient pulses remain occasional; landings use a brief, localized trail-head kick.
 const ENERGY_PULSE_SPEED: float = 0.62
 const ENERGY_PULSE_END: float = 0.94
 const ENERGY_FILAMENT_MAX_ACTIVE: int = 8
