@@ -8,6 +8,8 @@ uniform float flow_speed = 0.9;
 uniform float surface_flow_strength : hint_range(0.0, 0.5) = 0.16;
 uniform float pulse_progress = -1.0;
 uniform float pulse_strength = 0.0;
+uniform float landing_pulse_progress = -1.0;
+uniform float landing_pulse_strength = 0.0;
 
 // Deterministic noise shared with the inner energy shader.
 float hash21(vec2 p) {
@@ -59,6 +61,10 @@ void fragment() {
 		1.0 - smoothstep(0.025, 0.105, abs(along - pulse_progress))
 	) * pulse_gate;
 	float travelling_pulse = pulse_band * pulse_strength * tail_fade;
+	float landing_pulse_band = (
+		1.0 - smoothstep(0.025, 0.125, abs(along - landing_pulse_progress))
+	) * step(0.0, landing_pulse_progress);
+	float landing_travelling_pulse = landing_pulse_band * landing_pulse_strength * tail_fade;
 	float edge_mask = smoothstep(0.24, 0.82, abs(across * 2.0 - 1.0));
 
 	float time = TIME * flow_speed;
@@ -94,26 +100,31 @@ void fragment() {
 	vec3 tail_color;
 	vec3 inner_energy_color;
 	vec3 pulse_color;
+	vec3 landing_pulse_color;
 	if (palette_mode == 1) {
 		head_color = vec3(0.52, 0.10, 0.96);
 		tail_color = vec3(0.11, 0.014, 0.34);
 		inner_energy_color = vec3(1.12, 0.52, 1.65);
 		pulse_color = vec3(1.55, 0.78, 1.95);
+		landing_pulse_color = vec3(2.0, 1.15, 2.75);
 	} else {
 		head_color = vec3(0.035, 0.36, 0.92);
 		tail_color = vec3(0.006, 0.035, 0.25);
 		inner_energy_color = vec3(0.22, 0.88, 1.42);
 		pulse_color = vec3(0.70, 1.38, 1.90);
+		landing_pulse_color = vec3(1.0, 1.95, 2.65);
 	}
 
 	vec3 body_color = mix(head_color, tail_color, smoothstep(0.06, 0.94, along));
 	float core_influence = center_energy * (0.14 + 0.16 * head_energy);
 	core_influence += surface_presence * surface_flow_strength;
 	core_influence += travelling_pulse * 0.20;
+	core_influence += landing_travelling_pulse * 0.30;
 	body_color = mix(body_color, inner_energy_color, clamp(core_influence, 0.0, 0.65));
 	body_color *= flow;
 	// The travelling current briefly lights the membrane's outer edges as well as its core.
 	body_color += pulse_color * travelling_pulse * edge_mask * 0.52;
+	body_color += landing_pulse_color * landing_travelling_pulse * (0.35 + edge_mask * 0.70);
 
 	// Keep the skin continuous and translucent. Its visible silhouette is now
 	// carried by the live mesh edge geometry; pulses add light without reshaping it.
@@ -121,6 +132,7 @@ void fragment() {
 	float body_alpha = translucent_body_alpha * mix(0.93, 1.06, surface_presence);
 	float core_alpha = center_energy * (0.10 + surface_current * 0.02) * head_energy;
 	float pulse_alpha = travelling_pulse * (0.025 + edge_mask * 0.11);
+	pulse_alpha += landing_travelling_pulse * (0.035 + edge_mask * 0.13);
 	float alpha = clamp((body_alpha + core_alpha + pulse_alpha) * tail_fade, 0.0, 0.94);
 	alpha = clamp(alpha * fragment_alpha_boost, 0.0, 0.94);
 
