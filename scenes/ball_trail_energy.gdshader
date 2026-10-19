@@ -9,6 +9,7 @@ uniform float trail_progress_scale = 1.0;
 uniform float pulse_progress = -1.0;
 uniform float pulse_strength = 0.0;
 uniform float landing_kick_strength = 0.0;
+uniform float landing_kick_progress = 0.0;
 
 
 // ------------------------------------------------------------
@@ -206,10 +207,18 @@ void fragment()
 		1.0 - smoothstep(0.022, 0.105, abs(uv.x - pulse_progress))
 	) * pulse_gate;
 	float travelling_pulse = pulse_band * pulse_strength * trail_fade;
-	// A quick localized kick lights the part of the stream emerging from
-	// the orb without consuming the ambient pulse's full ribbon travel.
+	// The contact discharge moves through the first ~58% of the stream.
+	// A soft wake gives it flow without turning it into a second full pulse.
+	float landing_kick_gate = step(0.0, landing_kick_progress);
+	float landing_kick_front = 1.0 - smoothstep(0.025, 0.095, abs(uv.x - landing_kick_progress));
+	float landing_kick_wake = (
+		1.0 - smoothstep(0.0, 0.18, max(landing_kick_progress - uv.x, 0.0))
+	) * (
+		1.0 - smoothstep(0.0, 0.09, max(uv.x - landing_kick_progress, 0.0))
+	);
 	float landing_head_kick = landing_kick_strength
-		* (1.0 - smoothstep(0.02, 0.34, uv.x))
+		* max(landing_kick_front, landing_kick_wake * 0.30)
+		* landing_kick_gate
 		* trail_fade;
 	float pulse_edge = travelling_pulse * smoothstep(0.42, 0.82, edge_distance);
 	// Landing flash stays in the head of the ribbon rather than moving across it.
