@@ -5,6 +5,7 @@ render_mode blend_add;
 // ball.gdshader; this layer contributes only the atmosphere around its edge.
 uniform int palette_mode = 0;
 uniform float rim_breath = 1.0;
+uniform float landing_confirmation = 0.0;
 uniform float body_radius : hint_range(0.55, 0.90, 0.001) = 0.755;
 
 void fragment() {
@@ -36,28 +37,34 @@ void fragment() {
 		);
 	float organic_variation = 0.86 + angular_flow * 0.14;
 
+	float landing_flash = clamp(landing_confirmation, 0.0, 1.0);
 	float field_strength =
 		(near_glow * 0.20 + wide_glow * 0.105)
 		* edge_reveal
 		* field_falloff
 		* organic_variation
-		* rim_breath;
+		* rim_breath
+		* (1.0 + landing_flash * 0.85);
 
 	float contour = exp(-pow((d - contour_radius) / 0.027, 2.0));
-	float contour_strength = contour * edge_reveal * field_falloff * 0.24 * rim_breath;
-	float strength = clamp(field_strength + contour_strength, 0.0, 0.42);
+	float contour_strength = contour * edge_reveal * field_falloff * 0.24 * rim_breath * (1.0 + landing_flash * 0.95);
+	float strength = clamp(field_strength + contour_strength, 0.0, 0.72);
 
 	vec3 glow_color;
 	vec3 contour_color;
+	vec3 confirmation_color;
 	if (palette_mode == 1) {
 		glow_color = vec3(0.42, 0.055, 1.0);
 		contour_color = vec3(1.20, 0.45, 2.3);
+		confirmation_color = vec3(3.4, 2.8, 4.0);
 	} else {
 		glow_color = vec3(0.045, 0.52, 1.15);
 		contour_color = vec3(0.34, 1.22, 2.35);
+		confirmation_color = vec3(2.8, 3.8, 4.2);
 	}
 
 	float contour_mix = clamp(contour_strength / max(strength, 0.001), 0.0, 1.0);
 	vec3 field_color = mix(glow_color, contour_color, contour_mix);
+	field_color = mix(field_color, confirmation_color, landing_flash * 0.72);
 	COLOR = vec4(field_color, strength);
 }
