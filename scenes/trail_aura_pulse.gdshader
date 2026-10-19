@@ -29,19 +29,19 @@ void fragment() {
 		* edge_fade;
 
 	vec3 pulse_color;
-	vec3 landing_pulse_color;
+	vec3 landing_kick_color;
 	if (palette_mode == 1) {
 		pulse_color = vec3(1.35, 0.72, 1.85);
-		landing_pulse_color = vec3(1.9, 1.1, 2.65);
+		landing_kick_color = vec3(1.9, 1.1, 2.65);
 	} else {
 		pulse_color = vec3(0.62, 1.18, 1.72);
-		landing_pulse_color = vec3(0.9, 1.8, 2.55);
+		landing_kick_color = vec3(0.9, 1.8, 2.55);
 	}
 
 	float edge_flash = pulse * edge_factor;
 	aura.rgb = mix(aura.rgb, pulse_color, pulse * 0.12);
 	aura.rgb += pulse_color * edge_flash * 0.72;
-	aura.rgb += landing_pulse_color * landing_head_kick * (0.12 + edge_factor * 0.16);
+	aura.rgb += landing_kick_color * landing_head_kick * (0.12 + edge_factor * 0.16);
 	aura.a = clamp(aura.a + pulse * 0.025 + edge_flash * 0.24 + landing_head_kick * 0.012, 0.0, 0.98);
 	aura.a *= edge_fade;
 	COLOR = aura;
