@@ -1,11 +1,8 @@
 shader_type canvas_item;
 
 varying float edge_local_x;
-varying float edge_local_y;
 
 instance uniform float platform_width = 220.0;
-instance uniform float platform_height = 20.0;
-instance uniform float edge_height = 8.0;
 instance uniform float approach_charge = 0.0;
 instance uniform float approach_target_x = 0.5;
 instance uniform float landing_confirm = 0.0;
@@ -13,18 +10,11 @@ instance uniform float activated = 0.0;
 
 void vertex() {
 	edge_local_x = VERTEX.x;
-	edge_local_y = VERTEX.y;
 }
 
 void fragment() {
 	float half_width = platform_width * 0.5;
 	float x = clamp((edge_local_x + half_width) / platform_width, 0.0, 1.0);
-	float y = clamp(
-		(edge_local_y + platform_height * 0.5) / max(edge_height, 0.001),
-		0.0,
-		1.0
-	);
-
 	// The script supplies the already-constrained predicted landing point.
 	// Keep the shader permissive so it does not secretly re-center the target.
 	float target = clamp(approach_target_x, 0.02, 0.98);
@@ -63,20 +53,8 @@ void fragment() {
 	// quality; confirmation is a separate layer.
 	result = mix(result, active_color, active);
 
-	// Material reflection: a clear, narrow top glint plus a softer inner
-	// sheen. Keep the highlight palette-matched, but strong enough to read at
-	// the edge's 8 px height without becoming a second outline.
-	float upper_glint = 1.0 - smoothstep(0.0, 0.30, y);
-	float inner_sheen = exp(-pow((y - 0.42) / 0.23, 2.0));
-	float cyan_state = max(fill, active);
-	vec3 purple_reflection = vec3(0.88, 0.64, 1.38);
-	vec3 cyan_reflection = vec3(0.72, 2.95, 3.82);
-	vec3 reflection_color = mix(purple_reflection, cyan_reflection, cyan_state);
-	float reflection_strength = clamp(upper_glint * 0.42 + inner_sheen * 0.20, 0.0, 0.52);
-	result = mix(result, reflection_color, reflection_strength);
-
-	// Completion flash is applied AFTER the reflection so its white connection
-	// moment remains unchanged, then settles back to the active cyan.
+	// Completion flash is applied AFTER the activated state so it remains
+	// visible as a true white connection moment, then settles back to cyan.
 	float confirm = clamp(landing_confirm, 0.0, 1.0);
 	result = mix(result, confirm_color, confirm);
 
