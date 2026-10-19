@@ -12,7 +12,6 @@
 [ext_resource type="Script" uid="uid://w2ijwcyipbda" path="res://scripts/landing/landing_feedback_controller.gd" id="10_landing_feedback"]
 [ext_resource type="Script" uid="uid://cg3nexhcchxia" path="res://scripts/landing/landing_platform_reaction.gd" id="11_landing_platform_reaction"]
 [ext_resource type="Texture2D" uid="uid://bfduv7ff6742p" path="res://scenes/ambient_mote.svg" id="12_ambient_mote"]
-[ext_resource type="Shader" path="res://scenes/background_depth_of_field.gdshader" id="14_background_dof"]
 
 [sub_resource type="Gradient" id="Gradient_ambient_motes"]
 offsets = PackedFloat32Array(0, 0.12, 0.7, 1)
@@ -82,11 +81,6 @@ color = Color(0.9, 0.96, 1.04, 1)
 color_initial_ramp = SubResource("GradientTexture1D_ambient_mote_palette")
 color_ramp = SubResource("GradientTexture1D_ambient_motes")
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_background_depth_of_field"]
-shader = ExtResource("14_background_dof")
-shader_parameter/blur_radius_pixels = 3.0
-shader_parameter/blur_strength = 0.62
-
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
 bg_color = Color(0.12, 0.13, 0.18, 0.95)
 corner_radius_top_left = 16
@@ -152,15 +146,6 @@ lifetime = 8.0
 preprocess = 8.0
 visibility_rect = Rect2(-520, -900, 1040, 1800)
 process_material = SubResource("ParticleProcessMaterial_ambient_mote_highlights")
-
-[node name="BackgroundDepthOfField" type="ColorRect" parent="GameCamera" unique_id=1643482710]
-material = SubResource("ShaderMaterial_background_depth_of_field")
-z_index = -26
-offset_left = -360.0
-offset_top = -640.0
-offset_right = 360.0
-offset_bottom = 640.0
-color = Color(1, 1, 1, 1)
 
 [node name="CoinSpawner" type="Node2D" parent="." unique_id=606753791]
 script = ExtResource("9_coinspawner")
