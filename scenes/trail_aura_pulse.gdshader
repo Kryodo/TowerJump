@@ -3,8 +3,6 @@ shader_type canvas_item;
 uniform int palette_mode = 0;
 uniform float pulse_progress = -1.0;
 uniform float pulse_strength = 0.0;
-uniform float landing_kick_strength = 0.0;
-uniform float landing_kick_progress = 0.0;
 
 // Preserve the TrailAura gradient as the base color. A passing pulse adds a
 // short-lived highlight strongest along each outside edge of the ribbon.
@@ -23,35 +21,18 @@ void fragment() {
 		1.0 - smoothstep(0.02, 0.105, abs(along - pulse_progress))
 	) * pulse_gate;
 	float pulse = pulse_band * pulse_strength;
-	// Share the moving discharge with the other ribbon layers while keeping
-	// the ambient full-length pulse and filament timing independent.
-	float landing_kick_gate = step(0.0, landing_kick_progress);
-	float landing_kick_front = 1.0 - smoothstep(0.025, 0.095, abs(along - landing_kick_progress));
-	float landing_kick_wake = (
-		1.0 - smoothstep(0.0, 0.18, max(landing_kick_progress - along, 0.0))
-	) * (
-		1.0 - smoothstep(0.0, 0.09, max(along - landing_kick_progress, 0.0))
-	);
-	float landing_head_kick = landing_kick_strength
-		* max(landing_kick_front, landing_kick_wake * 0.30)
-		* landing_kick_gate
-		* edge_fade;
 
 	vec3 pulse_color;
-	vec3 landing_kick_color;
 	if (palette_mode == 1) {
 		pulse_color = vec3(1.35, 0.72, 1.85);
-		landing_kick_color = vec3(1.9, 1.1, 2.65);
 	} else {
 		pulse_color = vec3(0.62, 1.18, 1.72);
-		landing_kick_color = vec3(0.9, 1.8, 2.55);
 	}
 
 	float edge_flash = pulse * edge_factor;
 	aura.rgb = mix(aura.rgb, pulse_color, pulse * 0.12);
 	aura.rgb += pulse_color * edge_flash * 0.72;
-	aura.rgb += landing_kick_color * landing_head_kick * (0.12 + edge_factor * 0.16);
-	aura.a = clamp(aura.a + pulse * 0.025 + edge_flash * 0.24 + landing_head_kick * 0.012, 0.0, 0.98);
+	aura.a = clamp(aura.a + pulse * 0.025 + edge_flash * 0.24, 0.0, 0.98);
 	aura.a *= edge_fade;
 	COLOR = aura;
 }
