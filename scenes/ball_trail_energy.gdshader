@@ -207,24 +207,34 @@ void fragment()
 		1.0 - smoothstep(0.022, 0.105, abs(uv.x - pulse_progress))
 	) * pulse_gate;
 	float travelling_pulse = pulse_band * pulse_strength * trail_fade;
-	// The contact discharge moves through the first ~58% of the stream.
-	// A soft wake gives it flow without turning it into a second full pulse.
+	// On landing, a quick energy front sweeps from the tail (uv.x = 1)
+	// back toward the orb (uv.x = 0). A slight cross-stream warp makes the
+	// flash wander through the turbulent plasma rather than scan like a ruler.
+	float landing_front_wander = (
+		0.018 * sin(uv.y * 8.0 + time * 4.2)
+		+ 0.009 * sin(uv.y * 15.0 - time * 5.7)
+	);
+	float landing_front_center = clamp(landing_kick_progress + landing_front_wander, 0.0, 1.0);
 	float landing_kick_gate = step(0.0, landing_kick_progress);
-	float landing_kick_front = 1.0 - smoothstep(0.025, 0.095, abs(uv.x - landing_kick_progress));
+	float landing_kick_front = 1.0 - smoothstep(
+		0.018,
+		0.075,
+		abs(uv.x - landing_front_center)
+	);
 	float landing_kick_wake = (
-		1.0 - smoothstep(0.0, 0.18, max(landing_kick_progress - uv.x, 0.0))
+		1.0 - smoothstep(0.0, 0.23, max(uv.x - landing_kick_progress, 0.0))
 	) * (
-		1.0 - smoothstep(0.0, 0.09, max(uv.x - landing_kick_progress, 0.0))
+		1.0 - smoothstep(0.0, 0.08, max(landing_kick_progress - uv.x, 0.0))
 	);
 	float landing_head_kick = landing_kick_strength
-		* max(landing_kick_front, landing_kick_wake * 0.30)
+		* max(landing_kick_front, landing_kick_wake * 0.24)
 		* landing_kick_gate
 		* trail_fade;
 	float pulse_edge = travelling_pulse * smoothstep(0.42, 0.82, edge_distance);
 	// Landing flash stays in the head of the ribbon rather than moving across it.
 	edge_strength = max(edge_strength, pulse_edge * 0.95);
 	energy = max(energy, edge_strength * 0.42);
-	energy = min(energy + travelling_pulse * 0.46 + landing_head_kick * 0.28, 2.0);
+	energy = min(energy + travelling_pulse * 0.46 + landing_head_kick * 0.23, 2.0);
 
 
 	// Palette-matched energy stream: saturated blue or rich violet.
@@ -259,7 +269,7 @@ void fragment()
 	// Additive HDR accents stay subtle at rest but flare briefly as the pulse passes.
 	final_color += edge_color * edge_strength * 0.43;
 	final_color += edge_color * travelling_pulse * 0.30;
-	final_color += landing_kick_color * landing_head_kick * 0.32;
+	final_color += landing_kick_color * landing_head_kick * 0.24;
 
 	COLOR = vec4(
 		final_color,
