@@ -44,6 +44,7 @@ var _surface_burst_clock: float = 0.0
 var _shed_sequence: int = 0
 var _detached_shed_fragments: Array[Dictionary] = []
 var _surface_fragment_material: ShaderMaterial
+var _landing_impact_material: CanvasItemMaterial
 var _visual_rng := RandomNumberGenerator.new()
 var _energy_filaments: Array[Dictionary] = []
 var _pulse_active: bool = false
@@ -109,6 +110,7 @@ func _ready() -> void:
 
 	_apply_visual_palette()
 	_initialize_surface_fragment_material()
+	_initialize_landing_impact_material()
 	call_deferred("_connect_landing_feedback")
 	_update_trail_lines()
 	_update_rim_breath()
@@ -123,6 +125,13 @@ func _initialize_surface_fragment_material() -> void:
 
 
 
+
+func _initialize_landing_impact_material() -> void:
+	# Landing sparks use a brief additive accent separate from the larger
+	# translucent fragments shed by the comet trail.
+	var material := CanvasItemMaterial.new()
+	material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	_landing_impact_material = material
 
 func _measure_ball_surface_radius() -> float:
 	if _ball_visual == null or _ball_visual.texture == null:
@@ -734,6 +743,7 @@ func _on_landing_confirmed(event: LandingEvent) -> void:
 		return
 
 	_start_landing_response()
+	_spawn_landing_impact(event)
 
 	# The cadence counts confirmed landings only. A pending release is a single
 	# queued event, never a backlog of overlapping full-ribbon pulses.
@@ -938,6 +948,131 @@ func _spawn_surface_fragment(
 	})
 	_shed_sequence += 1
 
+
+func _spawn_landing_impact(event: LandingEvent) -> void:
+	if (
+		event.platform == null
+		or not is_instance_valid(event.platform)
+		or _landing_impact_material == null
+	):
+		return
+
+	var world_root: Node2D = get_tree().current_scene as Node2D
+	if world_root == null:
+		world_root = get_parent() as Node2D
+	if world_root == null:
+		return
+
+	# The event supplies the actual horizontal contact coordinate. Use the
+	# platform's top edge for the contact seam instead of the ball's centre.
+	var height_value: Variant = event.platform.get("height")
+	var platform_height: float = float(height_value) if height_value != null else 20.0
+	var contact_position := Vector2(
+		event.landing_world_x,
+		event.platform.global_position.y - platform_height * 0.5
+	)
+
+	_spawn_landing_contact_snap(contact_position, world_root)
+
+	# Leave capacity for the existing larger surface-fragment burst if many
+	# detached fragments are still alive.
+	if _detached_shed_fragments.size() >= 32:
+		return
+
+	var shard_count: int = _visual_rng.randi_range(2, 3)
+	var momentum_scale: float = 1.0
+	var speed_limit_value: Variant = event.ball.get("max_horizontal_speed")
+	if speed_limit_value != null:
+		momentum_scale = maxf(float(speed_limit_value), 1.0)
+	var horizontal_bias: float = clampf(
+		event.horizontal_velocity / momentum_scale,
+		-1.0,
+		1.0
+	)
+	var vertical_kick: float = clampf(absf(event.vertical_velocity) * 0.02, 0.0, 16.0)
+
+	for shard_index in range(shard_count):
+		var side: float = -1.0 if shard_index % 2 == 0 else 1.0
+		var shard_size: float = _visual_rng.randf_range(2.2, 3.8)
+		var is_square: bool = _visual_rng.randf() < 0.24
+		var shard := Polygon2D.new()
+		shard.name = "LandingImpactSquare" if is_square else "LandingImpactShard"
+		shard.z_as_relative = false
+		shard.z_index = 1
+		shard.material = _landing_impact_material
+
+		var polygon := PackedVector2Array()
+		if is_square:
+			polygon.append(Vector2(-shard_size, -shard_size * 0.72))
+			polygon.append(Vector2(shard_size, -shard_size * 0.72))
+			polygon.append(Vector2(shard_size, shard_size * 0.72))
+			polygon.append(Vector2(-shard_size, shard_size * 0.72))
+		else:
+			polygon.append(Vector2(-shard_size * 1.15, -shard_size * 0.26))
+			polygon.append(Vector2(shard_size * 0.38, -shard_size * 0.52))
+			polygon.append(Vector2(shard_size * 1.25, 0.0))
+			polygon.append(Vector2(-shard_size * 0.12, shard_size * 0.44))
+		shard.polygon = polygon
+		shard.color = _landing_impact_color(false).lightened(
+			0.12 if is_square else 0.0
+		)
+
+		var velocity := Vector2(
+			side * _visual_rng.randf_range(52.0, 86.0) + horizontal_bias * 28.0,
+			-_visual_rng.randf_range(28.0, 56.0) - vertical_kick
+		)
+		var heading: float = atan2(velocity.y, velocity.x)
+		world_root.add_child(shard)
+		shard.global_position = contact_position
+		shard.global_rotation = heading + _visual_rng.randf_range(-0.55, 0.55)
+		_detached_shed_fragments.append({
+			"node": shard,
+			"velocity": velocity,
+			"age": 0.0,
+			"lifetime": _visual_rng.randf_range(0.16, 0.24),
+			"angular_velocity": _visual_rng.randf_range(-8.0, 8.0),
+			"base_alpha": _visual_rng.randf_range(0.82, 1.0),
+			"fade_start_fraction": 0.22
+		})
+
+
+func _spawn_landing_contact_snap(contact_position: Vector2, world_root: Node2D) -> void:
+	if _detached_shed_fragments.size() >= 36:
+		return
+
+	var snap := Polygon2D.new()
+	snap.name = "LandingContactSnap"
+	snap.z_as_relative = false
+	snap.z_index = 1
+	snap.material = _landing_impact_material
+	snap.color = _landing_impact_color(true)
+	snap.polygon = PackedVector2Array([
+		Vector2(-8.0, 0.0),
+		Vector2(-2.8, -0.8),
+		Vector2(0.0, -3.0),
+		Vector2(2.8, -0.8),
+		Vector2(8.0, 0.0),
+		Vector2(2.8, 0.8),
+		Vector2(0.0, 2.0),
+		Vector2(-2.8, 0.8)
+	])
+	world_root.add_child(snap)
+	snap.global_position = contact_position
+	_detached_shed_fragments.append({
+		"node": snap,
+		"velocity": Vector2.ZERO,
+		"age": 0.0,
+		"lifetime": 0.085,
+		"angular_velocity": 0.0,
+		"base_alpha": 0.92,
+		"fade_start_fraction": 0.08
+	})
+
+
+func _landing_impact_color(is_snap: bool) -> Color:
+	if visual_palette == 1:
+		return Color(1.12, 0.64, 1.55, 1.0) if is_snap else Color(0.76, 0.28, 1.18, 0.96)
+	return Color(0.58, 1.32, 1.72, 1.0) if is_snap else Color(0.20, 0.72, 1.32, 0.96)
 
 func _update_detached_shed_fragments(delta: float) -> void:
 	for fragment_index in range(_detached_shed_fragments.size() - 1, -1, -1):
