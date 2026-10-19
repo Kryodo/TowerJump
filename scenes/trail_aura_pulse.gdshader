@@ -3,8 +3,7 @@ shader_type canvas_item;
 uniform int palette_mode = 0;
 uniform float pulse_progress = -1.0;
 uniform float pulse_strength = 0.0;
-uniform float landing_pulse_progress = -1.0;
-uniform float landing_pulse_strength = 0.0;
+uniform float landing_kick_strength = 0.0;
 
 // Preserve the TrailAura gradient as the base color. A passing pulse adds a
 // short-lived highlight strongest along each outside edge of the ribbon.
@@ -23,10 +22,11 @@ void fragment() {
 		1.0 - smoothstep(0.02, 0.105, abs(along - pulse_progress))
 	) * pulse_gate;
 	float pulse = pulse_band * pulse_strength;
-	float landing_pulse_band = (
-		1.0 - smoothstep(0.025, 0.125, abs(along - landing_pulse_progress))
-	) * step(0.0, landing_pulse_progress);
-	float landing_pulse = landing_pulse_band * landing_pulse_strength * edge_fade;
+	// Keep the landing kick close to the orb; the separate ambient pulse
+	// still owns long-distance motion and filament spawning.
+	float landing_head_kick = landing_kick_strength
+		* (1.0 - smoothstep(0.02, 0.32, along))
+		* edge_fade;
 
 	vec3 pulse_color;
 	vec3 landing_pulse_color;
@@ -38,11 +38,11 @@ void fragment() {
 		landing_pulse_color = vec3(0.9, 1.8, 2.55);
 	}
 
-	float edge_flash = max(pulse * edge_factor, landing_pulse * edge_factor * 1.15);
+	float edge_flash = pulse * edge_factor;
 	aura.rgb = mix(aura.rgb, pulse_color, pulse * 0.12);
 	aura.rgb += pulse_color * edge_flash * 0.72;
-	aura.rgb += landing_pulse_color * landing_pulse * (0.28 + edge_factor * 0.42);
-	aura.a = clamp(aura.a + pulse * 0.025 + edge_flash * 0.24 + landing_pulse * 0.035, 0.0, 0.98);
+	aura.rgb += landing_pulse_color * landing_head_kick * (0.12 + edge_factor * 0.16);
+	aura.a = clamp(aura.a + pulse * 0.025 + edge_flash * 0.24 + landing_head_kick * 0.012, 0.0, 0.98);
 	aura.a *= edge_fade;
 	COLOR = aura;
 }
