@@ -8,6 +8,8 @@ uniform float trail_progress_start = 0.0;
 uniform float trail_progress_scale = 1.0;
 uniform float pulse_progress = -1.0;
 uniform float pulse_strength = 0.0;
+uniform float landing_pulse_progress = -1.0;
+uniform float landing_pulse_strength = 0.0;
 
 
 // ------------------------------------------------------------
@@ -205,24 +207,32 @@ void fragment()
 		1.0 - smoothstep(0.022, 0.105, abs(uv.x - pulse_progress))
 	) * pulse_gate;
 	float travelling_pulse = pulse_band * pulse_strength * trail_fade;
+	float landing_pulse_band = (
+		1.0 - smoothstep(0.025, 0.125, abs(uv.x - landing_pulse_progress))
+	) * step(0.0, landing_pulse_progress);
+	float landing_travelling_pulse = landing_pulse_band * landing_pulse_strength * trail_fade;
 	float pulse_edge = travelling_pulse * smoothstep(0.42, 0.82, edge_distance);
+	pulse_edge = max(pulse_edge, landing_travelling_pulse * smoothstep(0.35, 0.78, edge_distance) * 1.15);
 	edge_strength = max(edge_strength, pulse_edge * 0.95);
 	energy = max(energy, edge_strength * 0.42);
-	energy = min(energy + travelling_pulse * 0.46, 2.0);
+	energy = min(energy + travelling_pulse * 0.46 + landing_travelling_pulse * 0.65, 2.0);
 
 
 	// Palette-matched energy stream: saturated blue or rich violet.
 	vec3 base_color;
 	vec3 bright_color;
 	vec3 edge_color;
+	vec3 landing_pulse_color;
 	if (palette_mode == 1) {
 		base_color = vec3(0.30, 0.035, 0.82);
 		bright_color = vec3(1.12, 0.68, 1.48);
 		edge_color = vec3(1.55, 0.88, 1.95);
+		landing_pulse_color = vec3(2.0, 1.15, 2.7);
 	} else {
 		base_color = vec3(0.025, 0.20, 0.95);
 		bright_color = vec3(0.46, 0.96, 1.48);
 		edge_color = vec3(0.58, 1.22, 1.82);
+		landing_pulse_color = vec3(0.95, 1.9, 2.65);
 	}
 
 	float brightness = clamp(
@@ -240,6 +250,7 @@ void fragment()
 	// Additive HDR accents stay subtle at rest but flare briefly as the pulse passes.
 	final_color += edge_color * edge_strength * 0.43;
 	final_color += edge_color * travelling_pulse * 0.30;
+	final_color += landing_pulse_color * landing_travelling_pulse * 0.65;
 
 	COLOR = vec4(
 		final_color,
