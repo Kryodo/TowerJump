@@ -43,6 +43,7 @@ var _surface_burst_remaining: int = 0
 var _surface_burst_clock: float = 0.0
 var _shed_sequence: int = 0
 var _detached_shed_fragments: Array[Dictionary] = []
+var _landing_surface_streaks: Array[Dictionary] = []
 var _surface_fragment_material: ShaderMaterial
 var _landing_impact_material: CanvasItemMaterial
 var _visual_rng := RandomNumberGenerator.new()
@@ -309,6 +310,7 @@ func _process(delta: float) -> void:
 	_update_energy_pulse(delta)
 	_update_landing_response(delta)
 	_update_detached_shed_fragments(delta)
+	_update_landing_surface_streaks(delta)
 	_update_energy_filaments(delta)
 	_update_rim_breath()
 	_update_particle_emitters(current_world_position, movement, distance_from_trail)
@@ -973,15 +975,13 @@ func _spawn_landing_impact(event: LandingEvent) -> void:
 	)
 
 	_spawn_landing_contact_snap(contact_position, world_root)
+	_spawn_landing_surface_streaks(event, contact_position)
 
 	# Leave capacity for the existing larger surface-fragment burst if many
 	# detached fragments are still alive.
 	if _detached_shed_fragments.size() >= 32:
 		return
 
-	# Four or five larger shards give every clean contact a readable burst
-	# without turning the landing into a screen-filling explosion.
-	var shard_count: int = _visual_rng.randi_range(4, 5)
 	var momentum_scale: float = 1.0
 	var speed_limit_value: Variant = event.ball.get("max_horizontal_speed")
 	if speed_limit_value != null:
@@ -992,17 +992,26 @@ func _spawn_landing_impact(event: LandingEvent) -> void:
 		1.0
 	)
 	var vertical_kick: float = clampf(absf(event.vertical_velocity) * 0.025, 0.0, 28.0)
+	# Rotate the color sequence each time, but guarantee a mix of three related
+	# hues across the burst instead of leaving all pieces the same color.
+	var color_offset: int = _visual_rng.randi_range(0, 2)
+	var shard_count: int = _visual_rng.randi_range(5, 6)
 
 	for shard_index in range(shard_count):
 		var side: float = -1.0 if shard_index % 2 == 0 else 1.0
-		var shard_size: float = _visual_rng.randf_range(4.8, 7.4)
+		var is_lingerer: bool = shard_index >= 4
+		var shard_size: float = (
+			_visual_rng.randf_range(8.2, 11.2)
+			if is_lingerer
+			else _visual_rng.randf_range(6.6, 9.4)
+		)
 		var is_square: bool = _visual_rng.randf() < 0.22
 		var shard := Polygon2D.new()
 		shard.name = "LandingImpactSquare" if is_square else "LandingImpactShard"
 		shard.z_as_relative = false
 		shard.z_index = 1
 		shard.material = _landing_impact_material
-		shard.scale = Vector2.ONE * 0.78
+		shard.scale = Vector2.ONE * (0.74 if is_lingerer else 0.82)
 
 		var polygon := PackedVector2Array()
 		if is_square:
@@ -1016,14 +1025,42 @@ func _spawn_landing_impact(event: LandingEvent) -> void:
 			polygon.append(Vector2(shard_size * 1.55, -shard_size * 0.02))
 			polygon.append(Vector2(-shard_size * 0.10, shard_size * 0.46))
 		shard.polygon = polygon
-		shard.color = _landing_impact_color(false).lightened(
-			0.18 if is_square else 0.0
-		)
+		shard.color = _landing_impact_shard_color(
+			(shard_index + color_offset) % 3
+		).lightened(0.14 if is_square else 0.0)
 
-		var velocity := Vector2(
-			side * _visual_rng.randf_range(92.0, 142.0) + horizontal_bias * 52.0,
-			-_visual_rng.randf_range(66.0, 106.0) - vertical_kick
-		)
+		var velocity: Vector2
+		var lifetime: float
+		var angular_velocity: float
+		var fade_start_fraction: float
+		var scale_from: float
+		var scale_to: float
+		var scale_in_fraction: float
+		if is_lingerer:
+			# These larger pieces drift up slowly and hang in the air after the
+			# sharp impact shards are already gone.
+			velocity = Vector2(
+				side * _visual_rng.randf_range(18.0, 42.0) + horizontal_bias * 24.0,
+				-_visual_rng.randf_range(22.0, 42.0) - vertical_kick * 0.55
+			)
+			lifetime = _visual_rng.randf_range(0.62, 0.82)
+			angular_velocity = _visual_rng.randf_range(-3.2, 3.2)
+			fade_start_fraction = _visual_rng.randf_range(0.46, 0.56)
+			scale_from = 0.74
+			scale_to = 1.10
+			scale_in_fraction = 0.48
+		else:
+			velocity = Vector2(
+				side * _visual_rng.randf_range(96.0, 145.0) + horizontal_bias * 56.0,
+				-_visual_rng.randf_range(72.0, 112.0) - vertical_kick
+			)
+			lifetime = _visual_rng.randf_range(0.30, 0.40)
+			angular_velocity = _visual_rng.randf_range(-10.0, 10.0)
+			fade_start_fraction = 0.18
+			scale_from = 0.82
+			scale_to = 1.12
+			scale_in_fraction = 0.52
+
 		var heading: float = atan2(velocity.y, velocity.x)
 		world_root.add_child(shard)
 		shard.global_position = contact_position
@@ -1032,13 +1069,13 @@ func _spawn_landing_impact(event: LandingEvent) -> void:
 			"node": shard,
 			"velocity": velocity,
 			"age": 0.0,
-			"lifetime": _visual_rng.randf_range(0.30, 0.40),
-			"angular_velocity": _visual_rng.randf_range(-10.0, 10.0),
+			"lifetime": lifetime,
+			"angular_velocity": angular_velocity,
 			"base_alpha": _visual_rng.randf_range(0.92, 1.0),
-			"fade_start_fraction": 0.18,
-			"scale_from": 0.78,
-			"scale_to": 1.12,
-			"scale_in_fraction": 0.52
+			"fade_start_fraction": fade_start_fraction,
+			"scale_from": scale_from,
+			"scale_to": scale_to,
+			"scale_in_fraction": scale_in_fraction
 		})
 
 
@@ -1051,7 +1088,7 @@ func _spawn_landing_contact_snap(contact_position: Vector2, world_root: Node2D) 
 	snap.z_as_relative = false
 	snap.z_index = 1
 	snap.material = _landing_impact_material
-	snap.color = _landing_impact_color(true)
+	snap.color = _landing_contact_snap_color()
 	snap.scale = Vector2.ONE * 0.62
 	# A long, sharp contact cut with a taller centre gives the landing a
 	# readable hit point; it expands a little before fading instead of blinking.
@@ -1085,10 +1122,130 @@ func _spawn_landing_contact_snap(contact_position: Vector2, world_root: Node2D) 
 	})
 
 
-func _landing_impact_color(is_snap: bool) -> Color:
+func _landing_contact_snap_color() -> Color:
+	# The impact point is the brightest neutral-cyan highlight, visually tying
+	# ball energy to the platform's activated cyan edge.
+	return Color(1.05, 1.68, 1.98, 1.0)
+
+
+func _landing_impact_shard_color(color_role: int) -> Color:
 	if visual_palette == 1:
-		return Color(1.42, 0.88, 1.95, 1.0) if is_snap else Color(1.02, 0.38, 1.48, 1.0)
-	return Color(0.92, 1.62, 2.05, 1.0) if is_snap else Color(0.34, 0.98, 1.62, 1.0)
+		match color_role:
+			0:
+				return Color(1.02, 0.38, 1.48, 1.0) # comet violet
+			1:
+				return Color(0.16, 1.02, 1.56, 1.0) # platform cyan
+			_:
+				return Color(1.24, 0.98, 1.82, 1.0) # pale violet-white
+	match color_role:
+		0:
+			return Color(0.34, 0.72, 1.62, 1.0) # electric blue
+		1:
+			return Color(0.16, 1.02, 1.56, 1.0) # platform cyan
+		_:
+			return Color(0.82, 1.45, 1.88, 1.0) # pale cyan-white
+
+
+func _spawn_landing_surface_streaks(
+	event: LandingEvent,
+	contact_position: Vector2
+) -> void:
+	var platform := event.platform
+	if platform == null or not is_instance_valid(platform):
+		return
+	if _landing_surface_streaks.size() >= 12:
+		return
+
+	var width_value: Variant = platform.get("width")
+	var width_scale_value: Variant = platform.get("width_scale")
+	var height_value: Variant = platform.get("height")
+	if width_value == null or height_value == null:
+		return
+	var platform_width: float = float(width_value)
+	var width_scale: float = float(width_scale_value) if width_scale_value != null else 1.0
+	var half_width: float = platform_width * width_scale * 0.5
+	var local_contact: Vector2 = platform.to_local(contact_position)
+	var edge_margin: float = 5.0
+	var available_left: float = maxf(local_contact.x + half_width - edge_margin, 0.0)
+	var available_right: float = maxf(half_width - local_contact.x - edge_margin, 0.0)
+	var local_top_y: float = -float(height_value) * 0.5 + 1.5
+	var streak_specs: Array[Dictionary] = [
+		{"direction": -1.0, "distance": minf(available_left, 48.0)},
+		{"direction": 1.0, "distance": minf(available_right, 48.0)}
+	]
+
+	for spec in streak_specs:
+		var travel_distance: float = float(spec["distance"])
+		if travel_distance < 6.0:
+			continue
+
+		var streak := Line2D.new()
+		streak.name = "LandingSurfaceEnergyStreak"
+		streak.z_as_relative = true
+		streak.z_index = 5
+		streak.width = 3.6
+		streak.antialiased = true
+		streak.joint_mode = Line2D.LINE_JOINT_ROUND
+		streak.begin_cap_mode = Line2D.LINE_CAP_ROUND
+		streak.end_cap_mode = Line2D.LINE_CAP_ROUND
+		streak.material = _landing_impact_material
+
+		var gradient := Gradient.new()
+		gradient.set_color(0, Color(1.05, 1.72, 1.98, 0.98))
+		gradient.set_color(1, Color(0.04, 0.82, 1.44, 0.82))
+		streak.gradient = gradient
+		streak.add_point(Vector2.ZERO)
+		streak.add_point(Vector2.ZERO)
+		platform.add_child(streak)
+		streak.position = Vector2(local_contact.x, local_top_y)
+		streak.set_point_position(0, Vector2.ZERO)
+		streak.set_point_position(1, Vector2.ZERO)
+		_landing_surface_streaks.append({
+			"line": streak,
+			"age": 0.0,
+			"lifetime": 0.27,
+			"grow_duration": 0.115,
+			"travel_distance": travel_distance,
+			"direction": float(spec["direction"]),
+			"base_width": 3.6
+		})
+
+
+func _update_landing_surface_streaks(delta: float) -> void:
+	for index in range(_landing_surface_streaks.size() - 1, -1, -1):
+		var streak_data: Dictionary = _landing_surface_streaks[index]
+		var streak := streak_data.get("line") as Line2D
+		if not is_instance_valid(streak):
+			_landing_surface_streaks.remove_at(index)
+			continue
+
+		var age: float = float(streak_data["age"]) + delta
+		var lifetime: float = float(streak_data["lifetime"])
+		var grow_duration: float = float(streak_data["grow_duration"])
+		var growth: float = smoothstep(
+			0.0, maxf(grow_duration, 0.001), minf(age, grow_duration)
+		)
+		var travel_distance: float = float(streak_data["travel_distance"])
+		var direction: float = float(streak_data["direction"])
+		streak.set_point_position(
+			1,
+			Vector2(direction * travel_distance * growth, 0.0)
+		)
+
+		var progress: float = clampf(age / maxf(lifetime, 0.001), 0.0, 1.0)
+		var fade: float = 1.0 - smoothstep(0.34, 1.0, progress)
+		streak.modulate = Color(1.0, 1.0, 1.0, fade)
+		streak.width = float(streak_data["base_width"]) * lerpf(
+			1.0, 0.52, smoothstep(0.0, 1.0, progress)
+		)
+
+		streak_data["age"] = age
+		if age >= lifetime:
+			streak.queue_free()
+			_landing_surface_streaks.remove_at(index)
+		else:
+			_landing_surface_streaks[index] = streak_data
+
 
 func _update_detached_shed_fragments(delta: float) -> void:
 	for fragment_index in range(_detached_shed_fragments.size() - 1, -1, -1):
