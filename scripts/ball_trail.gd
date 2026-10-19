@@ -65,14 +65,13 @@ var _landing_trail_kick_progress: float = 0.0
 var _landing_rim_elapsed: float = -1.0
 var _landing_rim_strength: float = 0.0
 
-# Ambient pulses remain occasional; landing discharge moves only partway down the ribbon.
+# Ambient pulses remain occasional; landing discharge sweeps quickly through inner energy only.
 const ENERGY_PULSE_SPEED: float = 0.62
 const ENERGY_PULSE_END: float = 0.94
 const ENERGY_FILAMENT_MAX_ACTIVE: int = 8
-const LANDING_TRAIL_KICK_DURATION: float = 0.30
-const LANDING_TRAIL_KICK_REACH: float = 0.58
+const LANDING_TRAIL_KICK_DURATION: float = 0.22
 const LANDING_CONFIRMATION_DURATION: float = 0.26
-const LANDING_RIM_CONFIRMATION_DURATION: float = 1.05
+const LANDING_RIM_CONFIRMATION_DURATION: float = 0.38
 const LANDING_ANTICIPATION_RESPONSE: float = 10.0
 
 var _latest_trail_path: Array[Vector2] = []
@@ -664,7 +663,7 @@ func _update_landing_response(delta: float) -> void:
 		response
 	)
 
-	# Keep the orb core confirmation flash crisp and separate from the rim afterglow.
+	# The orb's core flash remains crisp; the outer rim has a shorter, colored afterglow.
 	if _landing_confirmation_elapsed >= 0.0:
 		_landing_confirmation_elapsed += delta
 		var attack: float = smoothstep(0.0, 0.035, _landing_confirmation_elapsed)
@@ -676,11 +675,10 @@ func _update_landing_response(delta: float) -> void:
 	else:
 		_landing_confirmation_strength = 0.0
 
-	# The rim hits quickly, then fades softly over about a second.
 	if _landing_rim_elapsed >= 0.0:
 		_landing_rim_elapsed += delta
-		var rim_attack: float = smoothstep(0.0, 0.055, _landing_rim_elapsed)
-		var rim_release: float = 1.0 - smoothstep(0.08, LANDING_RIM_CONFIRMATION_DURATION, _landing_rim_elapsed)
+		var rim_attack: float = smoothstep(0.0, 0.045, _landing_rim_elapsed)
+		var rim_release: float = 1.0 - smoothstep(0.07, LANDING_RIM_CONFIRMATION_DURATION, _landing_rim_elapsed)
 		_landing_rim_strength = rim_attack * rim_release
 		if _landing_rim_elapsed >= LANDING_RIM_CONFIRMATION_DURATION:
 			_landing_rim_elapsed = -1.0
@@ -688,13 +686,14 @@ func _update_landing_response(delta: float) -> void:
 	else:
 		_landing_rim_strength = 0.0
 
-	# Move a soft bright front to 58% of the ribbon; do not alter ambient pulse timing.
+	# The front starts at the tail and runs back to the orb; the ambient pulse
+	# stays on its own scheduler and still travels outward across the whole comet.
 	if _landing_trail_kick_elapsed >= 0.0:
 		_landing_trail_kick_elapsed += delta
-		var kick_attack: float = smoothstep(0.0, 0.025, _landing_trail_kick_elapsed)
-		var kick_release: float = 1.0 - smoothstep(0.20, LANDING_TRAIL_KICK_DURATION, _landing_trail_kick_elapsed)
+		var kick_attack: float = smoothstep(0.0, 0.018, _landing_trail_kick_elapsed)
+		var kick_release: float = 1.0 - smoothstep(0.18, LANDING_TRAIL_KICK_DURATION, _landing_trail_kick_elapsed)
 		_landing_trail_kick_strength = kick_attack * kick_release
-		_landing_trail_kick_progress = LANDING_TRAIL_KICK_REACH * clampf(
+		_landing_trail_kick_progress = 1.0 - clampf(
 			_landing_trail_kick_elapsed / LANDING_TRAIL_KICK_DURATION,
 			0.0,
 			1.0
@@ -718,15 +717,11 @@ func _update_landing_response(delta: float) -> void:
 			rim_aura_material.set_shader_parameter("landing_anticipation", _landing_anticipation)
 			rim_aura_material.set_shader_parameter("landing_confirmation", _landing_rim_strength)
 
-	var materials: Array[ShaderMaterial] = [
-		_unified_shape.material as ShaderMaterial,
-		_energy_line.material as ShaderMaterial,
-		_trail_aura.material as ShaderMaterial
-	]
-	for shader_material in materials:
-		if shader_material != null:
-			shader_material.set_shader_parameter("landing_kick_strength", _landing_trail_kick_strength)
-			shader_material.set_shader_parameter("landing_kick_progress", _landing_trail_kick_progress)
+	# The landing-specific front only affects the inner energy channel.
+	var energy_material := _energy_line.material as ShaderMaterial
+	if energy_material != null:
+		energy_material.set_shader_parameter("landing_kick_strength", _landing_trail_kick_strength)
+		energy_material.set_shader_parameter("landing_kick_progress", _landing_trail_kick_progress)
 
 func _on_landing_confirmed(event: LandingEvent) -> void:
 	if event == null:
