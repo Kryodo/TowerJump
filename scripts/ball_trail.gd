@@ -54,10 +54,22 @@ var _pulse_filament_progress: float = 0.48
 var _pulse_filament_enabled: bool = false
 var _pulse_filament_spawned: bool = false
 
-# Keep ambient pulses occasional; filaments retain their existing appearance and chance.
+var _landing_approach_platform: Node2D = null
+var _landing_anticipation_target: float = 0.0
+var _landing_anticipation: float = 0.0
+var _landing_confirmation_elapsed: float = -1.0
+var _landing_confirmation_strength: float = 0.0
+var _landing_pulse_active: bool = false
+var _landing_pulse_progress: float = -1.0
+
+# Ambient pulses remain occasional; landings use a separate, faster discharge.
 const ENERGY_PULSE_SPEED: float = 0.62
 const ENERGY_PULSE_END: float = 0.94
 const ENERGY_FILAMENT_MAX_ACTIVE: int = 8
+const LANDING_PULSE_SPEED: float = 2.35
+const LANDING_PULSE_END: float = 0.97
+const LANDING_CONFIRMATION_DURATION: float = 0.26
+const LANDING_ANTICIPATION_RESPONSE: float = 10.0
 
 var _latest_trail_path: Array[Vector2] = []
 var _latest_trail_distances: Array[float] = []
@@ -290,6 +302,7 @@ func _process(delta: float) -> void:
 
 	_update_trail_lines(delta)
 	_update_energy_pulse(delta)
+	_update_landing_response(delta)
 	_update_detached_shed_fragments(delta)
 	_update_energy_filaments(delta)
 	_update_rim_breath()
@@ -298,12 +311,15 @@ func _process(delta: float) -> void:
 
 
 func _update_rim_breath() -> void:
-	# Keep the orb rim, its outer halo, and the trail pulse origin visually linked.
+	# Keep the orb rim, its outer halo, and the trail response visually linked.
 	var breathing: float = 0.5 + 0.5 * sin(_trail_time * 1.35)
 	var rim_breath: float = lerp(0.72, 1.0, breathing)
+	rim_breath += _landing_anticipation * 0.12
+	rim_breath += _landing_confirmation_strength * 0.28
 	if _pulse_active:
 		var pulse_origin_flash: float = 1.0 - smoothstep(0.0, 0.18, _pulse_progress)
-		rim_breath = minf(rim_breath + pulse_origin_flash * 0.18, 1.18)
+		rim_breath += pulse_origin_flash * 0.18
+	rim_breath = clampf(rim_breath, 0.0, 1.35)
 	var orb_material := _ball_visual.material as ShaderMaterial
 	if orb_material != null:
 		orb_material.set_shader_parameter("rim_breath", rim_breath)
@@ -575,22 +591,123 @@ func _connect_landing_feedback() -> void:
 		return
 
 	# The main game scene owns this coordinator. Test rooms without it continue
-	# to render the trail without raising any landing-triggered bursts.
+	# to render the trail without raising any landing-triggered feedback.
 	var controller := scene_root.get_node_or_null("LandingFeedbackController")
-	if controller == null or not controller.has_signal("landing_confirmed"):
+	if controller == null:
 		return
 
-	var callback := Callable(self, "_on_landing_confirmed")
-	if not controller.is_connected("landing_confirmed", callback):
-		controller.connect("landing_confirmed", callback)
+	var approach_callback := Callable(self, "_on_landing_approach_updated")
+	if (
+		controller.has_signal("landing_approach_updated")
+		and not controller.is_connected("landing_approach_updated", approach_callback)
+	):
+		controller.connect("landing_approach_updated", approach_callback)
+
+	var target_callback := Callable(self, "_on_landing_target_changed")
+	if (
+		controller.has_signal("landing_target_changed")
+		and not controller.is_connected("landing_target_changed", target_callback)
+	):
+		controller.connect("landing_target_changed", target_callback)
+
+	var landing_callback := Callable(self, "_on_landing_confirmed")
+	if (
+		controller.has_signal("landing_confirmed")
+		and not controller.is_connected("landing_confirmed", landing_callback)
+	):
+		controller.connect("landing_confirmed", landing_callback)
+
+
+func _on_landing_target_changed(_previous_target: Node2D, new_target: Node2D) -> void:
+	_landing_approach_platform = new_target
+	_landing_anticipation_target = 0.0
+
+
+func _on_landing_approach_updated(
+	platform: Node2D,
+	progress: float,
+	_target_x: float,
+	_time_to_land: float,
+	_edge_factor: float
+) -> void:
+	if platform == null or not is_instance_valid(platform):
+		return
+	_landing_approach_platform = platform
+	_landing_anticipation_target = clampf(progress, 0.0, 1.0)
+
+
+func _start_landing_response() -> void:
+	# Landing takes visual priority. Let the spontaneous pulse resume later
+	# rather than stacking two bright travelling highlights on top of each other.
+	_pulse_active = false
+	_pulse_progress = -1.0
+	_pulse_filament_spawned = false
+	_pulse_cooldown = maxf(_pulse_cooldown, _visual_rng.randf_range(2.5, 3.6))
+
+	_landing_approach_platform = null
+	_landing_anticipation_target = 0.0
+	_landing_confirmation_elapsed = 0.0
+	_landing_confirmation_strength = 0.0
+	_landing_pulse_active = true
+	_landing_pulse_progress = 0.0
+
+
+func _update_landing_response(delta: float) -> void:
+	var response: float = 1.0 - exp(-LANDING_ANTICIPATION_RESPONSE * delta)
+	_landing_anticipation = lerpf(
+		_landing_anticipation,
+		_landing_anticipation_target,
+		response
+	)
+
+	if _landing_confirmation_elapsed >= 0.0:
+		_landing_confirmation_elapsed += delta
+		var attack: float = smoothstep(0.0, 0.035, _landing_confirmation_elapsed)
+		var release: float = 1.0 - smoothstep(0.045, 0.22, _landing_confirmation_elapsed)
+		_landing_confirmation_strength = attack * release
+		if _landing_confirmation_elapsed >= LANDING_CONFIRMATION_DURATION:
+			_landing_confirmation_elapsed = -1.0
+			_landing_confirmation_strength = 0.0
+	else:
+		_landing_confirmation_strength = 0.0
+
+	if _landing_pulse_active:
+		_landing_pulse_progress = minf(
+			_landing_pulse_progress + delta * LANDING_PULSE_SPEED,
+			1.0
+		)
+		if _landing_pulse_progress >= LANDING_PULSE_END:
+			_landing_pulse_active = false
+			_landing_pulse_progress = -1.0
+
+	var orb_material := _ball_visual.material as ShaderMaterial
+	if orb_material != null:
+		orb_material.set_shader_parameter("landing_anticipation", _landing_anticipation)
+		orb_material.set_shader_parameter("landing_confirmation", _landing_confirmation_strength)
+
+	var progress_for_shader: float = _landing_pulse_progress if _landing_pulse_active else -1.0
+	var strength_for_shader: float = 1.0 if _landing_pulse_active else 0.0
+	var materials: Array[ShaderMaterial] = [
+		_unified_shape.material as ShaderMaterial,
+		_energy_line.material as ShaderMaterial,
+		_trail_aura.material as ShaderMaterial
+	]
+	for shader_material in materials:
+		if shader_material != null:
+			shader_material.set_shader_parameter("landing_pulse_progress", progress_for_shader)
+			shader_material.set_shader_parameter("landing_pulse_strength", strength_for_shader)
 
 
 func _on_landing_confirmed(event: LandingEvent) -> void:
-	if not shedding_enabled or event == null:
+	if event == null:
 		return
 
 	var ball := get_parent() as CharacterBody2D
 	if ball == null or event.ball != ball:
+		return
+
+	_start_landing_response()
+	if not shedding_enabled:
 		return
 
 	# Freeze the just-rendered trail shape before the ball's bounce changes it.
