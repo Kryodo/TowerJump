@@ -632,6 +632,8 @@ func _on_landing_approach_updated(
 ) -> void:
 	if platform == null or not is_instance_valid(platform):
 		return
+	if _landing_approach_platform != null and platform != _landing_approach_platform:
+		return
 	_landing_approach_platform = platform
 	_landing_anticipation_target = clampf(progress, 0.0, 1.0)
 
