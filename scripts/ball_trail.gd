@@ -59,15 +59,14 @@ var _landing_anticipation_target: float = 0.0
 var _landing_anticipation: float = 0.0
 var _landing_confirmation_elapsed: float = -1.0
 var _landing_confirmation_strength: float = 0.0
-var _landing_pulse_active: bool = false
-var _landing_pulse_progress: float = -1.0
+var _landing_trail_kick_elapsed: float = -1.0
+var _landing_trail_kick_strength: float = 0.0
 
 # Ambient pulses remain occasional; landings use a separate, faster discharge.
 const ENERGY_PULSE_SPEED: float = 0.62
 const ENERGY_PULSE_END: float = 0.94
 const ENERGY_FILAMENT_MAX_ACTIVE: int = 8
-const LANDING_PULSE_SPEED: float = 2.35
-const LANDING_PULSE_END: float = 0.97
+const LANDING_TRAIL_KICK_DURATION: float = 0.16
 const LANDING_CONFIRMATION_DURATION: float = 0.26
 const LANDING_ANTICIPATION_RESPONSE: float = 10.0
 
@@ -639,19 +638,15 @@ func _on_landing_approach_updated(
 
 
 func _start_landing_response() -> void:
-	# Landing takes visual priority. Let the spontaneous pulse resume later
-	# rather than stacking two bright travelling highlights on top of each other.
-	_pulse_active = false
-	_pulse_progress = -1.0
-	_pulse_filament_spawned = false
-	_pulse_cooldown = maxf(_pulse_cooldown, _visual_rng.randf_range(2.5, 3.6))
-
+	# Keep the ambient travelling pulse and its filament schedule untouched.
+	# Landing feedback is a short local impulse near the orb, not a second
+	# pulse racing along the ribbon.
 	_landing_approach_platform = null
 	_landing_anticipation_target = 0.0
 	_landing_confirmation_elapsed = 0.0
 	_landing_confirmation_strength = 0.0
-	_landing_pulse_active = true
-	_landing_pulse_progress = 0.0
+	_landing_trail_kick_elapsed = 0.0
+	_landing_trail_kick_strength = 0.0
 
 
 func _update_landing_response(delta: float) -> void:
@@ -673,22 +668,27 @@ func _update_landing_response(delta: float) -> void:
 	else:
 		_landing_confirmation_strength = 0.0
 
-	if _landing_pulse_active:
-		_landing_pulse_progress = minf(
-			_landing_pulse_progress + delta * LANDING_PULSE_SPEED,
-			1.0
-		)
-		if _landing_pulse_progress >= LANDING_PULSE_END:
-			_landing_pulse_active = false
-			_landing_pulse_progress = -1.0
+	if _landing_trail_kick_elapsed >= 0.0:
+		_landing_trail_kick_elapsed += delta
+		var kick_attack: float = smoothstep(0.0, 0.025, _landing_trail_kick_elapsed)
+		var kick_release: float = 1.0 - smoothstep(0.035, LANDING_TRAIL_KICK_DURATION, _landing_trail_kick_elapsed)
+		_landing_trail_kick_strength = kick_attack * kick_release
+		if _landing_trail_kick_elapsed >= LANDING_TRAIL_KICK_DURATION:
+			_landing_trail_kick_elapsed = -1.0
+			_landing_trail_kick_strength = 0.0
+	else:
+		_landing_trail_kick_strength = 0.0
 
 	var orb_material := _ball_visual.material as ShaderMaterial
 	if orb_material != null:
 		orb_material.set_shader_parameter("landing_anticipation", _landing_anticipation)
 		orb_material.set_shader_parameter("landing_confirmation", _landing_confirmation_strength)
 
-	var progress_for_shader: float = _landing_pulse_progress if _landing_pulse_active else -1.0
-	var strength_for_shader: float = 1.0 if _landing_pulse_active else 0.0
+	if _rim_aura != null:
+		var rim_aura_material := _rim_aura.material as ShaderMaterial
+		if rim_aura_material != null:
+			rim_aura_material.set_shader_parameter("landing_confirmation", _landing_confirmation_strength)
+
 	var materials: Array[ShaderMaterial] = [
 		_unified_shape.material as ShaderMaterial,
 		_energy_line.material as ShaderMaterial,
@@ -696,8 +696,7 @@ func _update_landing_response(delta: float) -> void:
 	]
 	for shader_material in materials:
 		if shader_material != null:
-			shader_material.set_shader_parameter("landing_pulse_progress", progress_for_shader)
-			shader_material.set_shader_parameter("landing_pulse_strength", strength_for_shader)
+			shader_material.set_shader_parameter("landing_kick_strength", _landing_trail_kick_strength)
 
 
 func _on_landing_confirmed(event: LandingEvent) -> void:
