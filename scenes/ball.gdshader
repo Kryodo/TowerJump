@@ -98,27 +98,17 @@ void fragment() {
 		smoothstep(0.956, 0.982, d);
 	color += ring_color * outer_ring * rim_breath * 0.22;
 
-	// The luminous centre gently pulses, but its edge is deliberately organic:
-	// low-frequency angular waves break the perfect circular silhouette.
-	float core_pulse = 0.5 + 0.5 * sin(time * 2.2);
-	// Keep the central plasma core slightly smaller so a wider, circular
-	// outer core can glow behind it without competing with its bright centre.
-	float core_radius = mix(0.23, 0.285, core_pulse) * (1.0 + landing_charge * 0.32);
+	// The central plasma core stays circular; organic motion remains in the
+	// surrounding energy field. Landing charge is intentionally larger than
+	// the idle breath so its expansion reads as a clear, sustained anticipation.
+	float core_pulse = 0.5 + 0.5 * sin(time * 1.8);
+	float core_radius = mix(0.245, 0.272, core_pulse) * (1.0 + landing_charge * 0.34);
 
-	// A smooth, perfectly circular outer core sits behind the organic centre.
-	// Its inner fade overlaps the centre so both colors melt together instead
-	// of reading as two separate rings. Use d rather than core_distance so the
-	// larger glow stays circular while the foreground plasma keeps its wobble.
+	// The circular outer core expands with the centre, deepening the charge glow.
 	float outer_core = 1.0 - smoothstep(core_radius * 0.72, core_radius * 2.05, d);
-	color += outer_core_color * outer_core * (0.38 + landing_charge * 0.18 + landing_flash * 0.32) * aura_breath;
+	color += outer_core_color * outer_core * (0.38 + landing_charge * 0.24 + landing_flash * 0.32) * aura_breath;
 
-	float core_wobble =
-		1.0
-		+ 0.10 * sin(angle * 3.0 + time * 0.72)
-		+ 0.045 * sin(angle * 5.0 - time * 0.90 + 1.1)
-		+ 0.025 * sin(angle * 2.0 + p.x * 2.8 - time * 0.55);
-	float core_distance = d / max(core_wobble, 0.80);
-	float core = 1.0 - smoothstep(core_radius * 0.70, core_radius, core_distance);
+	float core = 1.0 - smoothstep(core_radius * 0.70, core_radius, d);
 	// A slightly lower peak helps the orb and trail share the same energy budget.
 	float core_brightness = mix(0.79, 0.96, core_pulse)
 		* (1.0 + landing_charge * 0.18 + landing_flash * 0.70);
@@ -126,9 +116,16 @@ void fragment() {
 	color = mix(color, live_core_color * core_brightness, core);
 
 	float core_aura =
-		1.0 - smoothstep(core_radius * 0.62, core_radius * 1.8, core_distance);
+		1.0 - smoothstep(core_radius * 0.62, core_radius * 1.8, d);
 	color += aura_color * core_aura * (0.28 + landing_charge * 0.20) * aura_breath;
 	color += confirmation_core_color * core_aura * landing_flash * 0.24;
+
+	// A fast, narrow rim flash makes confirmation visible without trying to
+	// push an already-white centre much brighter.
+	float confirmation_ring = exp(-pow((d - core_radius * 1.02) / max(core_radius * 0.16, 0.001), 2.0));
+	float confirmation_bloom = exp(-pow((d - core_radius * 1.14) / max(core_radius * 0.46, 0.001), 2.0));
+	color += confirmation_core_color * confirmation_ring * landing_flash * 0.72;
+	color += outer_core_color * confirmation_bloom * landing_flash * 0.34;
 
 	// Broad upper-left reflection and a small specular glint add orb-like depth.
 	vec2 highlight_pos = vec2(-0.28, -0.30);
