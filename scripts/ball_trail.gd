@@ -695,8 +695,8 @@ func _update_landing_response(delta: float) -> void:
 	else:
 		_landing_rim_strength = 0.0
 
-	# The front starts at the tail and runs back to the orb; the ambient pulse
-	# stays on its own scheduler and still travels outward across the whole comet.
+	# The inward flash runs tail-to-orb. A due full-ribbon release launches only
+	# after this flash finishes, preserving a clear gap between the two effects.
 	if _landing_trail_kick_elapsed >= 0.0:
 		_landing_trail_kick_elapsed += delta
 		var kick_attack: float = smoothstep(0.0, 0.018, _landing_trail_kick_elapsed)
