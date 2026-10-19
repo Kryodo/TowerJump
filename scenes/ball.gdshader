@@ -5,12 +5,16 @@ shader_type canvas_item;
 uniform int palette_mode = 0;
 // Shared with the trail contour so both sides pulse in sync.
 uniform float rim_breath = 1.0;
+uniform float landing_anticipation = 0.0;
+uniform float landing_confirmation = 0.0;
 
 void fragment() {
 	vec2 p = UV * 2.0 - 1.0;
 	float d = length(p);
 	float time = TIME;
 	float mask = texture(TEXTURE, UV).a;
+	float landing_charge = clamp(landing_anticipation, 0.0, 1.0);
+	float landing_flash = clamp(landing_confirmation, 0.0, 1.0);
 
 	float breathing = 0.5 + 0.5 * sin(time * 1.35);
 	float aura_breath = mix(0.72, 1.0, breathing);
@@ -26,6 +30,7 @@ void fragment() {
 	vec3 outer_core_color;
 	vec3 highlight_color;
 	vec3 glint_color;
+	vec3 confirmation_core_color;
 
 	if (palette_mode == 1) {
 		inner_body = vec3(0.28, 0.035, 0.68);
@@ -39,6 +44,7 @@ void fragment() {
 		outer_core_color = vec3(1.35, 0.18, 3.0);
 		highlight_color = vec3(1.0, 0.72, 1.5);
 		glint_color = vec3(2.0, 1.55, 2.8);
+		confirmation_core_color = vec3(5.0, 4.4, 6.4);
 	} else {
 		inner_body = vec3(0.018, 0.22, 0.62);
 		outer_body = vec3(0.003, 0.028, 0.15);
@@ -51,6 +57,7 @@ void fragment() {
 		outer_core_color = vec3(0.06, 1.28, 3.15);
 		highlight_color = vec3(0.65, 1.45, 2.25);
 		glint_color = vec3(1.5, 2.5, 3.2);
+		confirmation_core_color = vec3(4.7, 6.0, 6.5);
 	}
 
 	// Saturated energy body with a deeper outer edge for visual depth.
@@ -96,14 +103,14 @@ void fragment() {
 	float core_pulse = 0.5 + 0.5 * sin(time * 2.2);
 	// Keep the central plasma core slightly smaller so a wider, circular
 	// outer core can glow behind it without competing with its bright centre.
-	float core_radius = mix(0.23, 0.285, core_pulse);
+	float core_radius = mix(0.23, 0.285, core_pulse) * (1.0 + landing_charge * 0.16);
 
 	// A smooth, perfectly circular outer core sits behind the organic centre.
 	// Its inner fade overlaps the centre so both colors melt together instead
 	// of reading as two separate rings. Use d rather than core_distance so the
 	// larger glow stays circular while the foreground plasma keeps its wobble.
 	float outer_core = 1.0 - smoothstep(core_radius * 0.72, core_radius * 2.05, d);
-	color += outer_core_color * outer_core * 0.38 * aura_breath;
+	color += outer_core_color * outer_core * (0.38 + landing_charge * 0.10 + landing_flash * 0.22) * aura_breath;
 
 	float core_wobble =
 		1.0
@@ -113,12 +120,15 @@ void fragment() {
 	float core_distance = d / max(core_wobble, 0.80);
 	float core = 1.0 - smoothstep(core_radius * 0.70, core_radius, core_distance);
 	// A slightly lower peak helps the orb and trail share the same energy budget.
-	float core_brightness = mix(0.79, 0.96, core_pulse);
-	color = mix(color, core_color * core_brightness, core);
+	float core_brightness = mix(0.79, 0.96, core_pulse)
+		* (1.0 + landing_charge * 0.06 + landing_flash * 0.20);
+	vec3 live_core_color = mix(core_color, confirmation_core_color, landing_flash * 0.48);
+	color = mix(color, live_core_color * core_brightness, core);
 
 	float core_aura =
 		1.0 - smoothstep(core_radius * 0.62, core_radius * 1.8, core_distance);
-	color += aura_color * core_aura * 0.28 * aura_breath;
+	color += aura_color * core_aura * (0.28 + landing_charge * 0.12) * aura_breath;
+	color += confirmation_core_color * core_aura * landing_flash * 0.10;
 
 	// Broad upper-left reflection and a small specular glint add orb-like depth.
 	vec2 highlight_pos = vec2(-0.28, -0.30);
