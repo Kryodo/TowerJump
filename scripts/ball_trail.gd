@@ -24,6 +24,10 @@ const CHEVRON_BURST_SPACING: float = 0.035
 @export_category("Comet Shedding")
 @export var shedding_enabled: bool = true
 
+@export_category("Energy Release")
+@export_range(1, 20, 1) var full_release_every_landings: int = 5
+@export_range(0.0, 1.0, 0.01) var full_release_filament_chance: float = 0.72
+
 @onready var _energy_line: Line2D = $EnergyLine
 @onready var _trail_aura: Line2D = $TrailAura
 @onready var _unified_shape: MeshInstance2D = get_node_or_null("UnifiedCometShape") as MeshInstance2D
@@ -49,10 +53,12 @@ var _visual_rng := RandomNumberGenerator.new()
 var _energy_filaments: Array[Dictionary] = []
 var _pulse_active: bool = false
 var _pulse_progress: float = -1.0
-var _pulse_cooldown: float = 0.55
 var _pulse_filament_progress: float = 0.48
 var _pulse_filament_enabled: bool = false
 var _pulse_filament_spawned: bool = false
+var _confirmed_landing_count: int = 0
+var _landing_release_pending: bool = false
+var _landing_release_after_reverse: bool = false
 
 var _landing_approach_platform: Node2D = null
 var _landing_anticipation_target: float = 0.0
@@ -65,11 +71,11 @@ var _landing_trail_kick_progress: float = 0.0
 var _landing_rim_elapsed: float = -1.0
 var _landing_rim_strength: float = 0.0
 
-# Ambient pulses remain occasional; landing discharge sweeps quickly through inner energy only.
+# Full-ribbon releases are landing-driven; the inward discharge remains the regular landing response.
 const ENERGY_PULSE_SPEED: float = 0.62
 const ENERGY_PULSE_END: float = 0.94
 const ENERGY_FILAMENT_MAX_ACTIVE: int = 8
-const LANDING_TRAIL_KICK_DURATION: float = 0.22
+const LANDING_TRAIL_KICK_DURATION: float = 0.32
 const LANDING_CONFIRMATION_DURATION: float = 0.26
 const LANDING_RIM_CONFIRMATION_DURATION: float = 0.38
 const LANDING_ANTICIPATION_RESPONSE: float = 10.0
@@ -92,7 +98,6 @@ func _ready() -> void:
 	z_index = -1
 	_previous_ball_position = global_position
 	_visual_rng.randomize()
-	_pulse_cooldown = _visual_rng.randf_range(3.0, 4.5)
 	_ball_surface_radius = _measure_ball_surface_radius()
 	if _unified_shape != null:
 		_unified_shape.mesh = ArrayMesh.new()
@@ -643,17 +648,21 @@ func _on_landing_approach_updated(
 
 
 func _start_landing_response() -> void:
-	# Keep the ambient travelling pulse and its filament schedule untouched.
-	# The landing discharge gets its own short moving front through the ribbon.
+	# Core and rim confirmation remain available on every physical landing.
+	# The inward trail flash is sequenced independently from the full-ribbon release.
 	_landing_approach_platform = null
 	_landing_anticipation_target = 0.0
 	_landing_confirmation_elapsed = 0.0
 	_landing_confirmation_strength = 0.0
 	_landing_rim_elapsed = 0.0
 	_landing_rim_strength = 0.0
+
+
+func _start_landing_reverse_flash(release_after_reverse: bool) -> void:
 	_landing_trail_kick_elapsed = 0.0
 	_landing_trail_kick_strength = 0.0
-	_landing_trail_kick_progress = 0.0
+	_landing_trail_kick_progress = 1.0
+	_landing_release_after_reverse = release_after_reverse
 
 func _update_landing_response(delta: float) -> void:
 	var response: float = 1.0 - exp(-LANDING_ANTICIPATION_RESPONSE * delta)
@@ -699,9 +708,14 @@ func _update_landing_response(delta: float) -> void:
 			1.0
 		)
 		if _landing_trail_kick_elapsed >= LANDING_TRAIL_KICK_DURATION:
+			var launch_release_after_reverse: bool = _landing_release_after_reverse
+			_landing_release_after_reverse = false
 			_landing_trail_kick_elapsed = -1.0
 			_landing_trail_kick_strength = 0.0
 			_landing_trail_kick_progress = 0.0
+			if launch_release_after_reverse and not _start_energy_pulse():
+				# Keep the release queued if the trail isn't long enough this frame.
+				_landing_release_pending = true
 	else:
 		_landing_trail_kick_strength = 0.0
 		_landing_trail_kick_progress = 0.0
@@ -732,6 +746,33 @@ func _on_landing_confirmed(event: LandingEvent) -> void:
 		return
 
 	_start_landing_response()
+
+	# The cadence counts confirmed landings only. A pending release is a single
+	# queued event, never a backlog of overlapping full-ribbon pulses.
+	_confirmed_landing_count += 1
+	var release_interval: int = maxi(full_release_every_landings, 1)
+	if _confirmed_landing_count % release_interval == 0:
+		_landing_release_pending = true
+
+	if _pulse_active:
+		# While the full-ribbon release is travelling outward, suppress the
+		# inward flash. Any queued release waits for a later eligible landing.
+		_landing_trail_kick_elapsed = -1.0
+		_landing_trail_kick_strength = 0.0
+		_landing_trail_kick_progress = 0.0
+		_landing_release_after_reverse = false
+	elif _landing_trail_kick_elapsed >= 0.0:
+		# Do not restart a reverse flash already in motion; attach a due release
+		# to its completion instead.
+		if _landing_release_pending:
+			_landing_release_after_reverse = true
+			_landing_release_pending = false
+	else:
+		var release_after_reverse: bool = _landing_release_pending
+		_start_landing_reverse_flash(release_after_reverse)
+		if release_after_reverse:
+			_landing_release_pending = false
+
 	if not shedding_enabled:
 		return
 
@@ -1166,20 +1207,18 @@ func _update_particle_emitters(
 
 
 func _update_energy_pulse(delta: float) -> void:
-	# A pulse travels from the orb toward the tail. Both shaders receive the
-	# same progress so the translucent skin, aura edges, and inner current flash together.
-	if (
-		_latest_trail_path.size() < 6
-		or _latest_trail_total_distance < 70.0
-	):
-		_pulse_active = false
-		_pulse_progress = -1.0
-		_pulse_cooldown = maxf(_pulse_cooldown, 3.0)
-	else:
-		if not _pulse_active:
-			_pulse_cooldown -= delta
-			if _pulse_cooldown <= 0.0:
-				_start_energy_pulse()
+	# A scheduled full-ribbon pulse travels from the orb toward the tail.
+	# This function only advances a pulse after a landing sequence has launched it.
+	if _pulse_active:
+		if (
+			_latest_trail_path.size() < 6
+			or _latest_trail_total_distance < 70.0
+		):
+			# If the trail briefly becomes invalid mid-pulse, retry only after a
+			# future eligible landing rather than launching into an empty ribbon.
+			_pulse_active = false
+			_pulse_progress = -1.0
+			_landing_release_pending = true
 		else:
 			var previous_progress: float = _pulse_progress
 			_pulse_progress = minf(_pulse_progress + delta * ENERGY_PULSE_SPEED, 1.0)
@@ -1196,7 +1235,6 @@ func _update_energy_pulse(delta: float) -> void:
 			if _pulse_progress >= ENERGY_PULSE_END:
 				_pulse_active = false
 				_pulse_progress = -1.0
-				_pulse_cooldown = _visual_rng.randf_range(5.0, 7.0)
 
 	var progress_for_shader: float = _pulse_progress if _pulse_active else -1.0
 	var strength_for_shader: float = 1.0 if _pulse_active else 0.0
@@ -1211,14 +1249,21 @@ func _update_energy_pulse(delta: float) -> void:
 			shader_material.set_shader_parameter("pulse_strength", strength_for_shader)
 
 
-func _start_energy_pulse() -> void:
+func _start_energy_pulse() -> bool:
+	if (
+		_pulse_active
+		or _latest_trail_path.size() < 6
+		or _latest_trail_total_distance < 70.0
+	):
+		return false
+
 	_pulse_active = true
 	_pulse_progress = 0.0
 	_pulse_filament_progress = _visual_rng.randf_range(0.34, 0.67)
-	# Keep the ribbon lively, not electrically noisy: most pulses create a
-	# filament, while some remain pure travelling illumination.
-	_pulse_filament_enabled = _visual_rng.randf() < 0.72
+	# The release has a configurable chance to spawn its outward filament.
+	_pulse_filament_enabled = _visual_rng.randf() < clampf(full_release_filament_chance, 0.0, 1.0)
 	_pulse_filament_spawned = false
+	return true
 
 
 func _spawn_pulse_filament(progress: float) -> void:
