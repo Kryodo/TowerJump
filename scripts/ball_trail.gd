@@ -979,7 +979,9 @@ func _spawn_landing_impact(event: LandingEvent) -> void:
 	if _detached_shed_fragments.size() >= 32:
 		return
 
-	var shard_count: int = _visual_rng.randi_range(2, 3)
+	# Four or five larger shards give every clean contact a readable burst
+	# without turning the landing into a screen-filling explosion.
+	var shard_count: int = _visual_rng.randi_range(4, 5)
 	var momentum_scale: float = 1.0
 	var speed_limit_value: Variant = event.ball.get("max_horizontal_speed")
 	if speed_limit_value != null:
@@ -989,50 +991,54 @@ func _spawn_landing_impact(event: LandingEvent) -> void:
 		-1.0,
 		1.0
 	)
-	var vertical_kick: float = clampf(absf(event.vertical_velocity) * 0.02, 0.0, 16.0)
+	var vertical_kick: float = clampf(absf(event.vertical_velocity) * 0.025, 0.0, 28.0)
 
 	for shard_index in range(shard_count):
 		var side: float = -1.0 if shard_index % 2 == 0 else 1.0
-		var shard_size: float = _visual_rng.randf_range(2.2, 3.8)
-		var is_square: bool = _visual_rng.randf() < 0.24
+		var shard_size: float = _visual_rng.randf_range(4.8, 7.4)
+		var is_square: bool = _visual_rng.randf() < 0.22
 		var shard := Polygon2D.new()
 		shard.name = "LandingImpactSquare" if is_square else "LandingImpactShard"
 		shard.z_as_relative = false
 		shard.z_index = 1
 		shard.material = _landing_impact_material
+		shard.scale = Vector2.ONE * 0.78
 
 		var polygon := PackedVector2Array()
 		if is_square:
-			polygon.append(Vector2(-shard_size, -shard_size * 0.72))
-			polygon.append(Vector2(shard_size, -shard_size * 0.72))
-			polygon.append(Vector2(shard_size, shard_size * 0.72))
-			polygon.append(Vector2(-shard_size, shard_size * 0.72))
+			polygon.append(Vector2(-shard_size * 0.78, -shard_size * 0.72))
+			polygon.append(Vector2(shard_size * 0.78, -shard_size * 0.72))
+			polygon.append(Vector2(shard_size * 0.78, shard_size * 0.72))
+			polygon.append(Vector2(-shard_size * 0.78, shard_size * 0.72))
 		else:
-			polygon.append(Vector2(-shard_size * 1.15, -shard_size * 0.26))
-			polygon.append(Vector2(shard_size * 0.38, -shard_size * 0.52))
-			polygon.append(Vector2(shard_size * 1.25, 0.0))
-			polygon.append(Vector2(-shard_size * 0.12, shard_size * 0.44))
+			polygon.append(Vector2(-shard_size * 1.35, -shard_size * 0.24))
+			polygon.append(Vector2(shard_size * 0.42, -shard_size * 0.60))
+			polygon.append(Vector2(shard_size * 1.55, -shard_size * 0.02))
+			polygon.append(Vector2(-shard_size * 0.10, shard_size * 0.46))
 		shard.polygon = polygon
 		shard.color = _landing_impact_color(false).lightened(
-			0.12 if is_square else 0.0
+			0.18 if is_square else 0.0
 		)
 
 		var velocity := Vector2(
-			side * _visual_rng.randf_range(52.0, 86.0) + horizontal_bias * 28.0,
-			-_visual_rng.randf_range(28.0, 56.0) - vertical_kick
+			side * _visual_rng.randf_range(92.0, 142.0) + horizontal_bias * 52.0,
+			-_visual_rng.randf_range(66.0, 106.0) - vertical_kick
 		)
 		var heading: float = atan2(velocity.y, velocity.x)
 		world_root.add_child(shard)
 		shard.global_position = contact_position
-		shard.global_rotation = heading + _visual_rng.randf_range(-0.55, 0.55)
+		shard.global_rotation = heading + _visual_rng.randf_range(-0.48, 0.48)
 		_detached_shed_fragments.append({
 			"node": shard,
 			"velocity": velocity,
 			"age": 0.0,
-			"lifetime": _visual_rng.randf_range(0.16, 0.24),
-			"angular_velocity": _visual_rng.randf_range(-8.0, 8.0),
-			"base_alpha": _visual_rng.randf_range(0.82, 1.0),
-			"fade_start_fraction": 0.22
+			"lifetime": _visual_rng.randf_range(0.30, 0.40),
+			"angular_velocity": _visual_rng.randf_range(-10.0, 10.0),
+			"base_alpha": _visual_rng.randf_range(0.92, 1.0),
+			"fade_start_fraction": 0.18,
+			"scale_from": 0.78,
+			"scale_to": 1.12,
+			"scale_in_fraction": 0.52
 		})
 
 
@@ -1046,15 +1052,22 @@ func _spawn_landing_contact_snap(contact_position: Vector2, world_root: Node2D) 
 	snap.z_index = 1
 	snap.material = _landing_impact_material
 	snap.color = _landing_impact_color(true)
+	snap.scale = Vector2.ONE * 0.62
+	# A long, sharp contact cut with a taller centre gives the landing a
+	# readable hit point; it expands a little before fading instead of blinking.
 	snap.polygon = PackedVector2Array([
-		Vector2(-8.0, 0.0),
-		Vector2(-2.8, -0.8),
-		Vector2(0.0, -3.0),
-		Vector2(2.8, -0.8),
-		Vector2(8.0, 0.0),
-		Vector2(2.8, 0.8),
-		Vector2(0.0, 2.0),
-		Vector2(-2.8, 0.8)
+		Vector2(-29.0, 0.0),
+		Vector2(-14.0, -1.2),
+		Vector2(-5.0, -3.0),
+		Vector2(-1.7, -6.2),
+		Vector2(1.8, -3.2),
+		Vector2(14.0, -1.2),
+		Vector2(29.0, 0.0),
+		Vector2(14.0, 1.2),
+		Vector2(4.6, 2.9),
+		Vector2(1.2, 5.0),
+		Vector2(-2.0, 3.0),
+		Vector2(-14.0, 1.2)
 	])
 	world_root.add_child(snap)
 	snap.global_position = contact_position
@@ -1062,17 +1075,20 @@ func _spawn_landing_contact_snap(contact_position: Vector2, world_root: Node2D) 
 		"node": snap,
 		"velocity": Vector2.ZERO,
 		"age": 0.0,
-		"lifetime": 0.085,
+		"lifetime": 0.17,
 		"angular_velocity": 0.0,
-		"base_alpha": 0.92,
-		"fade_start_fraction": 0.08
+		"base_alpha": 1.0,
+		"fade_start_fraction": 0.24,
+		"scale_from": 0.62,
+		"scale_to": 1.15,
+		"scale_in_fraction": 0.68
 	})
 
 
 func _landing_impact_color(is_snap: bool) -> Color:
 	if visual_palette == 1:
-		return Color(1.12, 0.64, 1.55, 1.0) if is_snap else Color(0.76, 0.28, 1.18, 0.96)
-	return Color(0.58, 1.32, 1.72, 1.0) if is_snap else Color(0.20, 0.72, 1.32, 0.96)
+		return Color(1.42, 0.88, 1.95, 1.0) if is_snap else Color(1.02, 0.38, 1.48, 1.0)
+	return Color(0.92, 1.62, 2.05, 1.0) if is_snap else Color(0.34, 0.98, 1.62, 1.0)
 
 func _update_detached_shed_fragments(delta: float) -> void:
 	for fragment_index in range(_detached_shed_fragments.size() - 1, -1, -1):
@@ -1088,6 +1104,20 @@ func _update_detached_shed_fragments(delta: float) -> void:
 		velocity *= maxf(0.0, 1.0 - delta * 0.8)
 		shard.global_position += velocity * delta
 		shard.rotation += float(fragment["angular_velocity"]) * delta
+		var scale_from_value: Variant = fragment.get("scale_from")
+		var scale_to_value: Variant = fragment.get("scale_to")
+		if scale_from_value != null and scale_to_value != null:
+			var scale_in_fraction: float = clampf(
+				float(fragment.get("scale_in_fraction", 1.0)), 0.01, 1.0
+			)
+			var scale_progress: float = clampf(
+				age / maxf(lifetime * scale_in_fraction, 0.001), 0.0, 1.0
+			)
+			var scale_value: float = lerpf(
+				float(scale_from_value), float(scale_to_value), smoothstep(0.0, 1.0, scale_progress)
+			)
+			shard.scale = Vector2.ONE * scale_value
+
 		var fade_start: float = lifetime * float(fragment.get("fade_start_fraction", 0.18))
 		var fade: float = 1.0 - smoothstep(fade_start, lifetime, age)
 		var tint: Color = shard.modulate
