@@ -8,8 +8,7 @@ uniform float trail_progress_start = 0.0;
 uniform float trail_progress_scale = 1.0;
 uniform float pulse_progress = -1.0;
 uniform float pulse_strength = 0.0;
-uniform float landing_pulse_progress = -1.0;
-uniform float landing_pulse_strength = 0.0;
+uniform float landing_kick_strength = 0.0;
 
 
 // ------------------------------------------------------------
@@ -207,15 +206,16 @@ void fragment()
 		1.0 - smoothstep(0.022, 0.105, abs(uv.x - pulse_progress))
 	) * pulse_gate;
 	float travelling_pulse = pulse_band * pulse_strength * trail_fade;
-	float landing_pulse_band = (
-		1.0 - smoothstep(0.025, 0.125, abs(uv.x - landing_pulse_progress))
-	) * step(0.0, landing_pulse_progress);
-	float landing_travelling_pulse = landing_pulse_band * landing_pulse_strength * trail_fade;
+	// A quick localized kick lights the part of the stream emerging from
+	// the orb without consuming the ambient pulse's full ribbon travel.
+	float landing_head_kick = landing_kick_strength
+		* (1.0 - smoothstep(0.02, 0.34, uv.x))
+		* trail_fade;
 	float pulse_edge = travelling_pulse * smoothstep(0.42, 0.82, edge_distance);
-	pulse_edge = max(pulse_edge, landing_travelling_pulse * smoothstep(0.35, 0.78, edge_distance) * 1.15);
+	// Landing flash stays in the head of the ribbon rather than moving across it.
 	edge_strength = max(edge_strength, pulse_edge * 0.95);
 	energy = max(energy, edge_strength * 0.42);
-	energy = min(energy + travelling_pulse * 0.46 + landing_travelling_pulse * 0.65, 2.0);
+	energy = min(energy + travelling_pulse * 0.46 + landing_head_kick * 0.28, 2.0);
 
 
 	// Palette-matched energy stream: saturated blue or rich violet.
@@ -250,7 +250,7 @@ void fragment()
 	// Additive HDR accents stay subtle at rest but flare briefly as the pulse passes.
 	final_color += edge_color * edge_strength * 0.43;
 	final_color += edge_color * travelling_pulse * 0.30;
-	final_color += landing_pulse_color * landing_travelling_pulse * 0.65;
+	final_color += landing_pulse_color * landing_head_kick * 0.32;
 
 	COLOR = vec4(
 		final_color,
