@@ -100,19 +100,19 @@ void fragment() {
 	vec3 tail_color;
 	vec3 inner_energy_color;
 	vec3 pulse_color;
-	vec3 landing_pulse_color;
+	vec3 landing_kick_color;
 	if (palette_mode == 1) {
 		head_color = vec3(0.52, 0.10, 0.96);
 		tail_color = vec3(0.11, 0.014, 0.34);
 		inner_energy_color = vec3(1.12, 0.52, 1.65);
 		pulse_color = vec3(1.55, 0.78, 1.95);
-		landing_pulse_color = vec3(2.0, 1.15, 2.75);
+		landing_kick_color = vec3(2.0, 1.15, 2.75);
 	} else {
 		head_color = vec3(0.035, 0.36, 0.92);
 		tail_color = vec3(0.006, 0.035, 0.25);
 		inner_energy_color = vec3(0.22, 0.88, 1.42);
 		pulse_color = vec3(0.70, 1.38, 1.90);
-		landing_pulse_color = vec3(1.0, 1.95, 2.65);
+		landing_kick_color = vec3(1.0, 1.95, 2.65);
 	}
 
 	vec3 body_color = mix(head_color, tail_color, smoothstep(0.06, 0.94, along));
@@ -124,7 +124,7 @@ void fragment() {
 	body_color *= flow;
 	// The travelling current briefly lights the membrane's outer edges as well as its core.
 	body_color += pulse_color * travelling_pulse * edge_mask * 0.52;
-	body_color += landing_pulse_color * landing_head_kick * (0.22 + edge_mask * 0.30);
+	body_color += landing_kick_color * landing_head_kick * (0.22 + edge_mask * 0.30);
 
 	// Keep the skin continuous and translucent. Its visible silhouette is now
 	// carried by the live mesh edge geometry; pulses add light without reshaping it.
