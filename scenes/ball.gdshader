@@ -122,10 +122,14 @@ void fragment() {
 
 	// A fast, narrow rim flash makes confirmation visible without trying to
 	// push an already-white centre much brighter.
-	float confirmation_ring = exp(-pow((d - core_radius * 1.02) / max(core_radius * 0.16, 0.001), 2.0));
-	float confirmation_bloom = exp(-pow((d - core_radius * 1.14) / max(core_radius * 0.46, 0.001), 2.0));
-	color += confirmation_core_color * confirmation_ring * landing_flash * 0.72;
-	color += outer_core_color * confirmation_bloom * landing_flash * 0.34;
+	// Keep the confirmation ring outside the expanded core silhouette so it
+	// reads as a separate event. A saturated palette accent gives it contrast
+	// without depending on an even brighter white centre.
+	float confirmation_ring = exp(-pow((d - core_radius * 1.24) / max(core_radius * 0.085, 0.001), 2.0));
+	float confirmation_bloom = exp(-pow((d - core_radius * 1.34) / max(core_radius * 0.24, 0.001), 2.0));
+	vec3 confirmation_ring_color = mix(ring_color, confirmation_core_color, 0.18);
+	color += confirmation_ring_color * confirmation_ring * landing_flash * 1.05;
+	color += outer_core_color * confirmation_bloom * landing_flash * 0.30;
 
 	// Broad upper-left reflection and a small specular glint add orb-like depth.
 	vec2 highlight_pos = vec2(-0.28, -0.30);
