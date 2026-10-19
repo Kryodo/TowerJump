@@ -14,9 +14,7 @@ extends Node2D
 const UNIFIED_HEAD_ARC_SEGMENTS: int = 20
 const ORB_RIM_CENTER_RADIUS_RATIO: float = 0.93
 const SURFACE_BURST_PIECE_COUNT: int = 4
-const CHEVRON_BURST_PIECE_COUNT: int = 5
 const SURFACE_BURST_SPACING: float = 0.055
-const CHEVRON_BURST_SPACING: float = 0.035
 
 @export_category("Visual Palette")
 @export_enum("Electric Blue", "Rich Violet") var visual_palette: int = 0
@@ -43,11 +41,8 @@ var _last_emission_direction: Vector2 = Vector2.DOWN
 var _ball_surface_radius: float = 29.9
 var _surface_burst_remaining: int = 0
 var _surface_burst_clock: float = 0.0
-var _chevron_burst_remaining: int = 0
-var _chevron_burst_clock: float = 0.0
 var _shed_sequence: int = 0
 var _detached_shed_fragments: Array[Dictionary] = []
-var _aura_fragment_material: CanvasItemMaterial
 var _surface_fragment_material: ShaderMaterial
 var _visual_rng := RandomNumberGenerator.new()
 var _energy_filaments: Array[Dictionary] = []
@@ -113,19 +108,14 @@ func _ready() -> void:
 			_particle_emitters.append(emitter)
 
 	_apply_visual_palette()
-	_initialize_aura_fragment_material()
+	_initialize_surface_fragment_material()
 	call_deferred("_connect_landing_feedback")
 	_update_trail_lines()
 	_update_rim_breath()
 
 
-func _initialize_aura_fragment_material() -> void:
-	# Small chevron flecks use additive blending; broad surface fragments use
-	# the same comet shader as the body, with alpha boosted on the copied mesh.
-	var accent_material := CanvasItemMaterial.new()
-	accent_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	_aura_fragment_material = accent_material
-
+func _initialize_surface_fragment_material() -> void:
+	# Larger surface fragments reuse the comet shader with boosted alpha.
 	var body_material := _unified_shape.material as ShaderMaterial
 	if body_material != null:
 		_surface_fragment_material = body_material.duplicate() as ShaderMaterial
@@ -292,8 +282,6 @@ func _process(delta: float) -> void:
 	if not shedding_enabled:
 		_surface_burst_remaining = 0
 		_surface_burst_clock = 0.0
-		_chevron_burst_remaining = 0
-		_chevron_burst_clock = 0.0
 	var current_world_position: Vector2 = ball.global_position
 	var movement: Vector2 = current_world_position - _previous_ball_position
 	var distance_from_trail: float = movement.length()
@@ -779,7 +767,6 @@ func _on_landing_confirmed(event: LandingEvent) -> void:
 	# Freeze the just-rendered trail shape before the ball's bounce changes it.
 	if _latest_trail_path.size() < 6 or _latest_trail_total_distance < 55.0:
 		_surface_burst_remaining = 0
-		_chevron_burst_remaining = 0
 		_landing_burst_snapshot_valid = false
 		return
 	_landing_burst_path = _latest_trail_path.duplicate()
@@ -790,14 +777,13 @@ func _on_landing_confirmed(event: LandingEvent) -> void:
 	_landing_burst_total_distance = _latest_trail_total_distance
 	_landing_burst_snapshot_valid = true
 
-	# Both fragment groups now use that frozen geometry, not the changing live trail.
+	# The larger surface fragments use frozen geometry, not the changing live trail.
 	_surface_burst_remaining = SURFACE_BURST_PIECE_COUNT
 	_surface_burst_clock = 0.0
-	_chevron_burst_remaining = CHEVRON_BURST_PIECE_COUNT
-	_chevron_burst_clock = 0.0
 
 
 func _process_shed_burst(delta: float) -> void:
+	# Only the larger surface fragments remain in the landing burst.
 	if not shedding_enabled or not _landing_burst_snapshot_valid:
 		return
 
@@ -816,22 +802,6 @@ func _process_shed_burst(delta: float) -> void:
 			else:
 				_surface_burst_remaining -= 1
 				_surface_burst_clock = SURFACE_BURST_SPACING if _surface_burst_remaining > 0 else 0.0
-
-	if _chevron_burst_remaining > 0:
-		_chevron_burst_clock = maxf(_chevron_burst_clock - delta, 0.0)
-		if _chevron_burst_clock <= 0.0:
-			var chevron_index: int = CHEVRON_BURST_PIECE_COUNT - _chevron_burst_remaining
-			var previous_chevron_count: int = _detached_shed_fragments.size()
-			_spawn_shed_fragment(
-				_landing_burst_path, _landing_burst_distances, _landing_burst_total_distance,
-				_landing_burst_tangents, _landing_burst_normals, _landing_burst_half_widths,
-				chevron_index
-			)
-			if _detached_shed_fragments.size() == previous_chevron_count:
-				_chevron_burst_remaining = 0
-			else:
-				_chevron_burst_remaining -= 1
-				_chevron_burst_clock = CHEVRON_BURST_SPACING if _chevron_burst_remaining > 0 else 0.0
 
 
 func _spawn_surface_fragment(
@@ -967,142 +937,6 @@ func _spawn_surface_fragment(
 		"fade_start_fraction": 0.56
 	})
 	_shed_sequence += 1
-
-
-func _spawn_shed_fragment(
-	path: Array[Vector2],
-	cumulative_distances: Array[float],
-	total_distance: float,
-	tangents: Array[Vector2],
-	normals: Array[Vector2],
-	half_widths: Array[float],
-	burst_index: int
-) -> void:
-	# Small secondary chevrons cluster near the tail. They accent the larger
-	# surface pieces without pretending to carve holes in the real trail.
-	if (
-		not shedding_enabled
-		or path.size() < 6
-		or total_distance < 55.0
-		or _detached_shed_fragments.size() >= 36
-		or _aura_fragment_material == null
-	):
-		return
-
-	var sequence_value: float = float(_shed_sequence)
-	var burst_progress: float = float(burst_index) / float(maxi(CHEVRON_BURST_PIECE_COUNT - 1, 1))
-	var progress: float = clampf(
-		lerpf(0.73, 0.90, burst_progress)
-		+ sin(sequence_value * 11.7 + 2.4) * 0.018,
-		0.68,
-		0.93
-	)
-	var center_distance: float = total_distance * progress
-	var fragment_length: float = lerpf(
-		15.0, 23.0, absf(sin(sequence_value * 5.31 + 1.2))
-	)
-	var start_distance: float = maxf(center_distance - fragment_length * 0.5, 0.5)
-	var end_distance: float = minf(center_distance + fragment_length * 0.5, total_distance * 0.98)
-	if end_distance - start_distance < 7.0:
-		return
-
-	var fragment_distances: Array[float] = [start_distance]
-	for point_index in range(1, path.size() - 1):
-		var sample_distance: float = cumulative_distances[point_index]
-		if sample_distance > start_distance + 0.1 and sample_distance < end_distance - 0.1:
-			fragment_distances.append(sample_distance)
-	fragment_distances.append(end_distance)
-
-	var side: float = -1.0 if burst_index % 2 == 0 else 1.0
-	var outer_edge: Array[Vector2] = []
-	var inner_edge: Array[Vector2] = []
-	for distance_index in range(fragment_distances.size()):
-		var sample_distance: float = fragment_distances[distance_index]
-		var section: Dictionary = _sample_trail_cross_section(
-			sample_distance, path, cumulative_distances, tangents, normals, half_widths
-		)
-		var t: float = (sample_distance - start_distance) / (end_distance - start_distance)
-		var taper: float = lerpf(0.14, 1.0, sin(PI * t))
-		var center: Vector2 = section["position"]
-		var normal: Vector2 = section["normal"]
-		var half_width: float = float(section["half_width"])
-		outer_edge.append(center + normal * side * half_width * 0.98 * taper)
-		inner_edge.append(center + normal * side * half_width * 0.54 * taper)
-
-	var world_vertices: Array[Vector2] = []
-	var centroid_global := Vector2.ZERO
-	for vertex in outer_edge:
-		world_vertices.append(vertex)
-		centroid_global += vertex
-	for reverse_index in range(inner_edge.size() - 1, -1, -1):
-		var vertex: Vector2 = inner_edge[reverse_index]
-		world_vertices.append(vertex)
-		centroid_global += vertex
-	if world_vertices.size() < 6:
-		return
-	centroid_global /= float(world_vertices.size())
-
-	var fragment_polygon := PackedVector2Array()
-	for vertex in world_vertices:
-		fragment_polygon.append(vertex - centroid_global)
-
-	var shard := Polygon2D.new()
-	shard.name = "DetachedAuraChevron"
-	shard.z_as_relative = false
-	shard.z_index = -2
-	shard.polygon = fragment_polygon
-	shard.material = _aura_fragment_material
-	shard.color = _aura_fragment_tint(progress)
-
-	var world_root: Node2D = get_tree().current_scene as Node2D
-	if world_root == null:
-		world_root = get_parent() as Node2D
-	if world_root == null:
-		shard.queue_free()
-		return
-	world_root.add_child(shard)
-	shard.global_position = centroid_global
-	shard.global_rotation = 0.0
-
-	var source_index: int = _nearest_trail_sample_index(center_distance, cumulative_distances)
-	var outward_speed: float = lerpf(
-		38.0, 62.0, absf(sin(sequence_value * 17.13 + 2.7))
-	)
-	var drift_speed: float = lerpf(
-		8.0, 18.0, absf(sin(sequence_value * 6.73 + 1.4))
-	)
-	var lifetime: float = lerpf(
-		0.34, 0.48, absf(sin(sequence_value * 3.91 + 0.8))
-	)
-	var angular_velocity: float = sin(sequence_value * 8.31 + 0.9) * 3.0
-	var velocity: Vector2 = (
-		normals[source_index] * side * outward_speed
-		+ tangents[source_index] * drift_speed
-	)
-	_detached_shed_fragments.append({
-		"node": shard,
-		"velocity": velocity,
-		"age": 0.0,
-		"lifetime": lifetime,
-		"angular_velocity": angular_velocity,
-		"base_alpha": 1.0,
-		"fade_start_fraction": 0.18
-	})
-	_shed_sequence += 1
-
-
-func _aura_fragment_tint(progress: float) -> Color:
-	var head_color: Color
-	var tail_color: Color
-	if visual_palette == 1:
-		head_color = Color(0.92, 0.43, 1.35, 0.92)
-		tail_color = Color(0.28, 0.045, 0.62, 0.72)
-	else:
-		head_color = Color(0.20, 0.72, 1.35, 0.92)
-		tail_color = Color(0.025, 0.11, 0.54, 0.72)
-	return head_color.lerp(tail_color, clampf(progress, 0.0, 1.0))
-
-
 
 
 func _update_detached_shed_fragments(delta: float) -> void:
