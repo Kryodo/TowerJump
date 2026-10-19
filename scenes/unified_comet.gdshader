@@ -9,6 +9,7 @@ uniform float surface_flow_strength : hint_range(0.0, 0.5) = 0.16;
 uniform float pulse_progress = -1.0;
 uniform float pulse_strength = 0.0;
 uniform float landing_kick_strength = 0.0;
+uniform float landing_kick_progress = 0.0;
 
 // Deterministic noise shared with the inner energy shader.
 float hash21(vec2 p) {
@@ -60,10 +61,18 @@ void fragment() {
 		1.0 - smoothstep(0.025, 0.105, abs(along - pulse_progress))
 	) * pulse_gate;
 	float travelling_pulse = pulse_band * pulse_strength * tail_fade;
-	// Landing briefly energizes the ribbon nearest the orb instead of
-	// launching another full-length pulse that competes with ambient pulses.
+	// A moving landing front travels partway down the ribbon, leaving only a
+	// restrained wake behind it. The ambient pulse still travels the full trail.
+	float landing_kick_gate = step(0.0, landing_kick_progress);
+	float landing_kick_front = 1.0 - smoothstep(0.025, 0.095, abs(along - landing_kick_progress));
+	float landing_kick_wake = (
+		1.0 - smoothstep(0.0, 0.18, max(landing_kick_progress - along, 0.0))
+	) * (
+		1.0 - smoothstep(0.0, 0.09, max(along - landing_kick_progress, 0.0))
+	);
 	float landing_head_kick = landing_kick_strength
-		* (1.0 - smoothstep(0.02, 0.34, along))
+		* max(landing_kick_front, landing_kick_wake * 0.30)
+		* landing_kick_gate
 		* tail_fade;
 	float edge_mask = smoothstep(0.24, 0.82, abs(across * 2.0 - 1.0));
 
