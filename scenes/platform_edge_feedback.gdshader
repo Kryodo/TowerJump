@@ -63,16 +63,16 @@ void fragment() {
 	// quality; confirmation is a separate layer.
 	result = mix(result, active_color, active);
 
-	// Material reflection: a very narrow upper glint and a softer band inside
-	// the edge. These mix toward palette-matched highlights instead of adding
-	// HDR energy, so they should read as surface sheen rather than more bloom.
-	float upper_glint = 1.0 - smoothstep(0.025, 0.22, y);
-	float inner_sheen = exp(-pow((y - 0.38) / 0.22, 2.0));
+	// Material reflection: a clear, narrow top glint plus a softer inner
+	// sheen. Keep the highlight palette-matched, but strong enough to read at
+	// the edge's 8 px height without becoming a second outline.
+	float upper_glint = 1.0 - smoothstep(0.0, 0.30, y);
+	float inner_sheen = exp(-pow((y - 0.42) / 0.23, 2.0));
 	float cyan_state = max(fill, active);
-	vec3 purple_reflection = vec3(0.76, 0.43, 1.08);
-	vec3 cyan_reflection = vec3(0.22, 2.42, 3.36);
+	vec3 purple_reflection = vec3(0.88, 0.64, 1.38);
+	vec3 cyan_reflection = vec3(0.72, 2.95, 3.82);
 	vec3 reflection_color = mix(purple_reflection, cyan_reflection, cyan_state);
-	float reflection_strength = upper_glint * 0.13 + inner_sheen * 0.045;
+	float reflection_strength = clamp(upper_glint * 0.42 + inner_sheen * 0.20, 0.0, 0.52);
 	result = mix(result, reflection_color, reflection_strength);
 
 	// Completion flash is applied AFTER the reflection so its white connection
