@@ -1168,7 +1168,9 @@ func _spawn_landing_surface_streaks(
 	var edge_margin: float = 5.0
 	var available_left: float = maxf(local_contact.x + half_width - edge_margin, 0.0)
 	var available_right: float = maxf(half_width - local_contact.x - edge_margin, 0.0)
-	var local_top_y: float = -float(height_value) * 0.5 + 1.5
+	# Lift the streak just above the platform's top edge so it reads clearly
+	# instead of blending into the cyan rim.
+	var local_top_y: float = -float(height_value) * 0.5 - 1.25
 	var streak_specs: Array[Dictionary] = [
 		{"direction": -1.0, "distance": minf(available_left, 48.0)},
 		{"direction": 1.0, "distance": minf(available_right, 48.0)}
@@ -1183,7 +1185,7 @@ func _spawn_landing_surface_streaks(
 		streak.name = "LandingSurfaceEnergyStreak"
 		streak.z_as_relative = true
 		streak.z_index = 5
-		streak.width = 3.6
+		streak.width = 5.2
 		streak.antialiased = true
 		streak.joint_mode = Line2D.LINE_JOINT_ROUND
 		streak.begin_cap_mode = Line2D.LINE_CAP_ROUND
@@ -1207,7 +1209,7 @@ func _spawn_landing_surface_streaks(
 			"grow_duration": 0.115,
 			"travel_distance": travel_distance,
 			"direction": float(spec["direction"]),
-			"base_width": 3.6
+			"base_width": 5.2
 		})
 
 
@@ -1227,9 +1229,11 @@ func _update_landing_surface_streaks(delta: float) -> void:
 		)
 		var travel_distance: float = float(streak_data["travel_distance"])
 		var direction: float = float(streak_data["direction"])
+		# A modest rise as the streak travels outward gives it a more upright,
+		# energized silhouette while keeping it tied to the platform surface.
 		streak.set_point_position(
 			1,
-			Vector2(direction * travel_distance * growth, 0.0)
+			Vector2(direction * travel_distance * growth, -4.0 * growth)
 		)
 
 		var progress: float = clampf(age / maxf(lifetime, 0.001), 0.0, 1.0)
