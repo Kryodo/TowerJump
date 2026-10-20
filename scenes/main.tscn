@@ -213,9 +213,11 @@ text = "● 0"
 horizontal_alignment = 2
 
 [node name="LandingFeedbackPresenter" type="CanvasLayer" parent="."]
+layer = 2
 script = ExtResource("14_landing_presenter")
 
 [node name="GameOverScreen" type="CanvasLayer" parent="." unique_id=788048322]
+layer = 3
 process_mode = 2
 script = ExtResource("7_gameover")
 
