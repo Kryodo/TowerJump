@@ -216,7 +216,7 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> void:
 
 	var drift_direction: float = 1.0 if start_position.x >= screen_anchor.x else -1.0
 	if absf(start_position.x + REWARD_SIZE.x * 0.5 - screen_anchor.x) < REWARD_SIZE.x * 0.36:
-		drift_direction = 1.0 if screen_anchor.x < get_viewport_rect().size.x * 0.5 else -1.0
+		drift_direction = 1.0 if screen_anchor.x < _get_viewport_size().x * 0.5 else -1.0
 
 	_active_rewards.append({
 		"root": reward_root,
@@ -266,7 +266,7 @@ func _choose_reward_position(
 	element_size: Vector2,
 	ball_radius: float
 ) -> Vector2:
-	var viewport_size: Vector2 = get_viewport_rect().size
+	var viewport_size: Vector2 = _get_viewport_size()
 	var side_gap: float = ball_radius + BALL_CLEARANCE
 	var candidates: Array[Vector2] = [
 		Vector2(anchor.x + side_gap, anchor.y - element_size.y - 16.0),
@@ -448,9 +448,13 @@ func _get_ball_radius() -> float:
 	return 30.0
 
 
+func _get_viewport_size() -> Vector2:
+	return get_viewport().get_visible_rect().size
+
+
 func _get_ball_screen_position() -> Vector2:
 	if _ball == null or not is_instance_valid(_ball):
-		return get_viewport_rect().size * 0.5
+		return _get_viewport_size() * 0.5
 	return get_viewport().get_canvas_transform() * _ball.global_position
 
 
@@ -583,7 +587,7 @@ func _process(delta: float) -> void:
 	if _status_root == null or not _status_root.visible or not state_indicator_enabled:
 		return
 
-	var viewport_size: Vector2 = get_viewport_rect().size
+	var viewport_size: Vector2 = _get_viewport_size()
 	var ball_screen: Vector2 = _get_ball_screen_position()
 	var target_position: Vector2 = _choose_status_position(ball_screen, viewport_size)
 	if not _status_position_initialized:
