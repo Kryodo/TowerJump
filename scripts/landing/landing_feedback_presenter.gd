@@ -4,7 +4,7 @@ extends CanvasLayer
 
 @export_category("Reward Presentation")
 @export var reward_feedback_enabled: bool = true
-@export_range(0.8, 1.5, 0.05) var reward_lifetime: float = 1.15
+@export_range(0.8, 1.5, 0.05) var reward_lifetime: float = 1.05
 @export_range(8.0, 36.0, 2.0) var screen_safe_margin: float = 22.0
 
 @export_category("State Indicator")
@@ -13,12 +13,12 @@ extends CanvasLayer
 
 @export var landing_score_controller_path: NodePath = NodePath("../LandingScoreController")
 @export var ball_path: NodePath = NodePath("../Ball")
+@export var orb_visual_path: NodePath = NodePath("../Ball/Visual")
 
-const REWARD_SIZE := Vector2(164.0, 82.0)
-const STATUS_SIZE := Vector2(190.0, 52.0)
+const REWARD_SIZE := Vector2(160.0, 66.0)
+const STATUS_SIZE := Vector2(150.0, 42.0)
 const CLUTCH_SIZE := Vector2(144.0, 30.0)
 const EVENT_SIZE := Vector2(188.0, 34.0)
-const STATUS_SIDE_GAP := 7.0
 
 const GOOD_COLOR := Color(0.40, 0.86, 1.0, 1.0)
 const EPIC_COLOR := Color(0.72, 0.44, 1.0, 1.0)
@@ -30,16 +30,14 @@ const OUTLINE_COLOR := Color(0.012, 0.025, 0.055, 0.98)
 
 var _score_controller: Node
 var _ball: Node2D
+var _orb_visual: Sprite2D
 
 var _status_root: Control
-var _chain_progress_root: Control
-var _chain_segments: Array[ColorRect] = []
 var _combo_label: Label
 var _streak_label: Label
 
-## The side is selected once and retained until that side no longer fits the
-## viewport. The anchor sits beside the ball's trailing edge, not in a screen corner.
-var _status_side: int = 0
+## The compact status tag stays centered above the orb. It makes small edge
+## adjustments, but never flips between the left and right side of the comet.
 var _status_position_initialized: bool = false
 
 var _active_rewards: Array[Dictionary] = []
@@ -53,6 +51,7 @@ var _state_pop_timer: float = 0.0
 
 func _ready() -> void:
 	_ball = get_node_or_null(ball_path) as Node2D
+	_orb_visual = get_node_or_null(orb_visual_path) as Sprite2D
 	_score_controller = get_node_or_null(landing_score_controller_path)
 	_create_state_indicators()
 
@@ -83,35 +82,19 @@ func _create_state_indicators() -> void:
 	_status_root.z_index = 20
 	add_child(_status_root)
 
-	# Before Combo activates, use a quiet three-segment progress cue instead of
-	# another sentence competing with the landing reward.
-	_chain_progress_root = Control.new()
-	_chain_progress_root.name = "ComboProgressIndicator"
-	_chain_progress_root.size = Vector2(82.0, 16.0)
-	_chain_progress_root.position = Vector2(1.0, 18.0)
-	_chain_progress_root.visible = false
-	_chain_progress_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_status_root.add_child(_chain_progress_root)
-
-	for i in range(3):
-		var segment := ColorRect.new()
-		segment.name = "ComboProgressSegment%d" % (i + 1)
-		segment.position = Vector2(float(i) * 28.0, 5.0)
-		segment.size = Vector2(21.0, 5.0)
-		segment.color = Color(0.14, 0.23, 0.34, 0.88)
-		segment.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_chain_progress_root.add_child(segment)
-		_chain_segments.append(segment)
-
-	_combo_label = _make_label("ComboStatusLabel", Vector2(STATUS_SIZE.x, 24.0), 16, EPIC_COLOR, 5)
+	_combo_label = _make_label(
+		"ComboStatusLabel", Vector2(STATUS_SIZE.x, 20.0), 13, EPIC_COLOR, 4
+	)
 	_combo_label.position = Vector2(0.0, 12.0)
-	_combo_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_combo_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_combo_label.visible = false
 	_status_root.add_child(_combo_label)
 
-	_streak_label = _make_label("StreakStatusLabel", Vector2(STATUS_SIZE.x, 24.0), 16, STREAK_COLOR, 5)
+	_streak_label = _make_label(
+		"StreakStatusLabel", Vector2(STATUS_SIZE.x, 20.0), 13, STREAK_COLOR, 4
+	)
 	_streak_label.position = Vector2.ZERO
-	_streak_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_streak_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_streak_label.visible = false
 	_status_root.add_child(_streak_label)
 
@@ -185,26 +168,26 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 	reward_root.z_index = 30
 	add_child(reward_root)
 
-	# Visual reading order stays grade -> points -> detail. The detail line
-	# remains last in the cluster, but its short lifetime lets it leave first.
+	# The detail remains the last visual row, but the quality-chain progress is
+	# communicated by the orb's segmented core ring.
 	var grade_label := _make_label(
-		"LandingGrade", Vector2(REWARD_SIZE.x, 25.0), 19, quality_color, 5
+		"LandingGrade", Vector2(REWARD_SIZE.x, 22.0), 19, quality_color, 5
 	)
 	grade_label.position = Vector2.ZERO
 	grade_label.text = quality
 	reward_root.add_child(grade_label)
 
 	var points_label := _make_label(
-		"LandingPoints", Vector2(REWARD_SIZE.x, 35.0), 29, SCORE_COLOR, 6
+		"LandingPoints", Vector2(REWARD_SIZE.x, 30.0), 29, SCORE_COLOR, 6
 	)
-	points_label.position = Vector2(0.0, 23.0)
+	points_label.position = Vector2(0.0, 19.0)
 	points_label.text = "+%d" % int(result.get("total_points", 0))
 	reward_root.add_child(points_label)
 
 	var detail_label := _make_label(
-		"LandingRewardDetail", Vector2(REWARD_SIZE.x, 19.0), 12, quality_color.lightened(0.14), 3
+		"LandingRewardDetail", Vector2(REWARD_SIZE.x, 18.0), 12, quality_color.lightened(0.14), 3
 	)
-	detail_label.position = Vector2(0.0, 61.0)
+	detail_label.position = Vector2(0.0, 48.0)
 	detail_label.text = detail_text
 	reward_root.add_child(detail_label)
 
@@ -229,33 +212,33 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 			"label": grade_label,
 			"base_position": grade_label.position,
 			"delay": 0.0,
-			"fade_start": 0.60,
-			"fade_duration": 0.24,
-			"duration": 0.92,
-			"drift_factor": 0.12,
-			"rise_factor": 0.18,
+			"fade_start": 0.48,
+			"fade_duration": 0.22,
+			"duration": 0.78,
+			"drift_factor": 0.10,
+			"drop_factor": 0.18,
 			"spring": 0.84,
 		},
 		{
 			"label": points_label,
 			"base_position": points_label.position,
-			"delay": 0.055,
-			"fade_start": 0.80,
-			"fade_duration": 0.25,
-			"duration": 1.12,
-			"drift_factor": 0.22,
-			"rise_factor": 0.25,
+			"delay": 0.05,
+			"fade_start": 0.73,
+			"fade_duration": 0.23,
+			"duration": 1.02,
+			"drift_factor": 0.20,
+			"drop_factor": 0.28,
 			"spring": 0.76,
 		},
 		{
 			"label": detail_label,
 			"base_position": detail_label.position,
-			"delay": 0.08,
-			"fade_start": 0.22,
-			"fade_duration": 0.20,
-			"duration": 0.46,
-			"drift_factor": 0.42,
-			"rise_factor": 0.12,
+			"delay": 0.03,
+			"fade_start": 0.16,
+			"fade_duration": 0.18,
+			"duration": 0.38,
+			"drift_factor": 0.38,
+			"drop_factor": 0.30,
 			"spring": 0.90,
 		},
 	]
@@ -275,14 +258,13 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 
 func _build_reward_detail(result: Dictionary) -> String:
 	var quality: String = str(result.get("quality", "GOOD"))
-	var chain_count: int = int(result.get("chain_count", 0))
-	var activation_count: int = int(_last_state.get("combo_activation_landings", 3))
-
-	# Chain progress stays in the reward's small detail line. The separate,
-	# locally anchored activation label communicates Combo/Streak transitions.
-	if bool(result.get("combo_active", false)) or bool(result.get("streak_active", false)):
-		return "%s CHAIN  ·  %d" % [quality, chain_count]
-	return "%s CHAIN  ·  %d/%d" % [quality, chain_count, activation_count]
+	match quality:
+		"PERFECT":
+			return "EXCEPTIONAL PRECISION"
+		"EPIC":
+			return "SHARP PRECISION"
+		_:
+			return "CLEAN LANDING"
 
 
 func _choose_reward_start(
@@ -291,8 +273,8 @@ func _choose_reward_start(
 	ball_radius: float,
 	preferred_side: int
 ) -> Vector2:
-	# Keep the reward beside the landing. This is a two-side local choice only:
-	# no screen-wide search and no later repositioning while it animates.
+	# Keep the reward beside the landing and slightly lower than before.
+	# Placement chooses one local side once; animation never reroutes it.
 	var available_right: float = (
 		viewport_size.x - screen_safe_margin
 		- (anchor.x + ball_radius + 7.0)
@@ -313,13 +295,13 @@ func _choose_reward_start(
 		elif available_right > available_left:
 			chosen_side = 1
 
-	var x: float
-	if chosen_side > 0:
-		x = anchor.x + ball_radius + 7.0
-	else:
-		x = anchor.x - ball_radius - 7.0 - REWARD_SIZE.x
-
-	var y: float = anchor.y - 42.0
+	var x: float = (
+		anchor.x + ball_radius + 7.0
+		if chosen_side > 0
+		else anchor.x - ball_radius - 7.0 - REWARD_SIZE.x
+	)
+	# With the compact cluster this places its last row just above the platform.
+	var y: float = anchor.y - 36.0
 	return _fit_local_position(Vector2(x, y), REWARD_SIZE, viewport_size)
 
 
@@ -406,8 +388,8 @@ func _spawn_state_transition(label_text: String, color: Color) -> void:
 		else _get_status_target(ball_screen, viewport_size)
 	)
 	var requested := Vector2(
-		status_position.x,
-		status_position.y - EVENT_SIZE.y - 6.0
+		status_position.x + STATUS_SIZE.x * 0.5 - EVENT_SIZE.x * 0.5,
+		status_position.y - EVENT_SIZE.y - 3.0
 	)
 	var start := _fit_local_position(requested, EVENT_SIZE, viewport_size)
 	_spawn_floating_label(
@@ -417,8 +399,8 @@ func _spawn_state_transition(label_text: String, color: Color) -> void:
 		EVENT_SIZE,
 		start,
 		0.68,
-		float(_status_side if _status_side != 0 else 1) * 18.0,
-		-24.0,
+		12.0,
+		-18.0,
 		0.01,
 		40,
 		0.0
@@ -468,31 +450,10 @@ func _spawn_floating_label(
 
 func _get_status_target(ball_screen: Vector2, viewport_size: Vector2) -> Vector2:
 	var radius: float = _get_ball_radius()
-	var right_x: float = ball_screen.x + radius + STATUS_SIDE_GAP
-	var left_x: float = ball_screen.x - radius - STATUS_SIDE_GAP - STATUS_SIZE.x
-	var right_fits: bool = right_x + STATUS_SIZE.x <= viewport_size.x - screen_safe_margin
-	var left_fits: bool = left_x >= screen_safe_margin
-
-	# Pick a nearby side once. After that, only change side if it actually
-	# runs out of viewport space; crossing the screen midpoint does nothing.
-	if _status_side == 0:
-		if right_fits:
-			_status_side = 1
-		elif left_fits:
-			_status_side = -1
-		else:
-			var right_room: float = viewport_size.x - screen_safe_margin - right_x
-			var left_room: float = left_x - screen_safe_margin
-			_status_side = 1 if right_room >= left_room else -1
-	elif _status_side > 0 and not right_fits and left_fits:
-		_status_side = -1
-	elif _status_side < 0 and not left_fits and right_fits:
-		_status_side = 1
-
-	var x: float = right_x if _status_side > 0 else left_x
-	# This fixed trailing-side offset keeps the status connected to the comet.
-	# It only clamps when the ball is genuinely near a viewport boundary.
-	var y: float = ball_screen.y + radius * 0.42
+	# One consistent home: centred over the orb, close to its upper edge.
+	# Edge fitting nudges it inward, but it never flips to the other side.
+	var x: float = ball_screen.x - STATUS_SIZE.x * 0.5
+	var y: float = ball_screen.y - radius - STATUS_SIZE.y + 3.0
 	return _fit_local_position(Vector2(x, y), STATUS_SIZE, viewport_size)
 
 
@@ -502,16 +463,13 @@ func _update_status_follow(delta: float) -> void:
 
 	var viewport_size: Vector2 = _get_viewport_size()
 	var ball_screen: Vector2 = _get_ball_screen_position()
-	var previous_side: int = _status_side
 	var target_position: Vector2 = _get_status_target(ball_screen, viewport_size)
-	var side_changed: bool = previous_side != _status_side
-
-	# Follow normal movement smoothly, but never animate a status panel across
-	# the screen when the ball wraps or its local side must change at an edge.
 	var target_jump_distance: float = _status_root.position.distance_to(target_position)
+
+	# Follow ordinary motion smoothly; snap only on a screen-wrap/teleport-sized
+	# discontinuity so the tag never visibly sweeps across the screen.
 	if (
 		not _status_position_initialized
-		or side_changed
 		or target_jump_distance > minf(120.0, viewport_size.x * 0.22)
 	):
 		_status_root.position = target_position
@@ -531,31 +489,26 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 	_last_state = state.duplicate(true)
 
 	var chain_count: int = int(state.get("chain_count", 0))
-	if chain_count <= 0:
-		_chain_progress_root.visible = false
+	var quality: String = str(state.get("quality", "GOOD"))
+	_update_orb_chain_feedback(chain_count, quality)
+
+	var combo_active: bool = bool(state.get("combo_active", false))
+	var streak_active: bool = bool(state.get("streak_active", false))
+	if chain_count <= 0 or (not combo_active and not streak_active):
 		_hide_indicator(_combo_label)
 		_hide_indicator(_streak_label)
 		_status_root.visible = false
 		_status_position_initialized = false
 		return
 
-	var quality: String = str(state.get("quality", "GOOD"))
-	var combo_active: bool = bool(state.get("combo_active", false))
-	var streak_active: bool = bool(state.get("streak_active", false))
 	var multiplier: float = float(state.get("multiplier", 1.0))
 	var quality_color: Color = _quality_color(quality)
-
 	_status_root.visible = true
-	_chain_progress_root.visible = not combo_active
-	var filled_segments: int = mini(chain_count, _chain_segments.size())
-	for i in range(_chain_segments.size()):
-		var segment := _chain_segments[i]
-		segment.color = quality_color if i < filled_segments else Color(0.14, 0.23, 0.34, 0.88)
 
 	if combo_active:
 		_set_indicator(
 			_combo_label,
-			"✦  %s COMBO  ×%.2f" % [quality, multiplier],
+			"✦  COMBO  ×%.2f" % multiplier,
 			quality_color,
 			not previous_combo_active
 		)
@@ -563,10 +516,9 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 		_hide_indicator(_combo_label)
 
 	if streak_active:
-		# STREAK owns the primary line once it activates; Combo and its
-		# multiplier remain available below it as the secondary state.
+		# Streak takes the primary line; the Combo multiplier remains below.
 		_streak_label.position = Vector2(0.0, 0.0)
-		_combo_label.position = Vector2(0.0, 25.0)
+		_combo_label.position = Vector2(0.0, 20.0)
 		_set_indicator(
 			_streak_label,
 			"▲  STREAK  %02d" % chain_count,
@@ -582,6 +534,27 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 		_state_pop_timer = 0.30
 	elif previous_chain_count != chain_count:
 		_state_pop_timer = 0.24
+
+
+func _update_orb_chain_feedback(chain_count: int, quality: String) -> void:
+	if _orb_visual == null or not is_instance_valid(_orb_visual):
+		return
+	var material := _orb_visual.material as ShaderMaterial
+	if material == null:
+		return
+
+	var quality_id: int = 0
+	match quality:
+		"EPIC":
+			quality_id = 1
+		"PERFECT":
+			quality_id = 2
+
+	material.set_shader_parameter(
+		"quality_chain_progress",
+		clampf(float(chain_count), 0.0, 3.0)
+	)
+	material.set_shader_parameter("quality_chain", quality_id)
 
 
 func _set_indicator(label: Label, text_value: String, color: Color, animate: bool) -> void:
@@ -712,7 +685,7 @@ func _update_reward_animations(delta: float) -> void:
 		var flutter: float = sin(age * 7.5 + phase) * 1.0 * (1.0 - progress)
 		root.position = start_position + Vector2(
 			drift_x * eased + flutter,
-			-20.0 * eased + sin(age * 5.0 + phase) * 1.0
+			17.0 * eased + sin(age * 5.0 + phase) * 1.0
 		)
 
 		var parts: Array = reward.get("parts", [])
@@ -732,11 +705,11 @@ func _update_reward_animations(delta: float) -> void:
 			var part_eased: float = 1.0 - pow(1.0 - part_progress, 2.0)
 			var base_position: Vector2 = part.get("base_position", label.position)
 			var part_drift: float = drift_x * float(part.get("drift_factor", 1.0))
-			var part_rise: float = 11.0 * float(part.get("rise_factor", 0.5))
+			var part_drop: float = 7.0 * float(part.get("drop_factor", 0.5))
 			var part_flutter: float = sin(local_age * 9.0 + phase) * 1.0 * (1.0 - part_progress)
 			label.position = base_position + Vector2(
 				part_drift * part_eased + part_flutter,
-				-part_rise * part_eased
+				part_drop * part_eased
 			)
 
 			var alpha: float = 1.0
