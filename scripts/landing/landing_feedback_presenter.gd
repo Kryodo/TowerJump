@@ -290,6 +290,7 @@ func _choose_reward_start(
 	if _status_root != null and _status_root.visible and _status_position_initialized:
 		obstacles.append(Rect2(_status_root.position, STATUS_SIZE))
 	obstacles.append_array(_get_visible_hud_rects())
+	obstacles.append_array(_get_active_feedback_rects())
 
 	var best_position: Vector2 = _fit_local_position(candidates[0], REWARD_SIZE, viewport_size)
 	var best_cost: float = INF
@@ -627,6 +628,20 @@ func _get_ball_screen_position() -> Vector2:
 		return _get_viewport_size() * 0.5
 	return get_viewport().get_canvas_transform() * _ball.global_position
 
+
+func _get_active_feedback_rects() -> Array[Rect2]:
+	var rects: Array[Rect2] = []
+	for reward in _active_rewards:
+		var root := reward.get("root") as Control
+		if root != null and is_instance_valid(root) and root.modulate.a > 0.12:
+			rects.append(Rect2(root.position, root.size))
+
+	for item in _active_floats:
+		var label := item.get("label") as Control
+		if label != null and is_instance_valid(label) and label.modulate.a > 0.12:
+			rects.append(Rect2(label.position, label.size))
+
+	return rects
 
 func _get_visible_hud_rects() -> Array[Rect2]:
 	var rects: Array[Rect2] = []
