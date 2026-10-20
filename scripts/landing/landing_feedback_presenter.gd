@@ -38,6 +38,7 @@ var _streak_label: Label
 var _active_rewards: Array[Dictionary] = []
 var _last_state: Dictionary = {}
 var _indicator_versions: Dictionary = {}
+var _indicator_hiding: Dictionary = {}
 var _pulse_clock: float = 0.0
 var _state_pop_timer: float = 0.0
 var _status_position_initialized: bool = false
@@ -131,7 +132,9 @@ func _make_label(
 		"font_shadow_color",
 		Color(font_color.r, font_color.g, font_color.b, 0.38)
 	)
-	label.add_theme_constant_override("shadow_size", 3)
+	label.add_theme_constant_override("shadow_outline_size", 3)
+	label.add_theme_constant_override("shadow_offset_x", 0)
+	label.add_theme_constant_override("shadow_offset_y", 0)
 	return label
 
 
@@ -484,12 +487,15 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 	var activation_count: int = int(state.get("combo_activation_landings", 3))
 
 	_status_root.visible = true
-	_set_indicator(
-		_chain_label,
-		"%s CHAIN  %d/%d" % [quality, chain_count, activation_count],
-		_quality_color(quality),
-		not combo_active and (previous_chain_count != chain_count or previous_combo_active)
-	)
+	if combo_active:
+		_hide_indicator(_chain_label)
+	else:
+		_set_indicator(
+			_chain_label,
+			"%s CHAIN  %d/%d" % [quality, chain_count, activation_count],
+			_quality_color(quality),
+			previous_chain_count != chain_count or previous_combo_active
+		)
 
 	if combo_active:
 		_set_indicator(
@@ -513,6 +519,8 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 
 	if (combo_active and not previous_combo_active) or (streak_active and not previous_streak_active):
 		_state_pop_timer = 0.30
+	elif previous_chain_count != chain_count:
+		_state_pop_timer = 0.24
 
 
 func _set_indicator(label: Label, text_value: String, color: Color, animate: bool) -> void:
@@ -520,6 +528,7 @@ func _set_indicator(label: Label, text_value: String, color: Color, animate: boo
 		return
 
 	var was_visible: bool = label.visible
+	var was_hiding: bool = bool(_indicator_hiding.get(label.name, false))
 	var text_changed: bool = label.text != text_value
 	label.text = text_value
 	label.add_theme_color_override("font_color", color)
@@ -532,14 +541,19 @@ func _set_indicator(label: Label, text_value: String, color: Color, animate: boo
 		animate = true
 
 	label.visible = true
+	_indicator_versions[label.name] = int(_indicator_versions.get(label.name, 0)) + 1
+	_indicator_hiding[label.name] = false
+
 	if not animate and not text_changed:
+		if was_hiding:
+			label.modulate = Color.WHITE
+			label.scale = Vector2.ONE
 		return
 	if not animate:
 		label.modulate = Color.WHITE
 		label.scale = Vector2.ONE
 		return
 
-	_indicator_versions[label.name] = int(_indicator_versions.get(label.name, 0)) + 1
 	label.modulate = Color(1.0, 1.0, 1.0, 0.0)
 	label.scale = Vector2.ONE * 0.82
 
@@ -552,9 +566,12 @@ func _set_indicator(label: Label, text_value: String, color: Color, animate: boo
 func _hide_indicator(label: Label) -> void:
 	if label == null or not label.visible:
 		return
+	if bool(_indicator_hiding.get(label.name, false)):
+		return
 
 	var version: int = int(_indicator_versions.get(label.name, 0)) + 1
 	_indicator_versions[label.name] = version
+	_indicator_hiding[label.name] = true
 
 	var tween := create_tween()
 	tween.set_parallel(true)
@@ -565,6 +582,7 @@ func _hide_indicator(label: Label) -> void:
 			return
 		if int(_indicator_versions.get(label.name, 0)) != version:
 			return
+		_indicator_hiding[label.name] = false
 		label.visible = false
 		label.modulate = Color.WHITE
 		label.scale = Vector2.ONE
