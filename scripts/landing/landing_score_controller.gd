@@ -1,8 +1,8 @@
 class_name LandingScoreController
 extends Node2D
 
-## Scores only confirmed physical landings. Quality, combo progression and
-## floating feedback all derive from the same result dictionary.
+## Scores only confirmed physical landings. Quality and combo progression
+## are calculated here, then emitted as one authoritative result dictionary.
 signal landing_scored(result: Dictionary)
 signal combo_state_changed(state: Dictionary)
 
@@ -144,7 +144,6 @@ func _on_landing_confirmed(event: LandingEvent) -> void:
 	GameManager.record_landing_result(result)
 	landing_scored.emit(result)
 	combo_state_changed.emit(get_combo_state())
-
 
 
 func _classify_landing(event: LandingEvent) -> String:
