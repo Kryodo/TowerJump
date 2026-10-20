@@ -502,8 +502,18 @@ func _update_status_follow(delta: float) -> void:
 
 	var viewport_size: Vector2 = _get_viewport_size()
 	var ball_screen: Vector2 = _get_ball_screen_position()
+	var previous_side: int = _status_side
 	var target_position: Vector2 = _get_status_target(ball_screen, viewport_size)
-	if not _status_position_initialized:
+	var side_changed: bool = previous_side != _status_side
+
+	# Follow normal movement smoothly, but never animate a status panel across
+	# the screen when the ball wraps or its local side must change at an edge.
+	var target_jump_distance: float = _status_root.position.distance_to(target_position)
+	if (
+		not _status_position_initialized
+		or side_changed
+		or target_jump_distance > minf(120.0, viewport_size.x * 0.22)
+	):
 		_status_root.position = target_position
 		_status_position_initialized = true
 	else:
