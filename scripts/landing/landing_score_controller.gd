@@ -90,7 +90,6 @@ func _on_landing_confirmed(event: LandingEvent) -> void:
 
 	var quality: String = _classify_landing(event)
 	var previous_quality: String = _chain_quality
-	var previous_count: int = _chain_count
 	var previous_combo_active: bool = _combo_active
 	var chain_broken: bool = previous_combo_active and quality != previous_quality
 
@@ -262,7 +261,7 @@ func _spawn_landing_feedback(result: Dictionary, event: LandingEvent) -> void:
 		0.64
 	)
 
-	var detail_parts: Array[String] = []
+	var detail_parts: PackedStringArray = PackedStringArray()
 	if bool(result["streak_activated"]):
 		detail_parts.append("STREAK BONUS +%d" % int(result["streak_bonus"]))
 	elif bool(result["combo_activated"]):
