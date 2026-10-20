@@ -4,7 +4,7 @@ extends CanvasLayer
 
 @export_category("Reward Presentation")
 @export var reward_feedback_enabled: bool = true
-@export_range(0.8, 1.5, 0.05) var reward_lifetime: float = 1.05
+@export_range(0.8, 1.5, 0.05) var reward_lifetime: float = 1.15
 @export_range(8.0, 36.0, 2.0) var screen_safe_margin: float = 22.0
 
 @export_category("State Indicator")
@@ -208,7 +208,7 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> void:
 			"fade_start": 0.20,
 			"fade_duration": 0.18,
 			"duration": 0.42,
-			"drift_factor": 1.18,
+			"drift_factor": 0.65,
 			"rise_factor": 0.70,
 			"spring": 0.90,
 		},
@@ -219,7 +219,7 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> void:
 			"fade_start": 0.56,
 			"fade_duration": 0.22,
 			"duration": 0.82,
-			"drift_factor": 0.68,
+			"drift_factor": 0.28,
 			"rise_factor": 0.30,
 			"spring": 0.82,
 		},
@@ -230,7 +230,7 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> void:
 			"fade_start": 0.76,
 			"fade_duration": 0.24,
 			"duration": 1.10,
-			"drift_factor": 1.0,
+			"drift_factor": 0.58,
 			"rise_factor": 0.52,
 			"spring": 0.72,
 		},
@@ -243,7 +243,7 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> void:
 		"anchor": screen_anchor,
 		"age": 0.0,
 		"lifetime": maxf(reward_lifetime, 0.8),
-		"drift_x": drift_direction * randf_range(30.0, 44.0),
+		"drift_x": drift_direction * randf_range(16.0, 24.0),
 		"phase": randf_range(0.0, TAU),
 	})
 
@@ -253,15 +253,9 @@ func _build_reward_detail(result: Dictionary) -> String:
 	var chain_count: int = int(result.get("chain_count", 0))
 	var activation_count: int = int(_last_state.get("combo_activation_landings", 3))
 
-	# Keep the small line useful without repeating a persistent multiplier or
-	# stealing the spotlight from the separate Combo/Streak transition.
-	if bool(result.get("streak_activated", false)):
-		return "MILESTONE REACHED"
-	if bool(result.get("combo_activated", false)):
-		return "QUALITY CHAIN COMPLETE"
-	if bool(result.get("streak_active", false)):
-		return "%s CHAIN  ·  %d" % [quality, chain_count]
-	if bool(result.get("combo_active", false)):
+	# Chain progress stays in the reward's small detail line. The separate,
+	# locally anchored activation label communicates Combo/Streak transitions.
+	if bool(result.get("combo_active", false)) or bool(result.get("streak_active", false)):
 		return "%s CHAIN  ·  %d" % [quality, chain_count]
 	return "%s CHAIN  ·  %d/%d" % [quality, chain_count, activation_count]
 
