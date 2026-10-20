@@ -7,6 +7,10 @@ uniform int palette_mode = 0;
 uniform float rim_breath = 1.0;
 uniform float landing_anticipation = 0.0;
 uniform float landing_confirmation = 0.0;
+// Quality-chain feedback is rendered inside the orb, close to the plasma core.
+// Progress is 0..3; quality is 0=Good, 1=Epic, 2=Perfect.
+uniform float quality_chain_progress = 0.0;
+uniform int quality_chain = 0;
 
 void fragment() {
 	vec2 p = UV * 2.0 - 1.0;
@@ -109,11 +113,44 @@ void fragment() {
 	color += outer_core_color * outer_core * (0.38 + landing_charge * 0.24 + landing_flash * 0.32) * aura_breath;
 
 	float core = 1.0 - smoothstep(core_radius * 0.70, core_radius, d);
+	// The quality chain changes the existing plasma core hue rather than adding
+	// another outer halo. The tint strengthens as the three-step chain fills.
+	vec3 chain_core_color;
+	if (quality_chain == 2) {
+		chain_core_color = vec3(3.4, 4.3, 4.8); // Perfect: white-cyan
+	} else if (quality_chain == 1) {
+		chain_core_color = vec3(1.8, 0.48, 3.5); // Epic: violet
+	} else {
+		chain_core_color = vec3(0.04, 1.85, 2.6); // Good: cyan
+	}
+	float chain_tint_strength = 0.0;
+	if (quality_chain_progress > 0.0) {
+		chain_tint_strength = mix(
+			0.42,
+			0.90,
+			clamp((quality_chain_progress - 1.0) / 2.0, 0.0, 1.0)
+		);
+	}
 	// A slightly lower peak helps the orb and trail share the same energy budget.
 	float core_brightness = mix(0.79, 0.96, core_pulse)
 		* (1.0 + landing_charge * 0.18 + landing_flash * 0.70);
-	vec3 live_core_color = mix(core_color, confirmation_core_color, landing_flash * 0.82);
+	vec3 live_core_color = mix(core_color, chain_core_color, chain_tint_strength);
+	live_core_color = mix(live_core_color, confirmation_core_color, landing_flash * 0.82);
 	color = mix(color, live_core_color * core_brightness, core);
+
+	// One segmented ring sits just outside the breathing core. Its three arc
+	// sections fill sequentially, keeping progress inside the orb silhouette.
+	float chain_ring_radius = core_radius + 0.115 + core_pulse * 0.008;
+	float chain_ring_distance = abs(d - chain_ring_radius);
+	float chain_ring = 1.0 - smoothstep(0.010, 0.027, chain_ring_distance);
+	float ring_angle_normalized = fract((angle + PI) / TAU);
+	float ring_sector_position = ring_angle_normalized * 3.0;
+	float ring_sector_index = floor(ring_sector_position);
+	float ring_sector_phase = fract(ring_sector_position);
+	float ring_sector_enabled = step(ring_sector_index + 1.0, quality_chain_progress);
+	float ring_sector_gap_mask = step(0.075, ring_sector_phase) * step(ring_sector_phase, 0.925);
+	float chain_ring_alpha = chain_ring * ring_sector_enabled * ring_sector_gap_mask;
+	color += chain_core_color * chain_ring_alpha * (0.18 + chain_tint_strength * 0.20) * aura_breath;
 
 	float core_aura =
 		1.0 - smoothstep(core_radius * 0.62, core_radius * 1.8, d);
