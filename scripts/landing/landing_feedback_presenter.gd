@@ -683,13 +683,6 @@ func _fit_local_position(position: Vector2, element_size: Vector2, viewport_size
 	)
 
 
-func _rect_overlap_area(first: Rect2, second: Rect2) -> float:
-	if not first.intersects(second):
-		return 0.0
-	var overlap: Rect2 = first.intersection(second)
-	return maxf(overlap.size.x, 0.0) * maxf(overlap.size.y, 0.0)
-
-
 func _update_reward_animations(delta: float) -> void:
 	for i in range(_active_rewards.size() - 1, -1, -1):
 		var reward: Dictionary = _active_rewards[i]
