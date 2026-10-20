@@ -1181,11 +1181,19 @@ func _spawn_landing_surface_streaks(
 		if travel_distance < 6.0:
 			continue
 
+		# Taper the ends so this reads as a filament, not a rectangular bar.
+		var width_curve := Curve.new()
+		width_curve.add_point(Vector2(0.0, 0.04))
+		width_curve.add_point(Vector2(0.16, 0.92))
+		width_curve.add_point(Vector2(0.62, 0.64))
+		width_curve.add_point(Vector2(1.0, 0.02))
+
 		var streak := Line2D.new()
 		streak.name = "LandingSurfaceEnergyStreak"
 		streak.z_as_relative = true
 		streak.z_index = 5
 		streak.width = 5.2
+		streak.width_curve = width_curve
 		streak.antialiased = true
 		streak.joint_mode = Line2D.LINE_JOINT_ROUND
 		streak.begin_cap_mode = Line2D.LINE_CAP_ROUND
@@ -1194,22 +1202,45 @@ func _spawn_landing_surface_streaks(
 
 		var gradient := Gradient.new()
 		gradient.set_color(0, Color(1.05, 1.72, 1.98, 0.98))
-		gradient.set_color(1, Color(0.04, 0.82, 1.44, 0.82))
+		gradient.set_color(1, Color(0.04, 0.82, 1.44, 0.32))
 		streak.gradient = gradient
-		streak.add_point(Vector2.ZERO)
-		streak.add_point(Vector2.ZERO)
+		for point_index in range(5):
+			streak.add_point(Vector2.ZERO)
 		platform.add_child(streak)
 		streak.position = Vector2(local_contact.x, local_top_y)
-		streak.set_point_position(0, Vector2.ZERO)
-		streak.set_point_position(1, Vector2.ZERO)
+
+		# A narrower travelling highlight gives the surface current a clear
+		# direction without adding a large second burst.
+		var pulse := Line2D.new()
+		pulse.name = "LandingSurfaceEnergyPulse"
+		pulse.z_as_relative = true
+		pulse.z_index = 6
+		pulse.width = 2.0
+		pulse.width_curve = width_curve.duplicate() as Curve
+		pulse.antialiased = true
+		pulse.joint_mode = Line2D.LINE_JOINT_ROUND
+		pulse.begin_cap_mode = Line2D.LINE_CAP_ROUND
+		pulse.end_cap_mode = Line2D.LINE_CAP_ROUND
+		pulse.material = _landing_impact_material
+		var pulse_gradient := Gradient.new()
+		pulse_gradient.set_color(0, Color(1.18, 1.92, 2.05, 0.98))
+		pulse_gradient.set_color(1, Color(0.10, 1.05, 1.58, 0.04))
+		pulse.gradient = pulse_gradient
+		pulse.add_point(Vector2.ZERO)
+		pulse.add_point(Vector2.ZERO)
+		platform.add_child(pulse)
+		pulse.position = Vector2(local_contact.x, local_top_y)
+
 		_landing_surface_streaks.append({
 			"line": streak,
+			"pulse": pulse,
 			"age": 0.0,
-			"lifetime": 0.27,
-			"grow_duration": 0.115,
+			"lifetime": 0.38,
+			"grow_duration": 0.15,
 			"travel_distance": travel_distance,
 			"direction": float(spec["direction"]),
-			"base_width": 5.2
+			"base_width": 5.2,
+			"phase": _visual_rng.randf_range(0.0, TAU),
 		})
 
 
@@ -1217,7 +1248,10 @@ func _update_landing_surface_streaks(delta: float) -> void:
 	for index in range(_landing_surface_streaks.size() - 1, -1, -1):
 		var streak_data: Dictionary = _landing_surface_streaks[index]
 		var streak := streak_data.get("line") as Line2D
+		var pulse := streak_data.get("pulse") as Line2D
 		if not is_instance_valid(streak):
+			if is_instance_valid(pulse):
+				pulse.queue_free()
 			_landing_surface_streaks.remove_at(index)
 			continue
 
@@ -1229,23 +1263,59 @@ func _update_landing_surface_streaks(delta: float) -> void:
 		)
 		var travel_distance: float = float(streak_data["travel_distance"])
 		var direction: float = float(streak_data["direction"])
-		# A modest rise as the streak travels outward gives it a more upright,
-		# energized silhouette while keeping it tied to the platform surface.
-		streak.set_point_position(
-			1,
-			Vector2(direction * travel_distance * growth, -4.0 * growth)
-		)
+		var phase: float = float(streak_data["phase"])
+
+		# Animate a restrained wave through the line so it feels like live
+		# energy crawling over the platform instead of a rigid shape appearing.
+		for point_index in range(streak.get_point_count()):
+			var along: float = float(point_index) / float(maxi(streak.get_point_count() - 1, 1))
+			var wave: float = (
+				sin(_trail_time * 10.0 + phase + along * TAU * 1.35)
+				* 1.5
+				* sin(PI * along)
+			)
+			var point_position := Vector2(
+				direction * travel_distance * growth * along,
+				-4.0 * growth * along + wave * growth
+			)
+			streak.set_point_position(point_index, point_position)
 
 		var progress: float = clampf(age / maxf(lifetime, 0.001), 0.0, 1.0)
-		var fade: float = 1.0 - smoothstep(0.34, 1.0, progress)
-		streak.modulate = Color(1.0, 1.0, 1.0, fade)
-		streak.width = float(streak_data["base_width"]) * lerpf(
-			1.0, 0.52, smoothstep(0.0, 1.0, progress)
+		var attack: float = smoothstep(0.0, 0.045, age)
+		var fade: float = 1.0 - smoothstep(lifetime * 0.58, lifetime, age)
+		streak.modulate = Color(1.0, 1.0, 1.0, attack * fade)
+		var subtle_breath: float = 1.0 + sin(age * 23.0 + phase) * 0.045
+		streak.width = float(streak_data["base_width"]) * subtle_breath * lerpf(
+			1.0, 0.72, smoothstep(0.0, 1.0, progress)
 		)
+
+		if is_instance_valid(pulse):
+			var pulse_head: float = clampf(age / 0.235, 0.0, 1.0)
+			var pulse_tail: float = maxf(pulse_head - 0.30, 0.0)
+			var pulse_points: int = 2
+			for pulse_index in range(pulse_points):
+				var pulse_along: float = pulse_tail if pulse_index == 0 else pulse_head
+				var pulse_wave: float = (
+					sin(_trail_time * 10.0 + phase + pulse_along * TAU * 1.35)
+					* 1.5
+					* sin(PI * pulse_along)
+				)
+				pulse.set_point_position(
+					pulse_index,
+					Vector2(
+						direction * travel_distance * growth * pulse_along,
+						-4.0 * growth * pulse_along + pulse_wave * growth
+					)
+				)
+			var pulse_attack: float = smoothstep(0.01, 0.045, age)
+			var pulse_fade: float = 1.0 - smoothstep(0.20, 0.30, age)
+			pulse.modulate = Color(1.0, 1.0, 1.0, pulse_attack * pulse_fade)
 
 		streak_data["age"] = age
 		if age >= lifetime:
 			streak.queue_free()
+			if is_instance_valid(pulse):
+				pulse.queue_free()
 			_landing_surface_streaks.remove_at(index)
 		else:
 			_landing_surface_streaks[index] = streak_data
