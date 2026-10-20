@@ -25,7 +25,7 @@ const EPIC_COLOR := Color(0.72, 0.44, 1.0, 1.0)
 const PERFECT_COLOR := Color(0.86, 0.98, 1.0, 1.0)
 const STREAK_COLOR := Color(1.0, 0.73, 0.30, 1.0)
 const SCORE_COLOR := Color(0.58, 0.94, 1.0, 1.0)
-const CLUTCH_COLOR := Color(1.0, 0.67, 0.31, 1.0)
+const CLUTCH_COLOR := Color(0.80, 0.96, 1.0, 1.0)
 const OUTLINE_COLOR := Color(0.012, 0.025, 0.055, 0.98)
 
 var _score_controller: Node
@@ -533,7 +533,6 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 	var combo_active: bool = bool(state.get("combo_active", false))
 	var streak_active: bool = bool(state.get("streak_active", false))
 	var multiplier: float = float(state.get("multiplier", 1.0))
-	var activation_count: int = maxi(int(state.get("combo_activation_landings", 3)), 1)
 	var quality_color: Color = _quality_color(quality)
 
 	_status_root.visible = true
