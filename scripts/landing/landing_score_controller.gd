@@ -42,9 +42,6 @@ signal combo_state_changed(state: Dictionary)
 @export var perfect_combo_streak_step: float = 0.12
 @export var perfect_combo_multiplier_cap: float = 4.0
 
-@export_category("Floating Feedback")
-@export var floating_feedback_enabled: bool = true
-
 @export var landing_feedback_controller_path: NodePath = NodePath("../LandingFeedbackController")
 
 var _feedback_controller: Node
@@ -148,8 +145,6 @@ func _on_landing_confirmed(event: LandingEvent) -> void:
 	landing_scored.emit(result)
 	combo_state_changed.emit(get_combo_state())
 
-	if floating_feedback_enabled:
-		_spawn_landing_feedback(result, event)
 
 
 func _classify_landing(event: LandingEvent) -> String:
@@ -222,119 +217,3 @@ func _get_combo_multiplier(quality: String, chain_count: int) -> float:
 
 	return clampf(multiplier, 1.0, maxf(multiplier_cap, 1.0))
 
-
-func _spawn_landing_feedback(result: Dictionary, event: LandingEvent) -> void:
-	var platform_height_value: Variant = event.platform.get("height")
-	var platform_height: float = float(platform_height_value) if platform_height_value != null else 20.0
-	var ball_radius: float = 30.0
-	if event.ball != null and is_instance_valid(event.ball):
-		ball_radius = float(event.ball.get("radius")) if event.ball.get("radius") != null else 30.0
-	var contact_y: float = event.platform.global_position.y - platform_height * 0.5
-	var center_x: float = event.landing_world_x
-	var quality: String = str(result["quality"])
-	var grade_text: String = quality + "!"
-	if bool(result["streak_activated"]):
-		grade_text = "STREAK!"
-	elif bool(result["combo_activated"]):
-		grade_text = quality + " COMBO!"
-
-	var grade_color: Color = _quality_color(quality)
-	if bool(result["streak_activated"]):
-		grade_color = Color(1.0, 0.73, 0.30, 1.0)
-
-	_spawn_float_label(
-		grade_text,
-		grade_color,
-		29 if bool(result["combo_activated"]) or bool(result["streak_activated"]) else 25,
-		Vector2(center_x, contact_y - ball_radius - 57.0),
-		46.0,
-		0.05,
-		0.70
-	)
-	_spawn_float_label(
-		"+%d" % int(result["total_points"]),
-		Color(0.55, 0.92, 1.0, 1.0),
-		36,
-		Vector2(center_x, contact_y - ball_radius - 24.0),
-		38.0,
-		0.03,
-		0.64
-	)
-
-	var detail_parts: PackedStringArray = PackedStringArray()
-	if bool(result["streak_activated"]):
-		detail_parts.append("STREAK BONUS +%d" % int(result["streak_bonus"]))
-	elif bool(result["combo_activated"]):
-		detail_parts.append("%s COMBO  x%.2f" % [quality, float(result["multiplier"])])
-	elif bool(result["streak_active"]):
-		detail_parts.append("%s STREAK  x%.2f" % [quality, float(result["multiplier"])])
-	elif bool(result["combo_active"]):
-		detail_parts.append("%s COMBO  x%.2f" % [quality, float(result["multiplier"])])
-	elif bool(result["chain_broken"]):
-		detail_parts.append("CHAIN BROKEN  ·  %s 1/%d" % [quality, combo_activation_landings])
-	else:
-		detail_parts.append("%s CHAIN  %d/%d" % [
-			quality,
-			int(result["chain_count"]),
-			combo_activation_landings
-		])
-	if bool(result["clutch"]):
-		detail_parts.append("CLUTCH +%d" % int(result["clutch_bonus"]))
-
-	_spawn_float_label(
-		"  ·  ".join(detail_parts),
-		grade_color.lightened(0.12),
-		16,
-		Vector2(center_x, contact_y - ball_radius + 6.0),
-		24.0,
-		0.0,
-		0.48
-	)
-
-
-func _spawn_float_label(
-	label_text: String,
-	label_color: Color,
-	font_size: int,
-	world_position: Vector2,
-	rise_distance: float,
-	fade_delay: float,
-	start_scale: float
-) -> void:
-	var label := Label.new()
-	label.text = label_text
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.size = Vector2(460.0, float(font_size) * 1.8)
-	label.pivot_offset = label.size * 0.5
-	label.position = world_position - label.size * 0.5
-	label.scale = Vector2.ONE * start_scale
-	label.modulate = Color(1.0, 1.0, 1.0, 0.0)
-	label.z_index = 100
-	label.add_theme_font_size_override("font_size", font_size)
-	label.add_theme_color_override("font_color", label_color)
-	label.add_theme_color_override("font_outline_color", Color(0.015, 0.025, 0.05, 0.98))
-	label.add_theme_constant_override("outline_size", 5)
-	add_child(label)
-
-	var tween := create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(label, "modulate:a", 1.0, 0.07)
-	tween.tween_property(label, "scale", Vector2.ONE, 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tween.tween_property(label, "position:y", label.position.y - rise_distance, 0.62).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tween.chain().tween_interval(fade_delay)
-	tween.chain().tween_property(label, "modulate:a", 0.0, 0.22)
-	tween.chain().tween_callback(func() -> void:
-		if is_instance_valid(label):
-			label.queue_free()
-	)
-
-
-func _quality_color(quality: String) -> Color:
-	match quality:
-		"PERFECT":
-			return Color(0.86, 0.98, 1.0, 1.0)
-		"EPIC":
-			return Color(0.72, 0.44, 1.0, 1.0)
-		_:
-			return Color(0.40, 0.86, 1.0, 1.0)
