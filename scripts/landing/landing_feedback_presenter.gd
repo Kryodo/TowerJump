@@ -417,11 +417,23 @@ func _fit_position(position: Vector2, element_size: Vector2, viewport_size: Vect
 	)
 
 
-func _get_hud_obstacles(viewport_size: Vector2) -> Array[Rect2]:
-	return [
-		Rect2(Vector2(12.0, HUD_TOP), Vector2(390.0, 66.0)),
-		Rect2(Vector2(viewport_size.x - 232.0, HUD_TOP), Vector2(220.0, 66.0)),
+func _get_hud_obstacles(_viewport_size: Vector2) -> Array[Rect2]:
+	var obstacles: Array[Rect2] = []
+	var hud_paths: Array[NodePath] = [
+		NodePath("../HUD/ScoreLabel"),
+		NodePath("../HUD/CoinLabel"),
+		NodePath("../HUD/DebugSectionLabel"),
 	]
+
+	for hud_path in hud_paths:
+		var hud_control := get_node_or_null(hud_path) as Control
+		if hud_control == null or not hud_control.is_visible_in_tree():
+			continue
+		if hud_control.modulate.a <= 0.08:
+			continue
+		obstacles.append(hud_control.get_global_rect())
+
+	return obstacles
 
 
 func _get_active_reward_obstacles() -> Array[Rect2]:
