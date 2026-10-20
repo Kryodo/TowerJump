@@ -273,9 +273,11 @@ func _choose_reward_start(
 		desired_y = anchor.y + ball_radius + 6.0
 	desired_y = clampf(desired_y, safe_y, viewport_size.y - safe_y - REWARD_SIZE.y)
 
-	var preferred_offset: float = -float(_status_side) * 64.0 if _status_side != 0 else (
-		56.0 if anchor.x < viewport_size.x * 0.5 else -56.0
-	)
+	var preferred_offset: float
+	if _status_side != 0:
+		preferred_offset = -float(_status_side) * 64.0
+	else:
+		preferred_offset = 56.0 if anchor.x < viewport_size.x * 0.5 else -56.0
 	var candidates: Array[Vector2] = [
 		Vector2(anchor.x - REWARD_SIZE.x * 0.5 + preferred_offset, desired_y),
 		Vector2(anchor.x - REWARD_SIZE.x * 0.5 - preferred_offset, desired_y),
@@ -284,7 +286,7 @@ func _choose_reward_start(
 		anchor - Vector2(ball_radius + BALL_CLEARANCE, ball_radius + BALL_CLEARANCE),
 		Vector2((ball_radius + BALL_CLEARANCE) * 2.0, (ball_radius + BALL_CLEARANCE) * 2.0)
 	)
-	var obstacles: Array[Rect2] = [ball_rect]
+	var obstacles: Array[Rect2] = []
 	if _status_root != null and _status_root.visible and _status_position_initialized:
 		obstacles.append(Rect2(_status_root.position, STATUS_SIZE))
 	obstacles.append_array(_get_visible_hud_rects())
@@ -333,7 +335,7 @@ func _spawn_clutch_feedback(result: Dictionary, platform: Node2D) -> void:
 		CLUTCH_SIZE,
 		viewport_size
 	)
-	var text := _spawn_floating_label(
+	var clutch_label := _spawn_floating_label(
 		"✦  CLUTCH +%d" % int(result.get("clutch_bonus", 0)),
 		CLUTCH_COLOR,
 		19,
@@ -346,8 +348,8 @@ func _spawn_clutch_feedback(result: Dictionary, platform: Node2D) -> void:
 		38,
 		0.0
 	)
-	if text != null:
-		text.z_index = 36
+	if clutch_label != null:
+		clutch_label.z_index = 36
 
 
 func _spawn_state_transition(label_text: String, color: Color) -> void:
