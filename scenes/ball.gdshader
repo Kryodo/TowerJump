@@ -15,10 +15,10 @@ uniform int combo_core_quality = 0;
 uniform float combo_core_blend = 0.0;
 uniform float combo_activation_flash = 0.0;
 // Zone-semantic roles; HDR gain remains independent from each palette hue.
-uniform vec4 quality_good_color = vec4(0.68, 0.54, 1.0, 1.0);
-uniform vec4 quality_epic_color = vec4(0.16, 0.83, 1.0, 1.0);
-uniform vec4 quality_perfect_color = vec4(0.84, 0.98, 1.0, 1.0);
-uniform vec4 zone_confirmation_color = vec4(4.20, 4.20, 4.20, 1.0);
+uniform vec4 quality_good_color : source_color = vec4(0.68, 0.54, 1.0, 1.0);
+uniform vec4 quality_epic_color : source_color = vec4(0.16, 0.83, 1.0, 1.0);
+uniform vec4 quality_perfect_color : source_color = vec4(0.84, 0.98, 1.0, 1.0);
+uniform vec4 zone_confirmation_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
 
 void fragment() {
 	vec2 p = UV * 2.0 - 1.0;
@@ -73,7 +73,7 @@ void fragment() {
 	}
 
 	// Confirmation is a zone-semantic role independent from the cosmetic orb skin.
-	confirmation_core_color = zone_confirmation_color.rgb;
+	confirmation_core_color = zone_confirmation_color.rgb * 4.2;
 
 	// Saturated energy body with a deeper outer edge for visual depth.
 	float body_falloff = 1.0 - smoothstep(0.04, 1.02, d);

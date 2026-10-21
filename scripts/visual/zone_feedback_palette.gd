@@ -4,10 +4,10 @@ class_name ZoneFeedbackPalette
 ## but gameplay feedback reads these shared roles so quality meaning remains consistent.
 
 @export_group("Platform State")
-@export var idle_edge_color: Color = Color(0.50, 0.19, 0.98, 1.0)
-@export var charge_edge_color: Color = Color(0.10, 2.15, 3.20, 1.0)
-@export var charge_core_color: Color = Color(0.45, 3.15, 4.20, 1.0)
-@export var confirmation_color: Color = Color(4.20, 4.20, 4.20, 1.0)
+@export var idle_edge_color: Color = Color(0.735, 0.472, 0.991, 1.0)
+@export var charge_edge_color: Color = Color(0.19, 0.84, 1.0, 1.0)
+@export var charge_core_color: Color = Color(0.36, 0.88, 1.0, 1.0)
+@export var confirmation_color: Color = Color(1.0, 1.0, 1.0, 1.0)
 
 @export_group("Landing Quality")
 ## Bright periwinkle/lavender, related to idle violet but brighter and bluer.

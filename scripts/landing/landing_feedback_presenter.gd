@@ -61,6 +61,7 @@ func _ready() -> void:
 	_ball = get_node_or_null(ball_path) as Node2D
 	_orb_visual = get_node_or_null(orb_visual_path) as Sprite2D
 	_score_controller = get_node_or_null(landing_score_controller_path)
+	_apply_zone_palette_to_orb()
 	_create_state_indicators()
 	if not ZonePaletteManager.palette_changed.is_connected(_on_zone_palette_changed):
 		ZonePaletteManager.palette_changed.connect(_on_zone_palette_changed)
@@ -556,10 +557,23 @@ func _layout_status_row(caption: Label, counter: Label, caption_y: float, counte
 		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
 
+func _apply_zone_palette_to_orb() -> void:
+	if _zone_palette == null or _orb_visual == null or not is_instance_valid(_orb_visual):
+		return
+	var material := _orb_visual.material as ShaderMaterial
+	if material == null:
+		return
+	material.set_shader_parameter("quality_good_color", _zone_palette.good_color)
+	material.set_shader_parameter("quality_epic_color", _zone_palette.epic_color)
+	material.set_shader_parameter("quality_perfect_color", _zone_palette.perfect_color)
+	material.set_shader_parameter("zone_confirmation_color", _zone_palette.confirmation_color)
+
+
 func _on_zone_palette_changed(palette: ZoneFeedbackPalette) -> void:
 	if palette == null:
 		return
 	_zone_palette = palette
+	_apply_zone_palette_to_orb()
 	if not _last_state.is_empty():
 		_on_combo_state_changed(_last_state)
 
