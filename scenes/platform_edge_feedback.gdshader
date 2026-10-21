@@ -7,6 +7,7 @@ instance uniform float approach_charge = 0.0;
 instance uniform float approach_target_x = 0.5;
 instance uniform float landing_confirm = 0.0;
 instance uniform float activated = 0.0;
+instance uniform float idle_sheen_phase = 0.0;
 
 void vertex() {
 	edge_local_x = VERTEX.x;
@@ -57,6 +58,18 @@ void fragment() {
 	// visible as a true white connection moment, then settles back to cyan.
 	float confirm = clamp(landing_confirm, 0.0, 1.0);
 	result = mix(result, confirm_color, confirm);
+
+	// Rare, asynchronous sheen for platforms still waiting ahead. Its per-
+	// instance phase avoids a synchronized tower-wide sweep. Active landing
+	// feedback takes priority, so the idle sheen never fights approach/confirm.
+	float idle_gate = (1.0 - charge) * (1.0 - active) * (1.0 - confirm);
+	float sheen_position = fract(TIME * 0.11 + idle_sheen_phase);
+	float sheen_distance = abs(x - sheen_position);
+	float sheen_field = 1.0 - smoothstep(0.035, 0.16, sheen_distance);
+	float sheen_core = 1.0 - smoothstep(0.004, 0.035, sheen_distance);
+	float sheen_mix = (sheen_field * 0.11 + sheen_core * 0.30) * idle_gate;
+	vec3 sheen_color = vec3(1.2, 3.2, 4.0);
+	result = mix(result, sheen_color, clamp(sheen_mix, 0.0, 0.42));
 
 	COLOR.rgb = result;
 }
