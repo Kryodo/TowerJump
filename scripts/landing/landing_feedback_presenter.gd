@@ -732,6 +732,85 @@ func _animate_counter_change(
 		label, "scale", Vector2.ONE, 0.10
 	).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
+func _update_orb_chain_feedback(chain_count: int, quality: String, combo_active: bool) -> void:
+	if _orb_visual == null or not is_instance_valid(_orb_visual):
+		return
+	var material := _orb_visual.material as ShaderMaterial
+	if material == null:
+		return
+
+	var quality_id: int = 0
+	match quality:
+		"EPIC":
+			quality_id = 1
+		"PERFECT":
+			quality_id = 2
+
+	material.set_shader_parameter(
+		"quality_chain_progress",
+		clampf(float(chain_count), 0.0, 3.0)
+	)
+	material.set_shader_parameter("quality_chain", quality_id)
+	if combo_active:
+		# Preserve the last active grade while its core tint eases back out on a break.
+		material.set_shader_parameter("combo_core_quality", quality_id)
+		_orb_core_blend_target = 1.0
+	else:
+		_orb_core_blend_target = 0.0
+
+func _update_orb_core_blend(delta: float) -> void:
+	if _orb_visual == null or not is_instance_valid(_orb_visual):
+		return
+	var material := _orb_visual.material as ShaderMaterial
+	if material == null:
+		return
+	var weight: float = 1.0 - exp(-8.0 * delta)
+	_orb_core_blend = lerpf(_orb_core_blend, _orb_core_blend_target, weight)
+	_orb_core_activation_flash *= exp(-4.2 * delta)
+	material.set_shader_parameter("combo_core_blend", _orb_core_blend)
+	material.set_shader_parameter("combo_activation_flash", _orb_core_activation_flash)
+
+func _set_indicator(label: Label, text_value: String, color: Color, animate: bool) -> void:
+	if label == null:
+		return
+
+	var was_visible: bool = label.visible
+	var was_hiding: bool = bool(_indicator_hiding.get(label.name, false))
+	var text_changed: bool = label.text != text_value
+	label.text = text_value
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_shadow_color", Color(color.r, color.g, color.b, 0.48))
+	label.add_theme_constant_override("outline_size", 4)
+	label.add_theme_constant_override("shadow_outline_size", 3)
+	if not was_visible:
+		animate = true
+
+	label.visible = true
+	_indicator_versions[label.name] = int(_indicator_versions.get(label.name, 0)) + 1
+	_indicator_hiding[label.name] = false
+
+	if not animate and not text_changed:
+		if was_hiding:
+			label.modulate = Color.WHITE
+			label.scale = Vector2.ONE
+		return
+	if not animate:
+		label.modulate = Color.WHITE
+		label.scale = Vector2.ONE
+		return
+
+	var target_font_size: int = maxi(label.get_theme_font_size("font_size"), 15)
+	label.modulate = Color(1.0, 1.0, 1.0, 0.0)
+	label.scale = Vector2.ONE * 0.78
+
+	var peak_scale: float = 1.16 if label == _combo_label else 1.12
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(label, "modulate:a", 1.0, 0.08)
+	tween.tween_property(label, "scale", Vector2.ONE * peak_scale, 0.20).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.set_parallel(false)
+	tween.tween_property(label, "scale", Vector2.ONE, 0.16).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
 func _set_counter_indicator(label: Label, text_value: String, color: Color, animate: bool) -> void:
 	if label == null:
 		return
