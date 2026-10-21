@@ -155,7 +155,9 @@ void fragment() {
 	} else {
 		chain_ring_color = vec3(0.05, 2.65, 4.0); // Good: cyan
 	}
-	color += chain_ring_color * chain_ring_alpha * ring_light_strength * (0.30 + chain_tint_strength * 0.16) * aura_breath;
+	// Keep ring brightness independent of the core tint: the ring means progress,
+	// while the core hue change is reserved for Combo activation.
+	color += chain_ring_color * chain_ring_alpha * ring_light_strength * 0.38 * aura_breath;
 	float core_aura =
 		1.0 - smoothstep(core_radius * 0.62, core_radius * 1.8, d);
 	color += aura_color * core_aura * (0.28 + landing_charge * 0.20) * aura_breath;
