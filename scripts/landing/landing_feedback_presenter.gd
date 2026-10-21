@@ -18,7 +18,6 @@ extends CanvasLayer
 const REWARD_SIZE := Vector2(160.0, 66.0)
 const STATUS_SIZE := Vector2(150.0, 42.0)
 const CLUTCH_SIZE := Vector2(144.0, 30.0)
-const EVENT_SIZE := Vector2(188.0, 34.0)
 
 const GOOD_COLOR := Color(0.40, 0.86, 1.0, 1.0)
 const EPIC_COLOR := Color(0.72, 0.44, 1.0, 1.0)
@@ -47,6 +46,11 @@ var _indicator_versions: Dictionary = {}
 var _indicator_hiding: Dictionary = {}
 var _pulse_clock: float = 0.0
 var _state_pop_timer: float = 0.0
+var _status_anchor_side: int = 1
+var _last_ball_screen_position: Vector2 = Vector2.ZERO
+var _status_screen_velocity: Vector2 = Vector2.ZERO
+var _orb_core_blend: float = 0.0
+var _orb_core_blend_target: float = 0.0
 
 
 func _ready() -> void:
@@ -139,12 +143,6 @@ func _on_landing_scored(result: Dictionary) -> void:
 	if bool(result.get("clutch", false)):
 		_spawn_clutch_feedback(result, platform, reward_side)
 
-	# Milestones remain separate events, positioned relative to the persistent
-	# indicator rather than being added to the temporary reward detail line.
-	if bool(result.get("streak_activated", false)):
-		_spawn_state_transition("▲  STREAK!", STREAK_COLOR)
-	elif bool(result.get("combo_activated", false)):
-		_spawn_state_transition("✦  COMBO!", _quality_color(str(result.get("quality", "GOOD"))))
 
 
 func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
@@ -185,8 +183,10 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 	reward_root.add_child(points_label)
 
 	var detail_label := _make_label(
-		"LandingRewardDetail", Vector2(REWARD_SIZE.x, 18.0), 12, quality_color.lightened(0.14), 3
+		"LandingRewardDetail", Vector2(REWARD_SIZE.x, 18.0), 13, quality_color.lightened(0.14), 0
 	)
+	detail_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.0))
+	detail_label.add_theme_constant_override("shadow_outline_size", 0)
 	detail_label.position = Vector2(0.0, 48.0)
 	detail_label.text = detail_text
 	reward_root.add_child(detail_label)
@@ -234,9 +234,9 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 			"label": detail_label,
 			"base_position": detail_label.position,
 			"delay": 0.03,
-			"fade_start": 0.16,
-			"fade_duration": 0.18,
-			"duration": 0.38,
+			"fade_start": 0.34,
+			"fade_duration": 0.30,
+			"duration": 0.70,
 			"drift_factor": 0.38,
 			"drop_factor": 0.30,
 			"spring": 0.90,
@@ -257,6 +257,13 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 
 
 func _build_reward_detail(result: Dictionary) -> String:
+	# Activation copy lives beside the landing reward, where it cannot be lost
+	# over the trail. Clutch remains its own edge-anchored event.
+	if bool(result.get("streak_activated", false)):
+		return "STREAK REACHED"
+	if bool(result.get("combo_activated", false)):
+		return "COMBO ACTIVATED"
+
 	var quality: String = str(result.get("quality", "GOOD"))
 	match quality:
 		"PERFECT":
@@ -265,7 +272,6 @@ func _build_reward_detail(result: Dictionary) -> String:
 			return "SHARP PRECISION"
 		_:
 			return "CLEAN LANDING"
-
 
 func _choose_reward_start(
 	anchor: Vector2,
@@ -376,35 +382,6 @@ func _spawn_clutch_feedback(
 		clutch_label.z_index = 36
 
 
-func _spawn_state_transition(label_text: String, color: Color) -> void:
-	if not state_indicator_enabled:
-		return
-
-	var viewport_size: Vector2 = _get_viewport_size()
-	var ball_screen: Vector2 = _get_ball_screen_position()
-	var status_position: Vector2 = (
-		_status_root.position
-		if _status_position_initialized
-		else _get_status_target(ball_screen, viewport_size)
-	)
-	var requested := Vector2(
-		status_position.x + STATUS_SIZE.x * 0.5 - EVENT_SIZE.x * 0.5,
-		status_position.y - EVENT_SIZE.y - 3.0
-	)
-	var start := _fit_local_position(requested, EVENT_SIZE, viewport_size)
-	_spawn_floating_label(
-		label_text,
-		color,
-		23,
-		EVENT_SIZE,
-		start,
-		0.68,
-		12.0,
-		-18.0,
-		0.01,
-		40,
-		0.0
-	)
 
 
 func _spawn_floating_label(
@@ -448,13 +425,41 @@ func _spawn_floating_label(
 	return label
 
 
+func _choose_status_anchor_side(ball_screen: Vector2, viewport_size: Vector2) -> int:
+	var radius: float = _get_ball_radius()
+	var gap: float = 8.0
+	var left_space: float = ball_screen.x - radius - gap - screen_safe_margin
+	var right_space: float = viewport_size.x - screen_safe_margin - (ball_screen.x + radius + gap)
+	if right_space >= STATUS_SIZE.x and left_space < STATUS_SIZE.x:
+		return 1
+	if left_space >= STATUS_SIZE.x and right_space < STATUS_SIZE.x:
+		return -1
+	# When both sides fit, place the tag on the inboard shoulder.
+	return 1 if ball_screen.x < viewport_size.x * 0.5 else -1
+
+
 func _get_status_target(ball_screen: Vector2, viewport_size: Vector2) -> Vector2:
 	var radius: float = _get_ball_radius()
-	# One consistent home: centred over the orb, close to its upper edge.
-	# Edge fitting nudges it inward, but it never flips to the other side.
-	var x: float = ball_screen.x - STATUS_SIZE.x * 0.5
-	var y: float = ball_screen.y - radius - STATUS_SIZE.y + 3.0
+	var gap: float = 8.0
+	var x: float = (
+		ball_screen.x + radius + gap
+		if _status_anchor_side > 0
+		else ball_screen.x - radius - gap - STATUS_SIZE.x
+	)
+	# The tag sits beside the upper shoulder, never directly above the core.
+	var y: float = ball_screen.y - radius * 0.62 - STATUS_SIZE.y * 0.50
 	return _fit_local_position(Vector2(x, y), STATUS_SIZE, viewport_size)
+
+
+func _get_status_edge_visibility(ball_screen: Vector2, viewport_size: Vector2) -> float:
+	var radius: float = _get_ball_radius()
+	var gap: float = 8.0
+	var available: float
+	if _status_anchor_side > 0:
+		available = viewport_size.x - screen_safe_margin - (ball_screen.x + radius + gap)
+	else:
+		available = ball_screen.x - radius - gap - screen_safe_margin
+	return clampf(available / STATUS_SIZE.x, 0.0, 1.0)
 
 
 func _update_status_follow(delta: float) -> void:
@@ -463,11 +468,24 @@ func _update_status_follow(delta: float) -> void:
 
 	var viewport_size: Vector2 = _get_viewport_size()
 	var ball_screen: Vector2 = _get_ball_screen_position()
-	var target_position: Vector2 = _get_status_target(ball_screen, viewport_size)
+	if not _status_position_initialized:
+		_last_ball_screen_position = ball_screen
+		_status_screen_velocity = Vector2.ZERO
+	else:
+		if delta > 0.0:
+			var raw_velocity: Vector2 = (ball_screen - _last_ball_screen_position) / delta
+			_status_screen_velocity = _status_screen_velocity.lerp(raw_velocity, 0.18)
+		_last_ball_screen_position = ball_screen
+
+	# A small, filtered lead keeps the tag beside the orb instead of trailing
+	# into the comet ribbon. The cap prevents sudden motion from moving the tag.
+	var predictive_offset := Vector2(
+		clampf(_status_screen_velocity.x * 0.035, -7.0, 7.0),
+		clampf(_status_screen_velocity.y * 0.025, -4.0, 4.0)
+	)
+	var target_position: Vector2 = _get_status_target(ball_screen + predictive_offset, viewport_size)
 	var target_jump_distance: float = _status_root.position.distance_to(target_position)
 
-	# Follow ordinary motion smoothly; snap only on a screen-wrap/teleport-sized
-	# discontinuity so the tag never visibly sweeps across the screen.
 	if (
 		not _status_position_initialized
 		or target_jump_distance > minf(120.0, viewport_size.x * 0.22)
@@ -478,6 +496,9 @@ func _update_status_follow(delta: float) -> void:
 		var follow_weight: float = 1.0 - exp(-state_follow_speed * delta)
 		_status_root.position = _status_root.position.lerp(target_position, follow_weight)
 
+	# Do not flip the label at an edge. If its locked side no longer has room,
+	# it fades away; the orb's chain ring/core remains the backup state cue.
+	_status_root.modulate.a = _get_status_edge_visibility(ball_screen, viewport_size)
 
 func _on_combo_state_changed(state: Dictionary) -> void:
 	if not state_indicator_enabled or _status_root == null:
@@ -490,22 +511,32 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 
 	var chain_count: int = int(state.get("chain_count", 0))
 	var quality: String = str(state.get("quality", "GOOD"))
-	_update_orb_chain_feedback(chain_count, quality)
-
 	var combo_active: bool = bool(state.get("combo_active", false))
 	var streak_active: bool = bool(state.get("streak_active", false))
+	_update_orb_chain_feedback(chain_count, quality, combo_active)
+
 	if chain_count <= 0 or (not combo_active and not streak_active):
 		_hide_indicator(_combo_label)
 		_hide_indicator(_streak_label)
 		_status_root.visible = false
+		_status_root.modulate.a = 1.0
 		_status_position_initialized = false
+		_status_screen_velocity = Vector2.ZERO
 		return
 
 	var multiplier: float = float(state.get("multiplier", 1.0))
 	var quality_color: Color = _quality_color(quality)
+	if not _status_root.visible:
+		_status_anchor_side = _choose_status_anchor_side(
+			_get_ball_screen_position(),
+			_get_viewport_size()
+		)
+		_status_position_initialized = false
+		_last_ball_screen_position = _get_ball_screen_position()
 	_status_root.visible = true
 
 	if combo_active:
+		# Keep the current chain's quality accent for the Combo entry and idle tag.
 		_set_indicator(
 			_combo_label,
 			"✦  COMBO  ×%.2f" % multiplier,
@@ -531,12 +562,11 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 		_hide_indicator(_streak_label)
 
 	if (combo_active and not previous_combo_active) or (streak_active and not previous_streak_active):
-		_state_pop_timer = 0.30
+		_state_pop_timer = 0.34
 	elif previous_chain_count != chain_count:
 		_state_pop_timer = 0.24
 
-
-func _update_orb_chain_feedback(chain_count: int, quality: String) -> void:
+func _update_orb_chain_feedback(chain_count: int, quality: String, combo_active: bool) -> void:
 	if _orb_visual == null or not is_instance_valid(_orb_visual):
 		return
 	var material := _orb_visual.material as ShaderMaterial
@@ -555,7 +585,23 @@ func _update_orb_chain_feedback(chain_count: int, quality: String) -> void:
 		clampf(float(chain_count), 0.0, 3.0)
 	)
 	material.set_shader_parameter("quality_chain", quality_id)
+	if combo_active:
+		# Preserve the last active grade while its core tint eases back out on a break.
+		material.set_shader_parameter("combo_core_quality", quality_id)
+		_orb_core_blend_target = 1.0
+	else:
+		_orb_core_blend_target = 0.0
 
+
+func _update_orb_core_blend(delta: float) -> void:
+	if _orb_visual == null or not is_instance_valid(_orb_visual):
+		return
+	var material := _orb_visual.material as ShaderMaterial
+	if material == null:
+		return
+	var weight: float = 1.0 - exp(-8.0 * delta)
+	_orb_core_blend = lerpf(_orb_core_blend, _orb_core_blend_target, weight)
+	material.set_shader_parameter("combo_core_blend", _orb_core_blend)
 
 func _set_indicator(label: Label, text_value: String, color: Color, animate: bool) -> void:
 	if label == null:
@@ -588,12 +634,15 @@ func _set_indicator(label: Label, text_value: String, color: Color, animate: boo
 		return
 
 	label.modulate = Color(1.0, 1.0, 1.0, 0.0)
-	label.scale = Vector2.ONE * 0.82
+	label.scale = Vector2.ONE * 0.72
 
+	var peak_scale: float = 1.17 if label == _combo_label else 1.13
 	var tween := create_tween()
 	tween.set_parallel(true)
-	tween.tween_property(label, "modulate:a", 1.0, 0.12)
-	tween.tween_property(label, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(label, "modulate:a", 1.0, 0.11)
+	tween.tween_property(label, "scale", Vector2.ONE * peak_scale, 0.19).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.set_parallel(false)
+	tween.tween_property(label, "scale", Vector2.ONE, 0.14).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 
 func _hide_indicator(label: Label) -> void:
@@ -793,6 +842,7 @@ func _process(delta: float) -> void:
 	_update_reward_animations(delta)
 	_update_floating_labels(delta)
 	_update_status_follow(delta)
+	_update_orb_core_blend(delta)
 
 	if _status_root == null or not _status_root.visible or not state_indicator_enabled:
 		return
