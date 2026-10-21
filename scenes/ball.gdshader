@@ -183,7 +183,7 @@ void fragment() {
 	color += chain_ring_color * chain_ring_alpha * ring_light_strength * ring_emission_strength * aura_breath;
 	float core_aura =
 		1.0 - smoothstep(core_radius * 0.62, core_radius * 1.8, d);
-	float active_core_aura_suppression = 1.0 - core * chain_tint_strength * (combo_core_quality == 1 ? 0.96 : 0.72);
+	float active_core_aura_suppression = 1.0 - core * chain_tint_strength * (combo_core_quality == 0 ? 0.88 : 0.72);
 	color += aura_color * core_aura * (0.28 + landing_charge * 0.20) * aura_breath * active_core_aura_suppression;
 	color += confirmation_core_color * core_aura * landing_flash * 0.24;
 
