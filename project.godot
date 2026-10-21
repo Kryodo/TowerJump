@@ -18,7 +18,6 @@ config/icon="res://icon.svg"
 [autoload]
 
 GameManager="*res://scripts/game_manager.gd"
-ZonePaletteManager="*res://scripts/visual/zone_palette_manager.gd"
 
 [display]
 

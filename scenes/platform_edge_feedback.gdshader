@@ -8,10 +8,6 @@ instance uniform float approach_target_x = 0.5;
 instance uniform float landing_confirm = 0.0;
 instance uniform float activated = 0.0;
 instance uniform float idle_sheen_progress = -1.0;
-instance uniform vec4 palette_idle_color : source_color = vec4(0.735, 0.472, 0.991, 1.0);
-instance uniform vec4 palette_charge_color : source_color = vec4(0.19, 0.84, 1.0, 1.0);
-instance uniform vec4 palette_charge_core_color : source_color = vec4(0.36, 0.88, 1.0, 1.0);
-instance uniform vec4 palette_confirmation_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
 
 void vertex() {
 	edge_local_x = VERTEX.x;
@@ -26,12 +22,10 @@ void fragment() {
 	float charge = clamp(approach_charge, 0.0, 1.0);
 	float active = clamp(activated, 0.0, 1.0);
 
-	// Palette colors are authored as sRGB color values and converted by the
-	// source_color hint. Separate emission gains preserve the original HDR feel.
-	vec3 neutral_color = palette_idle_color.rgb;
-	vec3 active_color = palette_charge_color.rgb * 3.2;
-	vec3 active_core = palette_charge_core_color.rgb * 4.2;
-	vec3 confirm_color = palette_confirmation_color.rgb * 4.2;
+	vec3 neutral_color = vec3(0.50, 0.19, 0.98);
+	vec3 active_color = vec3(0.10, 2.15, 3.20);
+	vec3 active_core = vec3(0.45, 3.15, 4.20);
+	vec3 confirm_color = vec3(4.20, 4.20, 4.20);
 
 	// The charge is a continuous bilateral loading bar. Both sides always
 	// start at the physical ends of the platform and advance toward the
@@ -76,7 +70,7 @@ void fragment() {
 	float sheen_field = 1.0 - smoothstep(0.028, 0.095, sheen_distance);
 	float sheen_core = 1.0 - smoothstep(0.003, 0.020, sheen_distance);
 	float sheen_mix = (sheen_field * 0.08 + sheen_core * 0.62) * idle_gate * sheen_active;
-	vec3 sheen_color = mix(active_color, confirm_color, 0.62);
+	vec3 sheen_color = vec3(1.2, 3.2, 4.0);
 	result = mix(result, sheen_color, clamp(sheen_mix, 0.0, 0.52));
 
 	COLOR.rgb = result;

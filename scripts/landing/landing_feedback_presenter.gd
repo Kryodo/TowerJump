@@ -19,13 +19,15 @@ const REWARD_SIZE := Vector2(160.0, 66.0)
 const STATUS_SIZE := Vector2(184.0, 52.0)
 const CLUTCH_SIZE := Vector2(144.0, 30.0)
 
+const GOOD_COLOR := Color(0.40, 0.86, 1.0, 1.0)
+const EPIC_COLOR := Color(1.0, 0.16, 0.92, 1.0)
+const PERFECT_COLOR := Color(0.86, 0.98, 1.0, 1.0)
 const STREAK_COLOR := Color(1.0, 0.73, 0.30, 1.0)
 const SCORE_COLOR := Color(0.58, 0.94, 1.0, 1.0)
 const CLUTCH_COLOR := Color(0.80, 0.96, 1.0, 1.0)
 const OUTLINE_COLOR := Color(0.012, 0.025, 0.055, 0.98)
 
 var _score_controller: Node
-var _zone_palette: ZoneFeedbackPalette
 var _ball: Node2D
 var _orb_visual: Sprite2D
 
@@ -57,14 +59,10 @@ var _streak_visual_tier: int = -1
 
 
 func _ready() -> void:
-	_zone_palette = ZonePaletteManager.current_palette
 	_ball = get_node_or_null(ball_path) as Node2D
 	_orb_visual = get_node_or_null(orb_visual_path) as Sprite2D
 	_score_controller = get_node_or_null(landing_score_controller_path)
-	_apply_zone_palette_to_orb()
 	_create_state_indicators()
-	if not ZonePaletteManager.palette_changed.is_connected(_on_zone_palette_changed):
-		ZonePaletteManager.palette_changed.connect(_on_zone_palette_changed)
 
 	if _score_controller == null:
 		push_warning("LandingFeedbackPresenter: LandingScoreController was not found.")
@@ -95,7 +93,7 @@ func _create_state_indicators() -> void:
 
 	# Captions remain compact and stable; only the numeric values escalate.
 	_combo_label = _make_label(
-		"ComboStatusLabel", Vector2(84.0, 26.0), 15, _zone_palette.epic_color, 4
+		"ComboStatusLabel", Vector2(84.0, 26.0), 15, EPIC_COLOR, 4
 	)
 	_combo_label.position = Vector2(0.0, 13.0)
 	_combo_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -103,7 +101,7 @@ func _create_state_indicators() -> void:
 	_status_root.add_child(_combo_label)
 
 	_combo_counter = _make_label(
-		"ComboMultiplierCounter", Vector2(100.0, 28.0), 20, _zone_palette.epic_color, 3
+		"ComboMultiplierCounter", Vector2(100.0, 28.0), 20, EPIC_COLOR, 3
 	)
 	_combo_counter.position = Vector2(84.0, 11.0)
 	_combo_counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -206,9 +204,9 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 	reward_root.add_child(points_label)
 
 	var detail_label := _make_label(
-		"LandingRewardDetail", Vector2(REWARD_SIZE.x, 18.0), 12, _zone_palette.reward_detail_color, 0
+		"LandingRewardDetail", Vector2(REWARD_SIZE.x, 18.0), 12, Color(0.84, 0.90, 0.96, 0.92), 0
 	)
-	detail_label.add_theme_color_override("font_color", _zone_palette.reward_detail_color)
+	detail_label.add_theme_color_override("font_color", Color(0.84, 0.90, 0.96, 0.92))
 	detail_label.add_theme_constant_override("outline_size", 0)
 	detail_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.0))
 	detail_label.add_theme_constant_override("shadow_outline_size", 0)
@@ -557,25 +555,6 @@ func _layout_status_row(caption: Label, counter: Label, caption_y: float, counte
 		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
 
-func _apply_zone_palette_to_orb() -> void:
-	if _zone_palette == null or _orb_visual == null or not is_instance_valid(_orb_visual):
-		return
-	var material := _orb_visual.material as ShaderMaterial
-	if material == null:
-		return
-	material.set_shader_parameter("active_quality_color", _zone_palette.good_color)
-	material.set_shader_parameter("zone_confirmation_color", _zone_palette.confirmation_color)
-
-
-func _on_zone_palette_changed(palette: ZoneFeedbackPalette) -> void:
-	if palette == null:
-		return
-	_zone_palette = palette
-	_apply_zone_palette_to_orb()
-	if not _last_state.is_empty():
-		_on_combo_state_changed(_last_state)
-
-
 func _on_combo_state_changed(state: Dictionary) -> void:
 	if not state_indicator_enabled or _status_root == null:
 		return
@@ -789,11 +768,6 @@ func _update_orb_chain_feedback(chain_count: int, quality: String, combo_active:
 		clampf(float(chain_count), 0.0, 3.0)
 	)
 	material.set_shader_parameter("quality_chain", quality_id)
-	if _zone_palette != null:
-		# One active palette color now drives both the segmented ring and the
-		# combo core, preventing their quality hues from drifting apart.
-		material.set_shader_parameter("active_quality_color", _zone_palette.quality_color(quality))
-		material.set_shader_parameter("zone_confirmation_color", _zone_palette.confirmation_color)
 	if combo_active:
 		# Preserve the last active grade while its core tint eases back out on a break.
 		material.set_shader_parameter("combo_core_quality", quality_id)
@@ -931,9 +905,13 @@ func _hide_indicator(label: Label) -> void:
 
 
 func _quality_color(quality: String) -> Color:
-	if _zone_palette != null:
-		return _zone_palette.quality_color(quality)
-	return ZonePaletteManager.current_palette.quality_color(quality)
+	match quality:
+		"PERFECT":
+			return PERFECT_COLOR
+		"EPIC":
+			return EPIC_COLOR
+		_:
+			return GOOD_COLOR
 
 
 func _get_platform_height(platform: Node2D) -> float:
