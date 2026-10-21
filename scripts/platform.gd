@@ -118,6 +118,7 @@ func _apply_geometry() -> void:
 		"platform_width",
 		width * width_scale
 	)
+	_neon_edge.set_instance_shader_parameter("idle_sheen_phase", randf())
 
 func _physics_process(delta: float) -> void:
 	if platform_type == PlatformType.MOVING and not _is_breaking and not _broken:
