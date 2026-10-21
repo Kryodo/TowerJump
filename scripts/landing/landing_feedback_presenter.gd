@@ -623,7 +623,7 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 	elif previous_chain_count != chain_count:
 		_state_pop_timer = 0.24
 
-	if combo_tier_up and not streak_tier_up:
+	if combo_tier_up and not streak_tier_up and not streak_just_activated:
 		_animate_indicator_level_up(_combo_label, quality_color, combo_tier)
 
 
@@ -711,7 +711,7 @@ func _spawn_indicator_sparks(color: Color, strong: bool) -> void:
 		tween.tween_property(spark, "position", target_position, 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 		tween.tween_property(spark, "rotation", spark.rotation + float(side) * 0.26, 0.22)
 		tween.chain().tween_property(spark, "modulate:a", 0.0, 0.12)
-		tween.tween_callback(func() -> void:
+		tween.chain().tween_callback(func() -> void:
 			if is_instance_valid(spark):
 				spark.queue_free()
 		)
