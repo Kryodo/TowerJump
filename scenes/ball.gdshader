@@ -15,9 +15,7 @@ uniform int combo_core_quality = 0;
 uniform float combo_core_blend = 0.0;
 uniform float combo_activation_flash = 0.0;
 // Zone-semantic roles; HDR gain remains independent from each palette hue.
-uniform vec4 quality_good_color : source_color = vec4(0.68, 0.54, 1.0, 1.0);
-uniform vec4 quality_epic_color : source_color = vec4(0.16, 0.83, 1.0, 1.0);
-uniform vec4 quality_perfect_color : source_color = vec4(0.84, 0.98, 1.0, 1.0);
+uniform vec4 active_quality_color : source_color = vec4(0.68, 0.54, 1.0, 1.0);
 uniform vec4 zone_confirmation_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
 
 void fragment() {
@@ -119,14 +117,9 @@ void fragment() {
 	float chain_tint_strength = clamp(combo_core_blend, 0.0, 1.0);
 	float combo_hit = clamp(combo_activation_flash, 0.0, 1.0);
 
-	vec3 combo_core_color;
-	if (combo_core_quality == 2) {
-		combo_core_color = quality_perfect_color.rgb * 5.2;
-	} else if (combo_core_quality == 1) {
-		combo_core_color = quality_epic_color.rgb * 5.2;
-	} else {
-		combo_core_color = quality_good_color.rgb * 5.2;
-	}
+	// The core and segmented progress ring share one live palette color.
+	// The presenter updates it directly from the active quality role.
+	vec3 combo_core_color = active_quality_color.rgb * 5.2;
 
 	float core_radius = mix(0.245, 0.272, core_pulse)
 		* (1.0 + landing_charge * 0.34 + combo_hit * 0.34);
@@ -166,14 +159,7 @@ void fragment() {
 	float ring_travel_highlight = exp(-pow((ring_sector_phase - ring_travel_position) / 0.065, 2.0));
 	float chain_ring_alpha = chain_ring * ring_sector_enabled * ring_sector_gap_mask;
 	float ring_light_strength = 0.72 + ring_travel_highlight * 0.65 + combo_hit * 0.80;
-	vec3 chain_ring_color;
-	if (quality_chain == 2) {
-		chain_ring_color = quality_perfect_color.rgb * 5.0;
-	} else if (quality_chain == 1) {
-		chain_ring_color = quality_epic_color.rgb * 5.0;
-	} else {
-		chain_ring_color = quality_good_color.rgb * 5.0;
-	}
+	vec3 chain_ring_color = active_quality_color.rgb * 5.0;
 	// Keep ring brightness independent of the core tint: the ring means progress,
 	// while the core hue change is reserved for Combo activation.
 	float ring_emission_strength = 0.46;
@@ -183,7 +169,15 @@ void fragment() {
 	color += chain_ring_color * chain_ring_alpha * ring_light_strength * ring_emission_strength * aura_breath;
 	float core_aura =
 		1.0 - smoothstep(core_radius * 0.62, core_radius * 1.8, d);
-	float active_core_aura_suppression = 1.0 - core * chain_tint_strength * (combo_core_quality == 0 ? 0.88 : 0.72);
+	// Good is already close to the violet idle skin, so retain some matching
+	// aura. Cyan Epic and white-cyan Perfect need stronger isolation from it.
+	float aura_suppression_strength = 0.64;
+	if (combo_core_quality == 1) {
+		aura_suppression_strength = 0.96;
+	} else if (combo_core_quality == 2) {
+		aura_suppression_strength = 0.92;
+	}
+	float active_core_aura_suppression = 1.0 - core * chain_tint_strength * aura_suppression_strength;
 	color += aura_color * core_aura * (0.28 + landing_charge * 0.20) * aura_breath * active_core_aura_suppression;
 	color += confirmation_core_color * core_aura * landing_flash * 0.24;
 

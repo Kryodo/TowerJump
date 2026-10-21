@@ -563,9 +563,7 @@ func _apply_zone_palette_to_orb() -> void:
 	var material := _orb_visual.material as ShaderMaterial
 	if material == null:
 		return
-	material.set_shader_parameter("quality_good_color", _zone_palette.good_color)
-	material.set_shader_parameter("quality_epic_color", _zone_palette.epic_color)
-	material.set_shader_parameter("quality_perfect_color", _zone_palette.perfect_color)
+	material.set_shader_parameter("active_quality_color", _zone_palette.good_color)
 	material.set_shader_parameter("zone_confirmation_color", _zone_palette.confirmation_color)
 
 
@@ -792,9 +790,9 @@ func _update_orb_chain_feedback(chain_count: int, quality: String, combo_active:
 	)
 	material.set_shader_parameter("quality_chain", quality_id)
 	if _zone_palette != null:
-		material.set_shader_parameter("quality_good_color", _zone_palette.good_color)
-		material.set_shader_parameter("quality_epic_color", _zone_palette.epic_color)
-		material.set_shader_parameter("quality_perfect_color", _zone_palette.perfect_color)
+		# One active palette color now drives both the segmented ring and the
+		# combo core, preventing their quality hues from drifting apart.
+		material.set_shader_parameter("active_quality_color", _zone_palette.quality_color(quality))
 		material.set_shader_parameter("zone_confirmation_color", _zone_palette.confirmation_color)
 	if combo_active:
 		# Preserve the last active grade while its core tint eases back out on a break.
