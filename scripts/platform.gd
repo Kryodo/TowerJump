@@ -35,10 +35,10 @@ const BEVEL := 4.0
 const EDGE_HEIGHT := 8.0
 const EDGE_INSET := 1.0
 
-const IDLE_SHEEN_CHANCE := 0.22
-const IDLE_SHEEN_MIN_SPAWN_GAP := 4
-const IDLE_SHEEN_DELAY_MIN := 0.7
-const IDLE_SHEEN_DELAY_MAX := 2.2
+const IDLE_SHEEN_CHANCE := 0.40
+const IDLE_SHEEN_MIN_SPAWN_GAP := 2
+const IDLE_SHEEN_DELAY_MIN := 0.25
+const IDLE_SHEEN_DELAY_MAX := 0.85
 const IDLE_SHEEN_DURATION := 0.16
 
 static var _sheen_spawn_sequence: int = 0
@@ -138,10 +138,25 @@ func _process(delta: float) -> void:
 	_idle_sheen_delay -= delta
 	if _idle_sheen_delay > 0.0:
 		return
-	_idle_sheen_delay = -1.0
-	if _is_idle_sheen_allowed():
-		_play_idle_sheen()
 
+	if _is_idle_sheen_allowed():
+		_idle_sheen_delay = -1.0
+		_play_idle_sheen()
+	elif _can_wait_for_idle_sheen():
+		# Keep the selected flash pending through the approach window. Once the
+		# platform becomes activated/landed, it is cancelled instead of lost or
+		# allowed to fire over gameplay feedback.
+		_idle_sheen_delay = 0.18
+	else:
+		_idle_sheen_delay = -1.0
+
+
+func _can_wait_for_idle_sheen() -> bool:
+	if not visible or _broken or _is_breaking:
+		return false
+	var active: float = float(_neon_edge.get_instance_shader_parameter("activated"))
+	var confirm: float = float(_neon_edge.get_instance_shader_parameter("landing_confirm"))
+	return active <= 0.001 and confirm <= 0.001
 
 func _schedule_idle_sheen() -> void:
 	if _idle_sheen_tween != null and _idle_sheen_tween.is_valid():

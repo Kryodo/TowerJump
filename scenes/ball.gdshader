@@ -115,7 +115,7 @@ void fragment() {
 	if (combo_core_quality == 2) {
 		combo_core_color = vec3(5.2, 6.0, 6.3); // Perfect: brilliant white-cyan
 	} else if (combo_core_quality == 1) {
-		combo_core_color = vec3(5.0, 0.30, 4.5); // Epic: unmistakable hot magenta
+		combo_core_color = vec3(7.2, 0.06, 2.5); // Epic: warmer hot rose, distinct from violet aura
 	} else {
 		combo_core_color = vec3(0.02, 2.15, 3.2); // Good: electric cyan
 	}
@@ -145,10 +145,8 @@ void fragment() {
 	// segments remain on; a narrow animated highlight travels along each one.
 	float chain_ring_radius = core_radius + 0.115 + core_pulse * 0.008;
 	float chain_ring_distance = abs(d - chain_ring_radius);
-	// An internal dark trough separates the segments from the luminous shell.
-	float ring_progress_gate = smoothstep(0.05, 0.80, quality_chain_progress);
-	float chain_ring_backing = 1.0 - smoothstep(0.010, 0.052, chain_ring_distance);
-	color *= 1.0 - chain_ring_backing * ring_progress_gate * 0.34;
+	// Keep the segments integrated with the plasma; their hue and narrow
+	// highlight define the progress without a dark backing shape.
 	float chain_ring = 1.0 - smoothstep(0.003, 0.025, chain_ring_distance);
 	float ring_angle_normalized = fract((angle + PI) / TAU);
 	float ring_sector_position = ring_angle_normalized * 3.0;
@@ -164,7 +162,7 @@ void fragment() {
 	if (quality_chain == 2) {
 		chain_ring_color = vec3(4.1, 5.0, 5.3); // Perfect: white-cyan
 	} else if (quality_chain == 1) {
-		chain_ring_color = vec3(6.8, 0.035, 3.8); // Epic: pink-forward hot orchid
+		chain_ring_color = vec3(6.5, 0.025, 5.4); // Epic progress: bright fuchsia, distinct from warmer core
 	} else {
 		chain_ring_color = vec3(0.05, 2.65, 4.0); // Good: cyan
 	}
@@ -177,7 +175,8 @@ void fragment() {
 	color += chain_ring_color * chain_ring_alpha * ring_light_strength * ring_emission_strength * aura_breath;
 	float core_aura =
 		1.0 - smoothstep(core_radius * 0.62, core_radius * 1.8, d);
-	color += aura_color * core_aura * (0.28 + landing_charge * 0.20) * aura_breath;
+	float active_core_aura_suppression = 1.0 - core * chain_tint_strength * (combo_core_quality == 1 ? 0.96 : 0.72);
+	color += aura_color * core_aura * (0.28 + landing_charge * 0.20) * aura_breath * active_core_aura_suppression;
 	color += confirmation_core_color * core_aura * landing_flash * 0.24;
 
 	// A fast, narrow rim flash makes confirmation visible without trying to
