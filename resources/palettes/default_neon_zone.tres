@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ZoneFeedbackPalette" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/visual/zone_feedback_palette.gd" id="1_palette"]
+
+[resource]
+script = ExtResource("1_palette")
+idle_edge_color = Color(0.5, 0.19, 0.98, 1)
+charge_edge_color = Color(0.1, 2.15, 3.2, 1)
+charge_core_color = Color(0.45, 3.15, 4.2, 1)
+confirmation_color = Color(4.2, 4.2, 4.2, 1)
+good_color = Color(0.68, 0.54, 1, 1)
+epic_color = Color(0.16, 0.83, 1, 1)
+perfect_color = Color(0.84, 0.98, 1, 1)
+reward_detail_color = Color(0.84, 0.9, 0.96, 0.92)

@@ -28,7 +28,6 @@ var width_scale: float = 1.0
 @export_group("Spring")
 @export var spring_multiplier: float = 1.75
 
-const NEON_COLOR := Color(0.0, 0.65, 0.90, 1.0)
 const PLATFORM_BODY_COLOR := Color("#0B111B")
 
 const BEVEL := 4.0
@@ -75,7 +74,20 @@ func _ready() -> void:
 	_collision_shape.one_way_collision = true
 
 	_apply_geometry()
+	if not ZonePaletteManager.palette_changed.is_connected(_on_zone_palette_changed):
+		ZonePaletteManager.palette_changed.connect(_on_zone_palette_changed)
+	_on_zone_palette_changed(ZonePaletteManager.current_palette)
 	_schedule_idle_sheen()
+
+
+func _on_zone_palette_changed(palette: ZoneFeedbackPalette) -> void:
+	if palette == null or _neon_edge == null:
+		return
+	_neon_edge.set_instance_shader_parameter("palette_idle_color", palette.idle_edge_color)
+	_neon_edge.set_instance_shader_parameter("palette_charge_color", palette.charge_edge_color)
+	_neon_edge.set_instance_shader_parameter("palette_charge_core_color", palette.charge_core_color)
+	_neon_edge.set_instance_shader_parameter("palette_confirmation_color", palette.confirmation_color)
+
 
 func _apply_geometry() -> void:
 	var shape := RectangleShape2D.new()
@@ -125,7 +137,7 @@ func _apply_geometry() -> void:
 		Vector2(-hw + EDGE_INSET, -hh + BEVEL)
 	])
 
-	_neon_edge.color = NEON_COLOR
+	_neon_edge.color = Color.WHITE
 	_neon_edge.set_instance_shader_parameter(
 		"platform_width",
 		width * width_scale
@@ -134,6 +146,10 @@ func _apply_geometry() -> void:
 
 func _process(delta: float) -> void:
 	if _idle_sheen_delay < 0.0:
+		return
+	# Pooled platform nodes can exist off-screen before they enter the viewport.
+	# Pause the selected one-shot timer until the platform is actually visible.
+	if not _is_platform_on_screen():
 		return
 	_idle_sheen_delay -= delta
 	if _idle_sheen_delay > 0.0:
@@ -157,6 +173,22 @@ func _can_wait_for_idle_sheen() -> bool:
 	var active: float = float(_neon_edge.get_instance_shader_parameter("activated"))
 	var confirm: float = float(_neon_edge.get_instance_shader_parameter("landing_confirm"))
 	return active <= 0.001 and confirm <= 0.001
+
+
+func _is_platform_on_screen() -> bool:
+	if not is_inside_tree() or not visible:
+		return false
+	var canvas_transform: Transform2D = get_viewport().get_canvas_transform()
+	var screen_center: Vector2 = canvas_transform * global_position
+	var screen_scale_x: float = canvas_transform.x.length()
+	var screen_scale_y: float = canvas_transform.y.length()
+	var half_screen_width: float = half_width() * screen_scale_x
+	var half_screen_height: float = height * screen_scale_y * 0.5
+	var screen_rect := Rect2(
+		Vector2(screen_center.x - half_screen_width, screen_center.y - half_screen_height),
+		Vector2(half_screen_width * 2.0, half_screen_height * 2.0)
+	)
+	return screen_rect.intersects(get_viewport().get_visible_rect())
 
 func _schedule_idle_sheen() -> void:
 	if _idle_sheen_tween != null and _idle_sheen_tween.is_valid():

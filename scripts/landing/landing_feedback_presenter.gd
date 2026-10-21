@@ -19,15 +19,13 @@ const REWARD_SIZE := Vector2(160.0, 66.0)
 const STATUS_SIZE := Vector2(184.0, 52.0)
 const CLUTCH_SIZE := Vector2(144.0, 30.0)
 
-const GOOD_COLOR := Color(0.40, 0.86, 1.0, 1.0)
-const EPIC_COLOR := Color(1.0, 0.16, 0.92, 1.0)
-const PERFECT_COLOR := Color(0.86, 0.98, 1.0, 1.0)
 const STREAK_COLOR := Color(1.0, 0.73, 0.30, 1.0)
 const SCORE_COLOR := Color(0.58, 0.94, 1.0, 1.0)
 const CLUTCH_COLOR := Color(0.80, 0.96, 1.0, 1.0)
 const OUTLINE_COLOR := Color(0.012, 0.025, 0.055, 0.98)
 
 var _score_controller: Node
+var _zone_palette: ZoneFeedbackPalette
 var _ball: Node2D
 var _orb_visual: Sprite2D
 
@@ -59,10 +57,13 @@ var _streak_visual_tier: int = -1
 
 
 func _ready() -> void:
+	_zone_palette = ZonePaletteManager.current_palette
 	_ball = get_node_or_null(ball_path) as Node2D
 	_orb_visual = get_node_or_null(orb_visual_path) as Sprite2D
 	_score_controller = get_node_or_null(landing_score_controller_path)
 	_create_state_indicators()
+	if not ZonePaletteManager.palette_changed.is_connected(_on_zone_palette_changed):
+		ZonePaletteManager.palette_changed.connect(_on_zone_palette_changed)
 
 	if _score_controller == null:
 		push_warning("LandingFeedbackPresenter: LandingScoreController was not found.")
@@ -93,7 +94,7 @@ func _create_state_indicators() -> void:
 
 	# Captions remain compact and stable; only the numeric values escalate.
 	_combo_label = _make_label(
-		"ComboStatusLabel", Vector2(80.0, 26.0), 15, EPIC_COLOR, 4
+		"ComboStatusLabel", Vector2(84.0, 26.0), 15, _zone_palette.epic_color, 4
 	)
 	_combo_label.position = Vector2(0.0, 13.0)
 	_combo_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -101,15 +102,15 @@ func _create_state_indicators() -> void:
 	_status_root.add_child(_combo_label)
 
 	_combo_counter = _make_label(
-		"ComboMultiplierCounter", Vector2(100.0, 28.0), 20, EPIC_COLOR, 3
+		"ComboMultiplierCounter", Vector2(100.0, 28.0), 20, _zone_palette.epic_color, 3
 	)
-	_combo_counter.position = Vector2(80.0, 11.0)
+	_combo_counter.position = Vector2(84.0, 11.0)
 	_combo_counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_combo_counter.visible = false
 	_status_root.add_child(_combo_counter)
 
 	_streak_label = _make_label(
-		"StreakStatusLabel", Vector2(80.0, 26.0), 15, STREAK_COLOR, 4
+		"StreakStatusLabel", Vector2(84.0, 26.0), 15, STREAK_COLOR, 4
 	)
 	_streak_label.position = Vector2.ZERO
 	_streak_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -119,7 +120,7 @@ func _create_state_indicators() -> void:
 	_streak_counter = _make_label(
 		"StreakCountCounter", Vector2(100.0, 28.0), 20, STREAK_COLOR, 3
 	)
-	_streak_counter.position = Vector2(80.0, -2.0)
+	_streak_counter.position = Vector2(84.0, -2.0)
 	_streak_counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_streak_counter.visible = false
 	_status_root.add_child(_streak_counter)
@@ -204,8 +205,10 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 	reward_root.add_child(points_label)
 
 	var detail_label := _make_label(
-		"LandingRewardDetail", Vector2(REWARD_SIZE.x, 18.0), 13, quality_color.lightened(0.14), 0
+		"LandingRewardDetail", Vector2(REWARD_SIZE.x, 18.0), 12, _zone_palette.reward_detail_color, 0
 	)
+	detail_label.add_theme_color_override("font_color", _zone_palette.reward_detail_color)
+	detail_label.add_theme_constant_override("outline_size", 0)
 	detail_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.0))
 	detail_label.add_theme_constant_override("shadow_outline_size", 0)
 	detail_label.position = Vector2(0.0, 48.0)
@@ -503,6 +506,8 @@ func _update_status_follow(delta: float) -> void:
 		# locked side no longer fits at the destination.
 		if _get_status_edge_visibility(ball_screen, viewport_size) < 1.0:
 			_status_anchor_side = _choose_status_anchor_side(ball_screen, viewport_size)
+			_layout_status_row(_combo_label, _combo_counter, 25.0 if bool(_last_state.get("streak_active", false)) else 13.0, 24.0 if bool(_last_state.get("streak_active", false)) else 11.0)
+			_layout_status_row(_streak_label, _streak_counter, 0.0, -2.0)
 		_last_ball_screen_position = ball_screen
 	elif not _status_position_initialized:
 		_last_ball_screen_position = ball_screen
@@ -535,6 +540,29 @@ func _update_status_follow(delta: float) -> void:
 	# Do not flip the label at an edge. If its locked side no longer has room,
 	# it fades away; the orb's chain ring/core remains the backup state cue.
 	_status_root.modulate.a = _get_status_edge_visibility(ball_screen, viewport_size)
+
+func _layout_status_row(caption: Label, counter: Label, caption_y: float, counter_y: float) -> void:
+	# Mirror the text arrangement too: the numeric value remains closest to the
+	# orb, at the same gap, whether the status is attached to the left or right.
+	if _status_anchor_side > 0:
+		caption.position = Vector2(0.0, caption_y)
+		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		counter.position = Vector2(84.0, counter_y)
+		counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	else:
+		counter.position = Vector2(0.0, counter_y)
+		counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		caption.position = Vector2(100.0, caption_y)
+		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+
+
+func _on_zone_palette_changed(palette: ZoneFeedbackPalette) -> void:
+	if palette == null:
+		return
+	_zone_palette = palette
+	if not _last_state.is_empty():
+		_on_combo_state_changed(_last_state)
+
 
 func _on_combo_state_changed(state: Dictionary) -> void:
 	if not state_indicator_enabled or _status_root == null:
@@ -583,10 +611,8 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 	_status_root.visible = true
 
 	# Streak occupies the first row; Combo shifts down when both states are active.
-	_combo_label.position = Vector2(0.0, 25.0 if streak_active else 13.0)
-	_combo_counter.position = Vector2(80.0, 24.0 if streak_active else 11.0)
-	_streak_label.position = Vector2.ZERO
-	_streak_counter.position = Vector2(80.0, -2.0)
+	_layout_status_row(_combo_label, _combo_counter, 25.0 if streak_active else 13.0, 24.0 if streak_active else 11.0)
+	_layout_status_row(_streak_label, _streak_counter, 0.0, -2.0)
 
 	var combo_tier_up: bool = false
 	var streak_tier_up: bool = false
@@ -751,6 +777,11 @@ func _update_orb_chain_feedback(chain_count: int, quality: String, combo_active:
 		clampf(float(chain_count), 0.0, 3.0)
 	)
 	material.set_shader_parameter("quality_chain", quality_id)
+	if _zone_palette != null:
+		material.set_shader_parameter("quality_good_color", _zone_palette.good_color)
+		material.set_shader_parameter("quality_epic_color", _zone_palette.epic_color)
+		material.set_shader_parameter("quality_perfect_color", _zone_palette.perfect_color)
+		material.set_shader_parameter("zone_confirmation_color", _zone_palette.confirmation_color)
 	if combo_active:
 		# Preserve the last active grade while its core tint eases back out on a break.
 		material.set_shader_parameter("combo_core_quality", quality_id)
@@ -888,13 +919,9 @@ func _hide_indicator(label: Label) -> void:
 
 
 func _quality_color(quality: String) -> Color:
-	match quality:
-		"PERFECT":
-			return PERFECT_COLOR
-		"EPIC":
-			return EPIC_COLOR
-		_:
-			return GOOD_COLOR
+	if _zone_palette != null:
+		return _zone_palette.quality_color(quality)
+	return ZonePaletteManager.current_palette.quality_color(quality)
 
 
 func _get_platform_height(platform: Node2D) -> float:
