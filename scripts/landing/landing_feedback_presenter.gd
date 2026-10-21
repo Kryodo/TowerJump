@@ -16,11 +16,11 @@ extends CanvasLayer
 @export var orb_visual_path: NodePath = NodePath("../Ball/Visual")
 
 const REWARD_SIZE := Vector2(160.0, 66.0)
-const STATUS_SIZE := Vector2(150.0, 42.0)
+const STATUS_SIZE := Vector2(184.0, 52.0)
 const CLUTCH_SIZE := Vector2(144.0, 30.0)
 
 const GOOD_COLOR := Color(0.40, 0.86, 1.0, 1.0)
-const EPIC_COLOR := Color(0.72, 0.44, 1.0, 1.0)
+const EPIC_COLOR := Color(1.0, 0.16, 0.92, 1.0)
 const PERFECT_COLOR := Color(0.86, 0.98, 1.0, 1.0)
 const STREAK_COLOR := Color(1.0, 0.73, 0.30, 1.0)
 const SCORE_COLOR := Color(0.58, 0.94, 1.0, 1.0)
@@ -51,6 +51,9 @@ var _last_ball_screen_position: Vector2 = Vector2.ZERO
 var _status_screen_velocity: Vector2 = Vector2.ZERO
 var _orb_core_blend: float = 0.0
 var _orb_core_blend_target: float = 0.0
+var _orb_core_activation_flash: float = 0.0
+var _combo_visual_tier: int = -1
+var _streak_visual_tier: int = -1
 
 
 func _ready() -> void:
@@ -87,21 +90,20 @@ func _create_state_indicators() -> void:
 	add_child(_status_root)
 
 	_combo_label = _make_label(
-		"ComboStatusLabel", Vector2(STATUS_SIZE.x, 20.0), 13, EPIC_COLOR, 4
+		"ComboStatusLabel", Vector2(STATUS_SIZE.x, 24.0), 15, EPIC_COLOR, 4
 	)
-	_combo_label.position = Vector2(0.0, 12.0)
+	_combo_label.position = Vector2(0.0, 13.0)
 	_combo_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_combo_label.visible = false
 	_status_root.add_child(_combo_label)
 
 	_streak_label = _make_label(
-		"StreakStatusLabel", Vector2(STATUS_SIZE.x, 20.0), 13, STREAK_COLOR, 4
+		"StreakStatusLabel", Vector2(STATUS_SIZE.x, 24.0), 15, STREAK_COLOR, 4
 	)
 	_streak_label.position = Vector2.ZERO
 	_streak_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_streak_label.visible = false
 	_status_root.add_child(_streak_label)
-
 
 func _make_label(
 	label_name: String,
@@ -357,7 +359,7 @@ func _spawn_clutch_feedback(
 	var requested_x: float = outside_x if outside_fits else inside_x
 	var requested_y: float = edge_screen.y - _get_ball_radius() - CLUTCH_SIZE.y + 8.0
 	if reward_side != 0 and reward_side == int(landing_side):
-		requested_y = edge_screen.y + 5.0
+		requested_y = edge_screen.y + 12.0
 
 	var start := _fit_local_position(
 		Vector2(requested_x, requested_y),
@@ -371,9 +373,9 @@ func _spawn_clutch_feedback(
 		17,
 		CLUTCH_SIZE,
 		start,
-		0.66,
+		0.74,
 		clutch_drift_direction * 22.0,
-		-12.0,
+		28.0,
 		0.008,
 		38,
 		0.0
@@ -522,12 +524,18 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 	var previous_chain_count: int = int(_last_state.get("chain_count", 0))
 	var previous_combo_active: bool = bool(_last_state.get("combo_active", false))
 	var previous_streak_active: bool = bool(_last_state.get("streak_active", false))
+	var previous_combo_tier: int = _combo_visual_tier
+	var previous_streak_tier: int = _streak_visual_tier
 	_last_state = state.duplicate(true)
 
 	var chain_count: int = int(state.get("chain_count", 0))
 	var quality: String = str(state.get("quality", "GOOD"))
 	var combo_active: bool = bool(state.get("combo_active", false))
 	var streak_active: bool = bool(state.get("streak_active", false))
+	var combo_just_activated: bool = combo_active and not previous_combo_active
+	var streak_just_activated: bool = streak_active and not previous_streak_active
+	if combo_just_activated:
+		_orb_core_activation_flash = 1.0
 	_update_orb_chain_feedback(chain_count, quality, combo_active)
 
 	if chain_count <= 0 or (not combo_active and not streak_active):
@@ -537,6 +545,8 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 		_status_root.modulate.a = 1.0
 		_status_position_initialized = false
 		_status_screen_velocity = Vector2.ZERO
+		_combo_visual_tier = -1
+		_streak_visual_tier = -1
 		return
 
 	var multiplier: float = float(state.get("multiplier", 1.0))
@@ -550,36 +560,161 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 		_last_ball_screen_position = _get_ball_screen_position()
 	_status_root.visible = true
 
+	var combo_tier_up: bool = false
+	var streak_tier_up: bool = false
+	var combo_tier: int = -1
+	var streak_tier: int = -1
+	var streak_activation_count: int = int(state.get("streak_activation_landings", 10))
+
 	if combo_active:
-		# Keep the current chain's quality accent for the Combo entry and idle tag.
+		var combo_intensity: float = _get_combo_visual_intensity(multiplier, quality)
+		combo_tier = _get_visual_tier(combo_intensity)
+		combo_tier_up = previous_combo_active and combo_tier > previous_combo_tier
+		_apply_indicator_intensity(_combo_label, combo_intensity)
+		var combo_color: Color = quality_color.lerp(Color.WHITE, combo_intensity * 0.10)
 		_set_indicator(
 			_combo_label,
 			"✦  COMBO  ×%.2f" % multiplier,
-			quality_color,
-			not previous_combo_active
+			combo_color,
+			combo_just_activated
 		)
+		if combo_just_activated:
+			_spawn_indicator_sparks(quality_color, true)
 	else:
 		_hide_indicator(_combo_label)
+		_combo_visual_tier = -1
 
 	if streak_active:
-		# Streak takes the primary line; the Combo multiplier remains below.
+		var streak_intensity: float = _get_streak_visual_intensity(
+			chain_count,
+			streak_activation_count
+		)
+		streak_tier = _get_visual_tier(streak_intensity)
+		streak_tier_up = previous_streak_active and streak_tier > previous_streak_tier
 		_streak_label.position = Vector2(0.0, 0.0)
-		_combo_label.position = Vector2(0.0, 20.0)
+		_combo_label.position = Vector2(0.0, 25.0)
+		_apply_indicator_intensity(_streak_label, streak_intensity)
+		var streak_color: Color = STREAK_COLOR.lerp(Color.WHITE, streak_intensity * 0.08)
 		_set_indicator(
 			_streak_label,
 			"▲  STREAK  %02d" % chain_count,
-			STREAK_COLOR,
-			not previous_streak_active
+			streak_color,
+			streak_just_activated
 		)
+		if streak_just_activated:
+			_spawn_indicator_sparks(STREAK_COLOR, true)
+		elif streak_tier_up:
+			_animate_indicator_level_up(_streak_label, STREAK_COLOR, streak_tier)
 	else:
-		_combo_label.position = Vector2(0.0, 12.0)
+		_combo_label.position = Vector2(0.0, 13.0)
 		_streak_label.position = Vector2.ZERO
 		_hide_indicator(_streak_label)
+		_streak_visual_tier = -1
 
-	if (combo_active and not previous_combo_active) or (streak_active and not previous_streak_active):
+	if combo_active:
+		_combo_visual_tier = combo_tier
+	if streak_active:
+		_streak_visual_tier = streak_tier
+
+	if combo_just_activated or streak_just_activated:
+		_state_pop_timer = 0.62
+	elif combo_tier_up or streak_tier_up:
 		_state_pop_timer = 0.34
 	elif previous_chain_count != chain_count:
 		_state_pop_timer = 0.24
+
+	if combo_tier_up and not streak_tier_up:
+		_animate_indicator_level_up(_combo_label, quality_color, combo_tier)
+
+
+func _get_combo_visual_intensity(multiplier: float, quality: String) -> float:
+	var start_multiplier: float = 1.15
+	var cap_multiplier: float = 2.0
+	match quality:
+		"EPIC":
+			start_multiplier = 1.35
+			cap_multiplier = 3.25
+		"PERFECT":
+			start_multiplier = 1.65
+			cap_multiplier = 4.0
+	return clampf(
+		(multiplier - start_multiplier) / maxf(cap_multiplier - start_multiplier, 0.01),
+		0.0,
+		1.0
+	)
+
+
+func _get_streak_visual_intensity(chain_count: int, activation_count: int) -> float:
+	var growth_span: float = maxf(float(activation_count) * 1.2, 4.0)
+	return clampf(float(chain_count - activation_count) / growth_span, 0.0, 1.0)
+
+
+func _get_visual_tier(intensity: float) -> int:
+	return clampi(int(floor(clampf(intensity, 0.0, 1.0) * 4.0)), 0, 3)
+
+
+func _apply_indicator_intensity(label: Label, intensity: float) -> void:
+	if label == null:
+		return
+	label.set_meta("feedback_intensity", clampf(intensity, 0.0, 1.0))
+	label.add_theme_font_size_override("font_size", 15 + roundi(intensity * 5.0))
+	label.add_theme_constant_override("outline_size", 4 + roundi(intensity * 2.0))
+	label.add_theme_constant_override("shadow_outline_size", 3 + roundi(intensity * 2.0))
+
+
+func _set_indicator_font_size(value: float, label: Label) -> void:
+	if not is_instance_valid(label):
+		return
+	label.add_theme_font_size_override("font_size", maxi(roundi(value), 15))
+
+
+func _animate_indicator_level_up(label: Label, color: Color, tier: int) -> void:
+	if label == null or not is_instance_valid(label):
+		return
+	label.modulate.a = 1.0
+	label.scale = Vector2.ONE * (1.0 + float(tier) * 0.018)
+	var peak_scale: float = 1.10 + float(tier) * 0.035
+	var tween := create_tween()
+	tween.tween_property(label, "scale", Vector2.ONE * peak_scale, 0.075).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(label, "scale", Vector2.ONE, 0.17).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_spawn_indicator_sparks(color, false)
+
+
+func _spawn_indicator_sparks(color: Color, strong: bool) -> void:
+	if _status_root == null or not is_instance_valid(_status_root):
+		return
+	var spark_count: int = 4 if strong else 2
+	for i in range(spark_count):
+		var side: int = -1 if i % 2 == 0 else 1
+		var spark := ColorRect.new()
+		spark.name = "IndicatorSpark"
+		spark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		spark.size = Vector2(9.0 if strong else 7.0, 2.0)
+		spark.pivot_offset = spark.size * 0.5
+		var start_x: float = 5.0 if side < 0 else STATUS_SIZE.x - 14.0
+		var start_y: float = randf_range(9.0, STATUS_SIZE.y - 9.0)
+		spark.position = Vector2(start_x, start_y)
+		spark.rotation = randf_range(-0.42, 0.42) * float(side)
+		spark.color = color.lerp(Color.WHITE, 0.34 if strong else 0.22)
+		spark.modulate.a = 0.0
+		spark.z_index = 2
+		_status_root.add_child(spark)
+
+		var target_position: Vector2 = spark.position + Vector2(
+			float(side) * randf_range(7.0, 13.0),
+			randf_range(-6.0, 6.0)
+		)
+		var tween := create_tween()
+		tween.set_parallel(true)
+		tween.tween_property(spark, "modulate:a", 0.88 if strong else 0.68, 0.055)
+		tween.tween_property(spark, "scale", Vector2(1.35 if strong else 1.15, 1.0), 0.10).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tween.tween_property(spark, "position", target_position, 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tween.tween_property(spark, "rotation", spark.rotation + float(side) * 0.26, 0.22)
+		tween.chain().tween_property(spark, "modulate:a", 0.0, 0.12)
+		tween.tween_callback(func() -> void:
+			if is_instance_valid(spark):
+				spark.queue_free()
+		)
 
 func _update_orb_chain_feedback(chain_count: int, quality: String, combo_active: bool) -> void:
 	if _orb_visual == null or not is_instance_valid(_orb_visual):
@@ -616,7 +751,9 @@ func _update_orb_core_blend(delta: float) -> void:
 		return
 	var weight: float = 1.0 - exp(-8.0 * delta)
 	_orb_core_blend = lerpf(_orb_core_blend, _orb_core_blend_target, weight)
+	_orb_core_activation_flash *= exp(-4.2 * delta)
 	material.set_shader_parameter("combo_core_blend", _orb_core_blend)
+	material.set_shader_parameter("combo_activation_flash", _orb_core_activation_flash)
 
 func _set_indicator(label: Label, text_value: String, color: Color, animate: bool) -> void:
 	if label == null:
@@ -627,10 +764,13 @@ func _set_indicator(label: Label, text_value: String, color: Color, animate: boo
 	var text_changed: bool = label.text != text_value
 	label.text = text_value
 	label.add_theme_color_override("font_color", color)
+	var feedback_intensity: float = clampf(float(label.get_meta("feedback_intensity", 0.0)), 0.0, 1.0)
 	label.add_theme_color_override(
 		"font_shadow_color",
-		Color(color.r, color.g, color.b, 0.38)
+		Color(color.r, color.g, color.b, lerpf(0.38, 0.74, feedback_intensity))
 	)
+	label.add_theme_constant_override("outline_size", 4 + roundi(feedback_intensity * 2.0))
+	label.add_theme_constant_override("shadow_outline_size", 3 + roundi(feedback_intensity * 2.0))
 	if not was_visible:
 		animate = true
 
@@ -648,16 +788,25 @@ func _set_indicator(label: Label, text_value: String, color: Color, animate: boo
 		label.scale = Vector2.ONE
 		return
 
+	var target_font_size: int = maxi(label.get_theme_font_size("font_size"), 15)
+	label.add_theme_font_size_override("font_size", target_font_size + 3)
 	label.modulate = Color(1.0, 1.0, 1.0, 0.0)
-	label.scale = Vector2.ONE * 0.72
+	label.scale = Vector2.ONE * 0.60
 
-	var peak_scale: float = 1.17 if label == _combo_label else 1.13
+	var peak_scale: float = 1.42 if label == _combo_label else 1.34
 	var tween := create_tween()
 	tween.set_parallel(true)
-	tween.tween_property(label, "modulate:a", 1.0, 0.11)
-	tween.tween_property(label, "scale", Vector2.ONE * peak_scale, 0.19).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(label, "modulate:a", 1.0, 0.08)
+	tween.tween_property(label, "scale", Vector2.ONE * peak_scale, 0.20).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var font_tweener = tween.tween_method(
+		Callable(self, "_set_indicator_font_size").bind(label),
+		float(target_font_size + 3),
+		float(target_font_size),
+		0.26
+	)
+	font_tweener.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	tween.set_parallel(false)
-	tween.tween_property(label, "scale", Vector2.ONE, 0.14).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_property(label, "scale", Vector2.ONE, 0.16).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 
 func _hide_indicator(label: Label) -> void:
