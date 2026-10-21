@@ -35,8 +35,8 @@ var _status_root: Control
 var _combo_label: Label
 var _streak_label: Label
 
-## The compact status tag stays centered above the orb. It makes small edge
-## adjustments, but never flips between the left and right side of the comet.
+## Combo/Streak status stays attached to one orb shoulder per activation. It
+## never flips sides just because a frame approaches a screen edge.
 var _status_position_initialized: bool = false
 
 var _active_rewards: Array[Dictionary] = []
@@ -448,7 +448,10 @@ func _get_status_target(ball_screen: Vector2, viewport_size: Vector2) -> Vector2
 	)
 	# The tag sits beside the upper shoulder, never directly above the core.
 	var y: float = ball_screen.y - radius * 0.62 - STATUS_SIZE.y * 0.50
-	return _fit_local_position(Vector2(x, y), STATUS_SIZE, viewport_size)
+	# Keep the horizontal shoulder anchor honest: clipping/fading is better than
+	# clamping the tag over the orb when the selected side has limited room.
+	var max_y: float = maxf(screen_safe_margin, viewport_size.y - screen_safe_margin - STATUS_SIZE.y)
+	return Vector2(x, clampf(y, screen_safe_margin, max_y))
 
 
 func _get_status_edge_visibility(ball_screen: Vector2, viewport_size: Vector2) -> float:
@@ -468,7 +471,19 @@ func _update_status_follow(delta: float) -> void:
 
 	var viewport_size: Vector2 = _get_viewport_size()
 	var ball_screen: Vector2 = _get_ball_screen_position()
-	if not _status_position_initialized:
+	var wrap_distance: float = minf(120.0, viewport_size.x * 0.22)
+	var did_wrap: bool = (
+		_status_position_initialized
+		and ball_screen.distance_to(_last_ball_screen_position) > wrap_distance
+	)
+	if did_wrap:
+		_status_screen_velocity = Vector2.ZERO
+		# A screen wrap is a teleport, not ordinary motion: reselect only if the
+		# locked side no longer fits at the destination.
+		if _get_status_edge_visibility(ball_screen, viewport_size) < 1.0:
+			_status_anchor_side = _choose_status_anchor_side(ball_screen, viewport_size)
+		_last_ball_screen_position = ball_screen
+	elif not _status_position_initialized:
 		_last_ball_screen_position = ball_screen
 		_status_screen_velocity = Vector2.ZERO
 	else:
