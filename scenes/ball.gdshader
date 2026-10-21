@@ -13,6 +13,7 @@ uniform float quality_chain_progress = 0.0;
 uniform int quality_chain = 0;
 uniform int combo_core_quality = 0;
 uniform float combo_core_blend = 0.0;
+uniform float combo_activation_flash = 0.0;
 
 void fragment() {
 	vec2 p = UV * 2.0 - 1.0;
@@ -104,34 +105,41 @@ void fragment() {
 		smoothstep(0.956, 0.982, d);
 	color += ring_color * outer_ring * rim_breath * 0.22;
 
-	// The central plasma core stays circular; organic motion remains in the
-	// surrounding energy field. Landing charge is intentionally larger than
-	// the idle breath so its expansion reads as a clear, sustained anticipation.
+	// The activation hit temporarily expands the core and its inner glow. The
+	// sustained hue remains tied to Combo; the hit itself quickly decays.
 	float core_pulse = 0.5 + 0.5 * sin(time * 1.8);
-	float core_radius = mix(0.245, 0.272, core_pulse) * (1.0 + landing_charge * 0.34);
+	float chain_tint_strength = clamp(combo_core_blend, 0.0, 1.0);
+	float combo_hit = clamp(combo_activation_flash, 0.0, 1.0);
 
-	// The circular outer core expands with the centre, deepening the charge glow.
-	float outer_core = 1.0 - smoothstep(core_radius * 0.72, core_radius * 2.05, d);
-	color += outer_core_color * outer_core * (0.38 + landing_charge * 0.24 + landing_flash * 0.32) * aura_breath;
-
-	float core = 1.0 - smoothstep(core_radius * 0.70, core_radius, d);
-	// Keep a quality-specific tint reserved for an active Combo. The presenter
-	// animates combo_core_blend, leaving the core neutral during 1/3 and 2/3.
 	vec3 combo_core_color;
 	if (combo_core_quality == 2) {
-		combo_core_color = vec3(3.6, 4.5, 4.9); // Perfect: brilliant white-cyan
+		combo_core_color = vec3(5.2, 6.0, 6.3); // Perfect: brilliant white-cyan
 	} else if (combo_core_quality == 1) {
-		combo_core_color = vec3(3.2, 0.92, 4.3); // Epic: bright orchid
+		combo_core_color = vec3(5.0, 0.30, 4.5); // Epic: unmistakable hot magenta
 	} else {
-		combo_core_color = vec3(0.04, 2.0, 2.7); // Good: electric cyan
+		combo_core_color = vec3(0.02, 2.15, 3.2); // Good: electric cyan
 	}
-	float chain_tint_strength = clamp(combo_core_blend, 0.0, 1.0);
-	float core_brightness = mix(0.79, 0.96, core_pulse)
-		* (1.0 + landing_charge * 0.18 + landing_flash * 0.70);
-	vec3 live_core_color = mix(core_color, combo_core_color, chain_tint_strength);
-	live_core_color = mix(live_core_color, confirmation_core_color, landing_flash * 0.82);
-	color = mix(color, live_core_color * core_brightness, core);
 
+	float core_radius = mix(0.245, 0.272, core_pulse)
+		* (1.0 + landing_charge * 0.34 + combo_hit * 0.34);
+
+	// The outer glow adopts some of the active quality hue and swells sharply
+	// on activation, then settles as combo_activation_flash decays.
+	float outer_core = 1.0 - smoothstep(core_radius * 0.72, core_radius * 2.05, d);
+	vec3 live_outer_core_color = mix(outer_core_color, combo_core_color, chain_tint_strength * 0.64);
+	color += live_outer_core_color * outer_core
+		* (0.38 + landing_charge * 0.24 + landing_flash * 0.32 + combo_hit * 0.72)
+		* aura_breath;
+
+	float core = 1.0 - smoothstep(core_radius * 0.70, core_radius, d);
+	float core_brightness = mix(0.79, 0.96, core_pulse)
+		* (1.0 + landing_charge * 0.18 + landing_flash * 0.70 + combo_hit * 0.15);
+	vec3 live_core_color = mix(core_color, combo_core_color, chain_tint_strength);
+	// Keep the landing confirmation flash, but let the activated quality hue
+	// remain visible through the same moment instead of being washed to white.
+	float confirmation_override = landing_flash * mix(0.82, 0.28, chain_tint_strength);
+	live_core_color = mix(live_core_color, confirmation_core_color, confirmation_override);
+	color = mix(color, live_core_color * core_brightness, core);
 	// Three segments fill sequentially around the breathing core. The lit
 	// segments remain on; a narrow animated highlight travels along each one.
 	float chain_ring_radius = core_radius + 0.115 + core_pulse * 0.008;
@@ -146,12 +154,12 @@ void fragment() {
 	float ring_travel_position = fract(time * 0.30);
 	float ring_travel_highlight = exp(-pow((ring_sector_phase - ring_travel_position) / 0.095, 2.0));
 	float chain_ring_alpha = chain_ring * ring_sector_enabled * ring_sector_gap_mask;
-	float ring_light_strength = 0.72 + ring_travel_highlight * 0.65;
+	float ring_light_strength = 0.72 + ring_travel_highlight * 0.65 + combo_hit * 0.80;
 	vec3 chain_ring_color;
 	if (quality_chain == 2) {
 		chain_ring_color = vec3(4.1, 5.0, 5.3); // Perfect: white-cyan
 	} else if (quality_chain == 1) {
-		chain_ring_color = vec3(4.0, 1.1, 5.5); // Epic: orchid-magenta
+		chain_ring_color = vec3(5.2, 0.28, 4.7); // Epic: hot orchid-magenta
 	} else {
 		chain_ring_color = vec3(0.05, 2.65, 4.0); // Good: cyan
 	}
