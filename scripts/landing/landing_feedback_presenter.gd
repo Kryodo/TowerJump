@@ -33,7 +33,9 @@ var _orb_visual: Sprite2D
 
 var _status_root: Control
 var _combo_label: Label
+var _combo_counter: Label
 var _streak_label: Label
+var _streak_counter: Label
 
 ## Combo/Streak status stays attached to one orb shoulder per activation. It
 ## never flips sides just because a frame approaches a screen edge.
@@ -89,21 +91,38 @@ func _create_state_indicators() -> void:
 	_status_root.z_index = 20
 	add_child(_status_root)
 
+	# Captions remain compact and stable; only the numeric values escalate.
 	_combo_label = _make_label(
-		"ComboStatusLabel", Vector2(STATUS_SIZE.x, 24.0), 15, EPIC_COLOR, 4
+		"ComboStatusLabel", Vector2(100.0, 26.0), 15, EPIC_COLOR, 4
 	)
 	_combo_label.position = Vector2(0.0, 13.0)
-	_combo_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_combo_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_combo_label.visible = false
 	_status_root.add_child(_combo_label)
 
+	_combo_counter = _make_label(
+		"ComboMultiplierCounter", Vector2(84.0, 28.0), 20, EPIC_COLOR, 3
+	)
+	_combo_counter.position = Vector2(100.0, 11.0)
+	_combo_counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_combo_counter.visible = false
+	_status_root.add_child(_combo_counter)
+
 	_streak_label = _make_label(
-		"StreakStatusLabel", Vector2(STATUS_SIZE.x, 24.0), 15, STREAK_COLOR, 4
+		"StreakStatusLabel", Vector2(100.0, 26.0), 15, STREAK_COLOR, 4
 	)
 	_streak_label.position = Vector2.ZERO
-	_streak_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_streak_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_streak_label.visible = false
 	_status_root.add_child(_streak_label)
+
+	_streak_counter = _make_label(
+		"StreakCountCounter", Vector2(84.0, 28.0), 20, STREAK_COLOR, 3
+	)
+	_streak_counter.position = Vector2(100.0, -2.0)
+	_streak_counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_streak_counter.visible = false
+	_status_root.add_child(_streak_counter)
 
 func _make_label(
 	label_name: String,
@@ -522,6 +541,7 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 		return
 
 	var previous_chain_count: int = int(_last_state.get("chain_count", 0))
+	var previous_multiplier: float = float(_last_state.get("multiplier", 1.0))
 	var previous_combo_active: bool = bool(_last_state.get("combo_active", false))
 	var previous_streak_active: bool = bool(_last_state.get("streak_active", false))
 	var previous_combo_tier: int = _combo_visual_tier
@@ -540,7 +560,9 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 
 	if chain_count <= 0 or (not combo_active and not streak_active):
 		_hide_indicator(_combo_label)
+		_hide_indicator(_combo_counter)
 		_hide_indicator(_streak_label)
+		_hide_indicator(_streak_counter)
 		_status_root.visible = false
 		_status_root.modulate.a = 1.0
 		_status_position_initialized = false
@@ -560,6 +582,12 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 		_last_ball_screen_position = _get_ball_screen_position()
 	_status_root.visible = true
 
+	# Streak occupies the first row; Combo shifts down when both states are active.
+	_combo_label.position = Vector2(0.0, 25.0 if streak_active else 13.0)
+	_combo_counter.position = Vector2(100.0, 24.0 if streak_active else 11.0)
+	_streak_label.position = Vector2.ZERO
+	_streak_counter.position = Vector2(100.0, -2.0)
+
 	var combo_tier_up: bool = false
 	var streak_tier_up: bool = false
 	var combo_tier: int = -1
@@ -570,45 +598,36 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 		var combo_intensity: float = _get_combo_visual_intensity(multiplier, quality)
 		combo_tier = _get_visual_tier(combo_intensity)
 		combo_tier_up = previous_combo_active and combo_tier > previous_combo_tier
-		_apply_indicator_intensity(_combo_label, combo_intensity)
-		var combo_color: Color = quality_color.lerp(Color.WHITE, combo_intensity * 0.10)
-		_set_indicator(
-			_combo_label,
-			"✦  COMBO  ×%.2f" % multiplier,
-			combo_color,
-			combo_just_activated
+		_apply_counter_intensity(_combo_counter, combo_intensity, 20, 9)
+		_set_indicator(_combo_label, "✦  COMBO", quality_color, combo_just_activated)
+		var combo_counter_color: Color = quality_color.lerp(Color.WHITE, 0.08 + combo_intensity * 0.20)
+		_set_counter_indicator(
+			_combo_counter, "×%.2f" % multiplier, combo_counter_color, combo_just_activated
 		)
-		if combo_just_activated:
-			_spawn_indicator_sparks(quality_color, true)
+		if previous_combo_active and multiplier > previous_multiplier + 0.001:
+			_animate_counter_change(_combo_counter, combo_intensity, combo_tier_up)
 	else:
 		_hide_indicator(_combo_label)
+		_hide_indicator(_combo_counter)
 		_combo_visual_tier = -1
 
 	if streak_active:
 		var streak_intensity: float = _get_streak_visual_intensity(
-			chain_count,
-			streak_activation_count
+			chain_count, streak_activation_count
 		)
 		streak_tier = _get_visual_tier(streak_intensity)
 		streak_tier_up = previous_streak_active and streak_tier > previous_streak_tier
-		_streak_label.position = Vector2(0.0, 0.0)
-		_combo_label.position = Vector2(0.0, 25.0)
-		_apply_indicator_intensity(_streak_label, streak_intensity)
-		var streak_color: Color = STREAK_COLOR.lerp(Color.WHITE, streak_intensity * 0.08)
-		_set_indicator(
-			_streak_label,
-			"▲  STREAK  %02d" % chain_count,
-			streak_color,
-			streak_just_activated
+		_apply_counter_intensity(_streak_counter, streak_intensity, 20, 9)
+		_set_indicator(_streak_label, "▲  STREAK", STREAK_COLOR, streak_just_activated)
+		var streak_counter_color: Color = STREAK_COLOR.lerp(Color.WHITE, 0.08 + streak_intensity * 0.20)
+		_set_counter_indicator(
+			_streak_counter, "%02d" % chain_count, streak_counter_color, streak_just_activated
 		)
-		if streak_just_activated:
-			_spawn_indicator_sparks(STREAK_COLOR, true)
-		elif streak_tier_up:
-			_animate_indicator_level_up(_streak_label, STREAK_COLOR, streak_tier)
+		if previous_streak_active and chain_count > previous_chain_count:
+			_animate_counter_change(_streak_counter, streak_intensity, streak_tier_up)
 	else:
-		_combo_label.position = Vector2(0.0, 13.0)
-		_streak_label.position = Vector2.ZERO
 		_hide_indicator(_streak_label)
+		_hide_indicator(_streak_counter)
 		_streak_visual_tier = -1
 
 	if combo_active:
@@ -622,10 +641,6 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 		_state_pop_timer = 0.34
 	elif previous_chain_count != chain_count:
 		_state_pop_timer = 0.24
-
-	if combo_tier_up and not streak_tier_up and not streak_just_activated:
-		_animate_indicator_level_up(_combo_label, quality_color, combo_tier)
-
 
 func _get_combo_visual_intensity(multiplier: float, quality: String) -> float:
 	var start_multiplier: float = 1.15
@@ -653,13 +668,21 @@ func _get_visual_tier(intensity: float) -> int:
 	return clampi(int(floor(clampf(intensity, 0.0, 1.0) * 4.0)), 0, 3)
 
 
-func _apply_indicator_intensity(label: Label, intensity: float) -> void:
-	if label == null:
+func _apply_counter_intensity(
+	label: Label,
+	intensity: float,
+	base_font_size: int = 20,
+	growth_font_size: int = 9
+) -> void:
+	if label == null or not is_instance_valid(label):
 		return
-	label.set_meta("feedback_intensity", clampf(intensity, 0.0, 1.0))
-	label.add_theme_font_size_override("font_size", 15 + roundi(intensity * 5.0))
-	label.add_theme_constant_override("outline_size", 4 + roundi(intensity * 2.0))
-	label.add_theme_constant_override("shadow_outline_size", 3 + roundi(intensity * 2.0))
+	var amount: float = clampf(intensity, 0.0, 1.0)
+	var target_font_size: int = base_font_size + roundi(amount * float(growth_font_size))
+	label.set_meta("feedback_intensity", amount)
+	label.set_meta("counter_target_font_size", target_font_size)
+	label.add_theme_font_size_override("font_size", target_font_size)
+	label.add_theme_constant_override("outline_size", 3 + roundi(amount * 1.5))
+	label.add_theme_constant_override("shadow_outline_size", 3 + roundi(amount * 2.0))
 
 
 func _set_indicator_font_size(value: float, label: Label) -> void:
@@ -668,53 +691,31 @@ func _set_indicator_font_size(value: float, label: Label) -> void:
 	label.add_theme_font_size_override("font_size", maxi(roundi(value), 15))
 
 
-func _animate_indicator_level_up(label: Label, color: Color, tier: int) -> void:
+func _set_counter_font_size(value: float, label: Label) -> void:
+	if not is_instance_valid(label):
+		return
+	label.add_theme_font_size_override("font_size", maxi(roundi(value), 18))
+
+
+func _animate_counter_change(label: Label, intensity: float, milestone: bool) -> void:
 	if label == null or not is_instance_valid(label):
 		return
-	label.modulate.a = 1.0
-	label.scale = Vector2.ONE * (1.0 + float(tier) * 0.018)
-	var peak_scale: float = 1.10 + float(tier) * 0.035
+	var amount: float = clampf(intensity, 0.0, 1.0)
+	var peak_scale: float = 1.105 + amount * 0.035 if milestone else 1.052 + amount * 0.020
+	var angle: float = 0.050 if milestone else 0.026
 	var tween := create_tween()
-	tween.tween_property(label, "scale", Vector2.ONE * peak_scale, 0.075).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tween.tween_property(label, "scale", Vector2.ONE, 0.17).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	_spawn_indicator_sparks(color, false)
-
-
-func _spawn_indicator_sparks(color: Color, strong: bool) -> void:
-	if _status_root == null or not is_instance_valid(_status_root):
-		return
-	var spark_count: int = 4 if strong else 2
-	for i in range(spark_count):
-		var side: int = -1 if i % 2 == 0 else 1
-		var spark := ColorRect.new()
-		spark.name = "IndicatorSpark"
-		spark.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		spark.size = Vector2(9.0 if strong else 7.0, 2.0)
-		spark.pivot_offset = spark.size * 0.5
-		var start_x: float = 5.0 if side < 0 else STATUS_SIZE.x - 14.0
-		var start_y: float = randf_range(9.0, STATUS_SIZE.y - 9.0)
-		spark.position = Vector2(start_x, start_y)
-		spark.rotation = randf_range(-0.42, 0.42) * float(side)
-		spark.color = color.lerp(Color.WHITE, 0.34 if strong else 0.22)
-		spark.modulate.a = 0.0
-		spark.z_index = 2
-		_status_root.add_child(spark)
-
-		var target_position: Vector2 = spark.position + Vector2(
-			float(side) * randf_range(7.0, 13.0),
-			randf_range(-6.0, 6.0)
-		)
-		var tween := create_tween()
-		tween.set_parallel(true)
-		tween.tween_property(spark, "modulate:a", 0.88 if strong else 0.68, 0.055)
-		tween.tween_property(spark, "scale", Vector2(1.35 if strong else 1.15, 1.0), 0.10).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-		tween.tween_property(spark, "position", target_position, 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		tween.tween_property(spark, "rotation", spark.rotation + float(side) * 0.26, 0.22)
-		tween.chain().tween_property(spark, "modulate:a", 0.0, 0.12)
-		tween.chain().tween_callback(func() -> void:
-			if is_instance_valid(spark):
-				spark.queue_free()
-		)
+	tween.tween_property(
+		label, "scale", Vector2.ONE * peak_scale, 0.075
+	).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(label, "rotation", -angle, 0.045)
+	tween.tween_property(
+		label, "scale", Vector2.ONE * 0.985, 0.065
+	).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(label, "rotation", angle * 0.55, 0.055)
+	tween.tween_property(
+		label, "scale", Vector2.ONE, 0.095
+	).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(label, "rotation", 0.0, 0.09)
 
 func _update_orb_chain_feedback(chain_count: int, quality: String, combo_active: bool) -> void:
 	if _orb_visual == null or not is_instance_valid(_orb_visual):
@@ -808,6 +809,60 @@ func _set_indicator(label: Label, text_value: String, color: Color, animate: boo
 	tween.set_parallel(false)
 	tween.tween_property(label, "scale", Vector2.ONE, 0.16).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
+
+func _set_counter_indicator(label: Label, text_value: String, color: Color, animate: bool) -> void:
+	if label == null:
+		return
+
+	var was_visible: bool = label.visible
+	var was_hiding: bool = bool(_indicator_hiding.get(label.name, false))
+	var text_changed: bool = label.text != text_value
+	label.text = text_value
+	label.add_theme_color_override("font_color", color)
+	var intensity: float = clampf(float(label.get_meta("feedback_intensity", 0.0)), 0.0, 1.0)
+	label.add_theme_color_override(
+		"font_shadow_color",
+		Color(color.r, color.g, color.b, lerpf(0.42, 0.92, intensity))
+	)
+	label.add_theme_constant_override("outline_size", 3 + roundi(intensity * 1.5))
+	label.add_theme_constant_override("shadow_outline_size", 3 + roundi(intensity * 2.0))
+	if not was_visible:
+		animate = true
+
+	label.visible = true
+	_indicator_versions[label.name] = int(_indicator_versions.get(label.name, 0)) + 1
+	_indicator_hiding[label.name] = false
+
+	if not animate:
+		if was_hiding:
+			label.modulate = Color.WHITE
+			label.scale = Vector2.ONE
+			label.rotation = 0.0
+		return
+	if not text_changed and was_visible and not was_hiding:
+		return
+
+	var target_font_size: int = int(label.get_meta("counter_target_font_size", 20))
+	label.add_theme_font_size_override("font_size", target_font_size + 3)
+	label.modulate = Color(1.0, 1.0, 1.0, 0.0)
+	label.scale = Vector2.ONE * 0.70
+	label.rotation = 0.0
+	var peak_scale: float = 1.24 if label == _combo_counter else 1.18
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(label, "modulate:a", 1.0, 0.075)
+	tween.tween_property(
+		label, "scale", Vector2.ONE * peak_scale, 0.18
+	).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var font_tweener = tween.tween_method(
+		Callable(self, "_set_counter_font_size").bind(label),
+		float(target_font_size + 3),
+		float(target_font_size),
+		0.22
+	)
+	font_tweener.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.set_parallel(false)
+	tween.tween_property(label, "scale", Vector2.ONE, 0.12).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 func _hide_indicator(label: Label) -> void:
 	if label == null or not label.visible:
@@ -1015,7 +1070,7 @@ func _process(delta: float) -> void:
 	_state_pop_timer = maxf(_state_pop_timer - delta, 0.0)
 	if _state_pop_timer <= 0.0:
 		var pulse: float = sin(_pulse_clock * 3.0)
-		for label in [_combo_label, _streak_label]:
+		for label in [_combo_counter, _streak_counter]:
 			if label.visible and not bool(_indicator_hiding.get(label.name, false)):
 				label.scale = Vector2.ONE * (1.0 + pulse * 0.008)
 				label.modulate.a = 0.94 + pulse * 0.045

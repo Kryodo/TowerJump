@@ -123,10 +123,11 @@ void fragment() {
 	float core_radius = mix(0.245, 0.272, core_pulse)
 		* (1.0 + landing_charge * 0.34 + combo_hit * 0.34);
 
-	// The outer glow adopts some of the active quality hue and swells sharply
-	// on activation, then settles as combo_activation_flash decays.
+	// Preserve the orb's idle outer-core accent. The inner core carries the
+	// quality transformation; blending the surrounding accent into that hue
+	// made Epic merge into one broad purple spot.
 	float outer_core = 1.0 - smoothstep(core_radius * 0.72, core_radius * 2.05, d);
-	vec3 live_outer_core_color = mix(outer_core_color, combo_core_color, chain_tint_strength * 0.64);
+	vec3 live_outer_core_color = outer_core_color;
 	color += live_outer_core_color * outer_core
 		* (0.38 + landing_charge * 0.24 + landing_flash * 0.32 + combo_hit * 0.72)
 		* aura_breath;
@@ -144,7 +145,11 @@ void fragment() {
 	// segments remain on; a narrow animated highlight travels along each one.
 	float chain_ring_radius = core_radius + 0.115 + core_pulse * 0.008;
 	float chain_ring_distance = abs(d - chain_ring_radius);
-	float chain_ring = 1.0 - smoothstep(0.006, 0.034, chain_ring_distance);
+	// An internal dark trough separates the segments from the luminous shell.
+	float ring_progress_gate = smoothstep(0.05, 0.80, quality_chain_progress);
+	float chain_ring_backing = 1.0 - smoothstep(0.010, 0.052, chain_ring_distance);
+	color *= 1.0 - chain_ring_backing * ring_progress_gate * 0.34;
+	float chain_ring = 1.0 - smoothstep(0.003, 0.025, chain_ring_distance);
 	float ring_angle_normalized = fract((angle + PI) / TAU);
 	float ring_sector_position = ring_angle_normalized * 3.0;
 	float ring_sector_index = floor(ring_sector_position);
@@ -152,20 +157,24 @@ void fragment() {
 	float ring_sector_enabled = step(ring_sector_index + 1.0, quality_chain_progress);
 	float ring_sector_gap_mask = step(0.075, ring_sector_phase) * step(ring_sector_phase, 0.925);
 	float ring_travel_position = fract(time * 0.30);
-	float ring_travel_highlight = exp(-pow((ring_sector_phase - ring_travel_position) / 0.095, 2.0));
+	float ring_travel_highlight = exp(-pow((ring_sector_phase - ring_travel_position) / 0.065, 2.0));
 	float chain_ring_alpha = chain_ring * ring_sector_enabled * ring_sector_gap_mask;
 	float ring_light_strength = 0.72 + ring_travel_highlight * 0.65 + combo_hit * 0.80;
 	vec3 chain_ring_color;
 	if (quality_chain == 2) {
 		chain_ring_color = vec3(4.1, 5.0, 5.3); // Perfect: white-cyan
 	} else if (quality_chain == 1) {
-		chain_ring_color = vec3(5.2, 0.28, 4.7); // Epic: hot orchid-magenta
+		chain_ring_color = vec3(6.8, 0.035, 3.8); // Epic: pink-forward hot orchid
 	} else {
 		chain_ring_color = vec3(0.05, 2.65, 4.0); // Good: cyan
 	}
 	// Keep ring brightness independent of the core tint: the ring means progress,
 	// while the core hue change is reserved for Combo activation.
-	color += chain_ring_color * chain_ring_alpha * ring_light_strength * 0.38 * aura_breath;
+	float ring_emission_strength = 0.42;
+	if (quality_chain == 1) {
+		ring_emission_strength = 0.66;
+	}
+	color += chain_ring_color * chain_ring_alpha * ring_light_strength * ring_emission_strength * aura_breath;
 	float core_aura =
 		1.0 - smoothstep(core_radius * 0.62, core_radius * 1.8, d);
 	color += aura_color * core_aura * (0.28 + landing_charge * 0.20) * aura_breath;

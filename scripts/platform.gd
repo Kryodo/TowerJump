@@ -35,6 +35,15 @@ const BEVEL := 4.0
 const EDGE_HEIGHT := 8.0
 const EDGE_INSET := 1.0
 
+const IDLE_SHEEN_CHANCE := 0.22
+const IDLE_SHEEN_MIN_SPAWN_GAP := 4
+const IDLE_SHEEN_DELAY_MIN := 0.7
+const IDLE_SHEEN_DELAY_MAX := 2.2
+const IDLE_SHEEN_DURATION := 0.16
+
+static var _sheen_spawn_sequence: int = 0
+static var _last_sheen_spawn_sequence: int = -1000
+
 const LandingApproachStateScript := preload(
 	"res://scripts/landing/landing_approach_state.gd"
 )
@@ -54,6 +63,8 @@ var _broken: bool = false
 # owns targeting/prediction; the platform only exposes a visual adapter.
 var _landing_approach: LandingApproachState = LandingApproachState.new()
 var _landing_confirmation_tween: Tween = null
+var _idle_sheen_delay: float = -1.0
+var _idle_sheen_tween: Tween = null
 
 @onready var _collision_shape: CollisionShape2D = $CollisionShape2D
 @onready var _visual: Polygon2D = $Visual
@@ -64,6 +75,7 @@ func _ready() -> void:
 	_collision_shape.one_way_collision = true
 
 	_apply_geometry()
+	_schedule_idle_sheen()
 
 func _apply_geometry() -> void:
 	var shape := RectangleShape2D.new()
@@ -118,7 +130,68 @@ func _apply_geometry() -> void:
 		"platform_width",
 		width * width_scale
 	)
-	_neon_edge.set_instance_shader_parameter("idle_sheen_phase", randf())
+	_neon_edge.set_instance_shader_parameter("idle_sheen_progress", -1.0)
+
+func _process(delta: float) -> void:
+	if _idle_sheen_delay < 0.0:
+		return
+	_idle_sheen_delay -= delta
+	if _idle_sheen_delay > 0.0:
+		return
+	_idle_sheen_delay = -1.0
+	if _is_idle_sheen_allowed():
+		_play_idle_sheen()
+
+
+func _schedule_idle_sheen() -> void:
+	if _idle_sheen_tween != null and _idle_sheen_tween.is_valid():
+		_idle_sheen_tween.kill()
+	_idle_sheen_tween = null
+	_idle_sheen_delay = -1.0
+	_neon_edge.set_instance_shader_parameter("idle_sheen_progress", -1.0)
+
+	_sheen_spawn_sequence += 1
+	if _sheen_spawn_sequence - _last_sheen_spawn_sequence < IDLE_SHEEN_MIN_SPAWN_GAP:
+		return
+	if randf() > IDLE_SHEEN_CHANCE:
+		return
+
+	_last_sheen_spawn_sequence = _sheen_spawn_sequence
+	_idle_sheen_delay = randf_range(IDLE_SHEEN_DELAY_MIN, IDLE_SHEEN_DELAY_MAX)
+
+
+func _is_idle_sheen_allowed() -> bool:
+	if not visible or _broken or _is_breaking:
+		return false
+	if _landing_approach.progress > 0.0001:
+		return false
+	var charge: float = float(_neon_edge.get_instance_shader_parameter("approach_charge"))
+	var active: float = float(_neon_edge.get_instance_shader_parameter("activated"))
+	var confirm: float = float(_neon_edge.get_instance_shader_parameter("landing_confirm"))
+	return charge <= 0.001 and active <= 0.001 and confirm <= 0.001
+
+
+func _set_idle_sheen_progress(value: float) -> void:
+	if is_instance_valid(_neon_edge):
+		_neon_edge.set_instance_shader_parameter("idle_sheen_progress", value)
+
+
+func _play_idle_sheen() -> void:
+	_neon_edge.set_instance_shader_parameter("idle_sheen_progress", 0.0)
+	_idle_sheen_tween = create_tween()
+	_idle_sheen_tween.tween_method(
+		_set_idle_sheen_progress,
+		0.0,
+		1.0,
+		IDLE_SHEEN_DURATION
+	).set_trans(Tween.TRANS_LINEAR)
+	_idle_sheen_tween.tween_callback(
+		func() -> void:
+			if is_instance_valid(_neon_edge):
+				_neon_edge.set_instance_shader_parameter("idle_sheen_progress", -1.0)
+			_idle_sheen_tween = null
+	)
+
 
 func _physics_process(delta: float) -> void:
 	if platform_type == PlatformType.MOVING and not _is_breaking and not _broken:
@@ -151,6 +224,7 @@ func spawn_as(
 	visible = true
 
 	_apply_geometry()
+	_schedule_idle_sheen()
 
 func on_ball_landed(landing_world_x: float) -> float:
 	# Surface the physical landing. LandingFeedbackController turns this into
@@ -310,6 +384,7 @@ func get_landing_approach_target_x() -> float:
 
 func reset_landing_feedback_visual() -> void:
 	_landing_approach.reset()
+	_neon_edge.set_instance_shader_parameter("idle_sheen_progress", -1.0)
 	_neon_edge.set_instance_shader_parameter("approach_charge", 0.0)
 	_neon_edge.set_instance_shader_parameter("approach_target_x", 0.5)
 	_neon_edge.set_instance_shader_parameter("activated", 0.0)
