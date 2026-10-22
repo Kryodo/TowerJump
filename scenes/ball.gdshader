@@ -14,6 +14,7 @@ uniform int quality_chain = 0;
 uniform int combo_core_quality = 0;
 uniform float combo_core_blend = 0.0;
 uniform float combo_activation_flash = 0.0;
+uniform float streak_activation_flash = 0.0;
 
 void fragment() {
 	vec2 p = UV * 2.0 - 1.0;
@@ -110,18 +111,20 @@ void fragment() {
 	float core_pulse = 0.5 + 0.5 * sin(time * 1.8);
 	float chain_tint_strength = clamp(combo_core_blend, 0.0, 1.0);
 	float combo_hit = clamp(combo_activation_flash, 0.0, 1.0);
+	float streak_hit = clamp(streak_activation_flash, 0.0, 1.0);
+	vec3 streak_amber_color = vec3(5.0, 2.25, 0.28);
 
 	vec3 combo_core_color;
 	if (combo_core_quality == 2) {
 		combo_core_color = vec3(5.2, 6.0, 6.3); // Perfect: brilliant white-cyan
 	} else if (combo_core_quality == 1) {
-		combo_core_color = vec3(7.2, 0.06, 2.5); // Epic: warmer hot rose, distinct from violet aura
+		combo_core_color = vec3(4.0, 0.12, 6.4); // Epic: saturated violet, separated from the outer aura
 	} else {
-		combo_core_color = vec3(0.02, 2.15, 3.2); // Good: electric cyan
+		combo_core_color = vec3(0.015, 1.35, 2.70); // Good: saturated cyan, with less white-producing emission
 	}
 
 	float core_radius = mix(0.245, 0.272, core_pulse)
-		* (1.0 + landing_charge * 0.34 + combo_hit * 0.34);
+		* (1.0 + chain_tint_strength * 0.09 + landing_charge * 0.34 + combo_hit * 0.22 + streak_hit * 0.17);
 
 	// Preserve the orb's idle outer-core accent. The inner core carries the
 	// quality transformation; blending the surrounding accent into that hue
@@ -129,24 +132,29 @@ void fragment() {
 	float outer_core = 1.0 - smoothstep(core_radius * 0.72, core_radius * 2.05, d);
 	vec3 live_outer_core_color = outer_core_color;
 	color += live_outer_core_color * outer_core
-		* (0.38 + landing_charge * 0.24 + landing_flash * 0.32 + combo_hit * 0.72)
+		* (0.38 + landing_charge * 0.24 + landing_flash * 0.32 + combo_hit * 0.72 + streak_hit * 0.85)
 		* aura_breath;
 
 	float core = 1.0 - smoothstep(core_radius * 0.70, core_radius, d);
 	float core_brightness = mix(0.79, 0.96, core_pulse)
-		* (1.0 + landing_charge * 0.18 + landing_flash * 0.70 + combo_hit * 0.15);
+		* (1.0 + landing_charge * 0.18 + landing_flash * 0.70 + combo_hit * 0.15 + streak_hit * 0.16);
 	vec3 live_core_color = mix(core_color, combo_core_color, chain_tint_strength);
 	// Keep the landing confirmation flash, but let the activated quality hue
 	// remain visible through the same moment instead of being washed to white.
 	float confirmation_override = landing_flash * mix(0.82, 0.28, chain_tint_strength);
 	live_core_color = mix(live_core_color, confirmation_core_color, confirmation_override);
+	// Streak briefly overrides the current quality hue, then gives it back.
+	live_core_color = mix(live_core_color, streak_amber_color, streak_hit * 0.92);
 	color = mix(color, live_core_color * core_brightness, core);
 	// Three segments fill sequentially around the breathing core. The lit
 	// segments remain on; a narrow animated highlight travels along each one.
 	float chain_ring_radius = core_radius + 0.115 + core_pulse * 0.008;
 	float chain_ring_distance = abs(d - chain_ring_radius);
-	// Keep the segments integrated with the plasma; their hue and narrow
-	// highlight define the progress without a dark backing shape.
+	// Epic's purple segments need local negative space against the purple aura.
+	// This gently dims a very narrow channel underneath the ring, not a new halo.
+	float ring_contrast_track = 1.0 - smoothstep(0.026, 0.052, chain_ring_distance);
+	float ring_track_dim = quality_chain == 1 ? 0.48 : 0.08;
+	color *= 1.0 - ring_contrast_track * ring_track_dim;
 	float chain_ring = 1.0 - smoothstep(0.002, 0.028, chain_ring_distance);
 	float ring_angle_normalized = fract((angle + PI) / TAU);
 	float ring_sector_position = ring_angle_normalized * 3.0;
@@ -162,9 +170,9 @@ void fragment() {
 	if (quality_chain == 2) {
 		chain_ring_color = vec3(4.1, 5.0, 5.3); // Perfect: white-cyan
 	} else if (quality_chain == 1) {
-		chain_ring_color = vec3(6.5, 0.025, 5.4); // Epic progress: bright fuchsia, distinct from warmer core
+		chain_ring_color = vec3(3.8, 0.10, 6.1); // Epic progress: saturated violet
 	} else {
-		chain_ring_color = vec3(0.05, 2.65, 4.0); // Good: cyan
+		chain_ring_color = vec3(0.015, 1.55, 3.05); // Good: saturated cyan, less prone to bloom washout
 	}
 	// Keep ring brightness independent of the core tint: the ring means progress,
 	// while the core hue change is reserved for Combo activation.
@@ -172,11 +180,24 @@ void fragment() {
 	if (quality_chain == 1) {
 		ring_emission_strength = 0.54;
 	}
-	color += chain_ring_color * chain_ring_alpha * ring_light_strength * ring_emission_strength * aura_breath;
+	vec3 live_chain_ring_color = mix(chain_ring_color, streak_amber_color * 5.0, streak_hit * 0.90);
+	color += live_chain_ring_color * chain_ring_alpha * ring_light_strength * ring_emission_strength * aura_breath;
+	// A small pale-lavender glint moves over Epic segments to make their shape legible.
+	vec3 ring_highlight_color;
+	if (quality_chain == 1) {
+		ring_highlight_color = vec3(3.4, 2.7, 5.2);
+	} else if (quality_chain == 2) {
+		ring_highlight_color = vec3(4.3, 5.0, 5.3);
+	} else {
+		ring_highlight_color = vec3(0.08, 2.5, 4.2);
+	}
+	float ring_glint_strength = chain_ring_alpha * ring_travel_highlight * (1.0 - streak_hit * 0.85);
+	color += ring_highlight_color * ring_glint_strength * (quality_chain == 1 ? 0.24 : 0.08);
 	float core_aura =
 		1.0 - smoothstep(core_radius * 0.62, core_radius * 1.8, d);
 	float active_core_aura_suppression = 1.0 - core * chain_tint_strength * (combo_core_quality == 1 ? 0.96 : 0.72);
-	color += aura_color * core_aura * (0.28 + landing_charge * 0.20) * aura_breath * active_core_aura_suppression;
+	float ring_aura_suppression = 1.0 - ring_contrast_track * (quality_chain == 1 ? 0.78 : 0.10);
+	color += aura_color * core_aura * (0.28 + landing_charge * 0.20) * aura_breath * active_core_aura_suppression * ring_aura_suppression;
 	color += confirmation_core_color * core_aura * landing_flash * 0.24;
 
 	// A fast, narrow rim flash makes confirmation visible without trying to

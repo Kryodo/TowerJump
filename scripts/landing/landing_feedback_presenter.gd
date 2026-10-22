@@ -20,10 +20,10 @@ const STATUS_SIZE := Vector2(184.0, 52.0)
 const CLUTCH_SIZE := Vector2(144.0, 30.0)
 
 const GOOD_COLOR := Color(0.40, 0.86, 1.0, 1.0)
-const EPIC_COLOR := Color(1.0, 0.16, 0.92, 1.0)
+const EPIC_COLOR := Color(0.68, 0.28, 1.0, 1.0)
 const PERFECT_COLOR := Color(0.86, 0.98, 1.0, 1.0)
-const STREAK_COLOR := Color(1.0, 0.73, 0.30, 1.0)
-const SCORE_COLOR := Color(0.58, 0.94, 1.0, 1.0)
+const STREAK_COLOR := Color(1.0, 0.56, 0.16, 1.0)
+const SCORE_COLOR := Color(1.0, 0.82, 0.34, 1.0)
 const CLUTCH_COLOR := Color(0.80, 0.96, 1.0, 1.0)
 const OUTLINE_COLOR := Color(0.012, 0.025, 0.055, 0.98)
 
@@ -54,6 +54,9 @@ var _status_screen_velocity: Vector2 = Vector2.ZERO
 var _orb_core_blend: float = 0.0
 var _orb_core_blend_target: float = 0.0
 var _orb_core_activation_flash: float = 0.0
+var _orb_streak_activation_flash: float = 0.0
+var _orb_core_activation_tween: Tween = null
+var _orb_streak_activation_tween: Tween = null
 var _combo_visual_tier: int = -1
 var _streak_visual_tier: int = -1
 
@@ -574,7 +577,9 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 	var combo_just_activated: bool = combo_active and not previous_combo_active
 	var streak_just_activated: bool = streak_active and not previous_streak_active
 	if combo_just_activated:
-		_orb_core_activation_flash = 1.0
+		_play_orb_combo_activation()
+	if streak_just_activated:
+		_play_orb_streak_activation()
 	_update_orb_chain_feedback(chain_count, quality, combo_active)
 
 	if chain_count <= 0 or (not combo_active and not streak_active):
@@ -775,6 +780,34 @@ func _update_orb_chain_feedback(chain_count: int, quality: String, combo_active:
 	else:
 		_orb_core_blend_target = 0.0
 
+func _play_orb_combo_activation() -> void:
+	if _orb_core_activation_tween != null and _orb_core_activation_tween.is_valid():
+		_orb_core_activation_tween.kill()
+	_orb_core_activation_flash = 0.0
+	_orb_core_activation_tween = create_tween()
+	var flash_setter := Callable(self, "_set_orb_core_activation_flash")
+	_orb_core_activation_tween.tween_method(flash_setter, 0.0, 1.0, 0.09).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_orb_core_activation_tween.tween_method(flash_setter, 1.0, 0.0, 0.30).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+
+func _set_orb_core_activation_flash(value: float) -> void:
+	_orb_core_activation_flash = clampf(value, 0.0, 1.0)
+
+
+func _play_orb_streak_activation() -> void:
+	if _orb_streak_activation_tween != null and _orb_streak_activation_tween.is_valid():
+		_orb_streak_activation_tween.kill()
+	_orb_streak_activation_flash = 0.0
+	_orb_streak_activation_tween = create_tween()
+	var flash_setter := Callable(self, "_set_orb_streak_activation_flash")
+	_orb_streak_activation_tween.tween_method(flash_setter, 0.0, 1.0, 0.08).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_orb_streak_activation_tween.tween_method(flash_setter, 1.0, 0.0, 0.36).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+
+func _set_orb_streak_activation_flash(value: float) -> void:
+	_orb_streak_activation_flash = clampf(value, 0.0, 1.0)
+
+
 func _update_orb_core_blend(delta: float) -> void:
 	if _orb_visual == null or not is_instance_valid(_orb_visual):
 		return
@@ -783,9 +816,9 @@ func _update_orb_core_blend(delta: float) -> void:
 		return
 	var weight: float = 1.0 - exp(-8.0 * delta)
 	_orb_core_blend = lerpf(_orb_core_blend, _orb_core_blend_target, weight)
-	_orb_core_activation_flash *= exp(-4.2 * delta)
 	material.set_shader_parameter("combo_core_blend", _orb_core_blend)
 	material.set_shader_parameter("combo_activation_flash", _orb_core_activation_flash)
+	material.set_shader_parameter("streak_activation_flash", _orb_streak_activation_flash)
 
 func _set_indicator(label: Label, text_value: String, color: Color, animate: bool) -> void:
 	if label == null:
