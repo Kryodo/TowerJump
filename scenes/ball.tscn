@@ -11,6 +11,8 @@
 [ext_resource type="Shader" uid="uid://b6opk25aat210" path="res://scenes/ball_rim_halo.gdshader" id="9_rim_halo"]
 [ext_resource type="Shader" uid="uid://dk6rerpy7inja" path="res://scenes/trail_aura_pulse.gdshader" id="10_trail_aura_pulse"]
 
+[ext_resource type="Script" path="res://scripts/landing/quality_ring_indicator.gd" id="11_quality_ring"]
+
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_unified_comet"]
 shader = ExtResource("7_unified_comet")
 shader_parameter/palette_mode = 0
@@ -284,3 +286,7 @@ texture = ExtResource("3_f7cbr")
 material = SubResource("ShaderMaterial_4dx81")
 scale = Vector2(0.468, 0.468)
 texture = ExtResource("3_f7cbr")
+
+[node name="QualityRingIndicator" type="Node2D" parent="."]
+z_index = 2
+script = ExtResource("11_quality_ring")

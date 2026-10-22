@@ -14,13 +14,14 @@ extends CanvasLayer
 @export var landing_score_controller_path: NodePath = NodePath("../LandingScoreController")
 @export var ball_path: NodePath = NodePath("../Ball")
 @export var orb_visual_path: NodePath = NodePath("../Ball/Visual")
+@export var quality_ring_path: NodePath = NodePath("../Ball/QualityRingIndicator")
 
 const REWARD_SIZE := Vector2(160.0, 66.0)
 const STATUS_SIZE := Vector2(184.0, 52.0)
 const CLUTCH_SIZE := Vector2(144.0, 30.0)
 
 const GOOD_COLOR := Color(0.40, 0.86, 1.0, 1.0)
-const EPIC_COLOR := Color(0.68, 0.28, 1.0, 1.0)
+const EPIC_COLOR := Color(0.60, 0.22, 1.0, 1.0)
 const PERFECT_COLOR := Color(0.86, 0.98, 1.0, 1.0)
 const STREAK_COLOR := Color(1.0, 0.56, 0.16, 1.0)
 const SCORE_COLOR := Color(1.0, 0.82, 0.34, 1.0)
@@ -30,6 +31,7 @@ const OUTLINE_COLOR := Color(0.012, 0.025, 0.055, 0.98)
 var _score_controller: Node
 var _ball: Node2D
 var _orb_visual: Sprite2D
+var _quality_ring: Node
 
 var _status_root: Control
 var _combo_label: Label
@@ -55,10 +57,8 @@ var _orb_core_blend: float = 0.0
 var _orb_core_blend_target: float = 0.0
 var _orb_core_activation_flash: float = 0.0
 var _orb_streak_activation_flash: float = 0.0
-var _orb_streak_sweep_progress: float = 0.0
 var _orb_core_activation_tween: Tween = null
 var _orb_streak_activation_tween: Tween = null
-var _orb_streak_sweep_tween: Tween = null
 var _combo_visual_tier: int = -1
 var _streak_visual_tier: int = -1
 
@@ -66,6 +66,7 @@ var _streak_visual_tier: int = -1
 func _ready() -> void:
 	_ball = get_node_or_null(ball_path) as Node2D
 	_orb_visual = get_node_or_null(orb_visual_path) as Sprite2D
+	_quality_ring = get_node_or_null(quality_ring_path)
 	_score_controller = get_node_or_null(landing_score_controller_path)
 	_create_state_indicators()
 
@@ -757,6 +758,9 @@ func _animate_counter_change(
 	).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 func _update_orb_chain_feedback(chain_count: int, quality: String, combo_active: bool) -> void:
+	if _quality_ring != null and is_instance_valid(_quality_ring) and _quality_ring.has_method("set_quality_state"):
+		_quality_ring.call("set_quality_state", chain_count, quality)
+
 	if _orb_visual == null or not is_instance_valid(_orb_visual):
 		return
 	var material := _orb_visual.material as ShaderMaterial
@@ -770,14 +774,10 @@ func _update_orb_chain_feedback(chain_count: int, quality: String, combo_active:
 		"PERFECT":
 			quality_id = 2
 
-	material.set_shader_parameter(
-		"quality_chain_progress",
-		clampf(float(chain_count), 0.0, 3.0)
-	)
-	material.set_shader_parameter("quality_chain", quality_id)
 	material.set_shader_parameter("combo_core_active", 1.0 if combo_active else 0.0)
 	if combo_active:
-		# Preserve the last active grade while its core tint eases back out on a break.
+		# Keep the core's quality tint while Combo is active. The separate ring
+		# renderer no longer depends on this material or the cosmetic skin hue.
 		material.set_shader_parameter("combo_core_quality", quality_id)
 		_orb_core_blend_target = 1.0
 	else:
@@ -800,27 +800,17 @@ func _set_orb_core_activation_flash(value: float) -> void:
 func _play_orb_streak_activation() -> void:
 	if _orb_streak_activation_tween != null and _orb_streak_activation_tween.is_valid():
 		_orb_streak_activation_tween.kill()
-	if _orb_streak_sweep_tween != null and _orb_streak_sweep_tween.is_valid():
-		_orb_streak_sweep_tween.kill()
 	_orb_streak_activation_flash = 0.0
-	_orb_streak_sweep_progress = 0.0
+	if _quality_ring != null and is_instance_valid(_quality_ring) and _quality_ring.has_method("play_streak_activation"):
+		_quality_ring.call("play_streak_activation")
 	_orb_streak_activation_tween = create_tween()
 	var flash_setter := Callable(self, "_set_orb_streak_activation_flash")
 	_orb_streak_activation_tween.tween_method(flash_setter, 0.0, 1.0, 0.08).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	_orb_streak_activation_tween.tween_method(flash_setter, 1.0, 0.0, 0.36).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	# This separate linear tween makes the amber highlight travel one full orbit
-	# from a predictable starting point during the same activation.
-	_orb_streak_sweep_tween = create_tween()
-	var sweep_setter := Callable(self, "_set_orb_streak_sweep_progress")
-	_orb_streak_sweep_tween.tween_method(sweep_setter, 0.0, 1.0, 0.56)
 
 
 func _set_orb_streak_activation_flash(value: float) -> void:
 	_orb_streak_activation_flash = clampf(value, 0.0, 1.0)
-
-
-func _set_orb_streak_sweep_progress(value: float) -> void:
-	_orb_streak_sweep_progress = clampf(value, 0.0, 1.0)
 
 
 func _update_orb_core_blend(delta: float) -> void:
@@ -834,7 +824,6 @@ func _update_orb_core_blend(delta: float) -> void:
 	material.set_shader_parameter("combo_core_blend", _orb_core_blend)
 	material.set_shader_parameter("combo_activation_flash", _orb_core_activation_flash)
 	material.set_shader_parameter("streak_activation_flash", _orb_streak_activation_flash)
-	material.set_shader_parameter("streak_sweep_progress", _orb_streak_sweep_progress)
 
 func _set_indicator(label: Label, text_value: String, color: Color, animate: bool) -> void:
 	if label == null:
