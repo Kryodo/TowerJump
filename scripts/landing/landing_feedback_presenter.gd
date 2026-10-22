@@ -775,6 +775,7 @@ func _update_orb_chain_feedback(chain_count: int, quality: String, combo_active:
 		clampf(float(chain_count), 0.0, 3.0)
 	)
 	material.set_shader_parameter("quality_chain", quality_id)
+	material.set_shader_parameter("combo_core_active", 1.0 if combo_active else 0.0)
 	if combo_active:
 		# Preserve the last active grade while its core tint eases back out on a break.
 		material.set_shader_parameter("combo_core_quality", quality_id)
@@ -811,7 +812,7 @@ func _play_orb_streak_activation() -> void:
 	# from a predictable starting point during the same activation.
 	_orb_streak_sweep_tween = create_tween()
 	var sweep_setter := Callable(self, "_set_orb_streak_sweep_progress")
-	_orb_streak_sweep_tween.tween_method(sweep_setter, 0.0, 1.0, 0.42)
+	_orb_streak_sweep_tween.tween_method(sweep_setter, 0.0, 1.0, 0.56)
 
 
 func _set_orb_streak_activation_flash(value: float) -> void:
@@ -828,7 +829,7 @@ func _update_orb_core_blend(delta: float) -> void:
 	var material := _orb_visual.material as ShaderMaterial
 	if material == null:
 		return
-	var weight: float = 1.0 - exp(-8.0 * delta)
+	var weight: float = 1.0 - exp(-14.0 * delta)
 	_orb_core_blend = lerpf(_orb_core_blend, _orb_core_blend_target, weight)
 	material.set_shader_parameter("combo_core_blend", _orb_core_blend)
 	material.set_shader_parameter("combo_activation_flash", _orb_core_activation_flash)

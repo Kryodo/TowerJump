@@ -13,6 +13,7 @@ uniform float quality_chain_progress = 0.0;
 uniform int quality_chain = 0;
 uniform int combo_core_quality = 0;
 uniform float combo_core_blend = 0.0;
+uniform float combo_core_active = 0.0;
 uniform float combo_activation_flash = 0.0;
 uniform float streak_activation_flash = 0.0;
 uniform float streak_sweep_progress = 0.0;
@@ -111,6 +112,7 @@ void fragment() {
 	// sustained hue remains tied to Combo; the hit itself quickly decays.
 	float core_pulse = 0.5 + 0.5 * sin(time * 1.8);
 	float chain_tint_strength = clamp(combo_core_blend, 0.0, 1.0);
+	float combo_active_signal = clamp(combo_core_active, 0.0, 1.0);
 	float combo_hit = clamp(combo_activation_flash, 0.0, 1.0);
 	float streak_hit = clamp(streak_activation_flash, 0.0, 1.0);
 	vec3 streak_amber_color = vec3(5.0, 2.25, 0.28);
@@ -142,25 +144,27 @@ void fragment() {
 	vec3 live_core_color = mix(core_color, combo_core_color, chain_tint_strength);
 	// Keep the landing confirmation flash, but let the activated quality hue
 	// remain visible through the same moment instead of being washed to white.
-	float confirmation_override = landing_flash * mix(0.82, 0.28, chain_tint_strength);
+	float confirmation_override = landing_flash * mix(0.82, 0.06, combo_active_signal);
 	live_core_color = mix(live_core_color, confirmation_core_color, confirmation_override);
 	// Streak briefly overrides the current quality hue, then gives it back.
 	live_core_color = mix(live_core_color, streak_amber_color, streak_hit * 0.72);
 	color = mix(color, live_core_color * core_brightness, core);
-	// Keep the segmented ring clear of the strongest core aura. Streak pushes
-	// the whole ring outward, then lets it settle back into its quality color.
-	// The original ring stroke remains intact: no dark track is painted beneath it.
-	float chain_ring_radius = core_radius + 0.16 + core_pulse * 0.008 + streak_hit * 0.10;
+	// Keep the segmented ring visibly separated from the core aura. The stroke
+	// is intentionally wider than the first prototype so colored qualities remain
+	// legible at mobile size; Streak animates a distinct expansion envelope.
+	float streak_sweep_t = clamp(streak_sweep_progress, 0.0, 1.0);
+	float streak_sweep_envelope = sin(PI * streak_sweep_t);
+	float chain_ring_radius = core_radius + 0.16 + core_pulse * 0.008 + streak_sweep_envelope * 0.085;
 	float chain_ring_distance = abs(d - chain_ring_radius);
-	float chain_ring = 1.0 - smoothstep(0.002, 0.028, chain_ring_distance);
+	float chain_ring = 1.0 - smoothstep(0.001, 0.040, chain_ring_distance);
 	float ring_angle_normalized = fract((angle + PI) / TAU);
-	float streak_sweep_position = fract(streak_sweep_progress);
+	float streak_sweep_position = streak_sweep_t;
 	float streak_sweep_distance = abs(fract(ring_angle_normalized - streak_sweep_position + 0.5) - 0.5);
-	float streak_sweep_head = exp(-pow(streak_sweep_distance / 0.075, 2.0));
-	float streak_trail_position = fract(streak_sweep_position - 0.065);
+	float streak_sweep_head = exp(-pow(streak_sweep_distance / 0.080, 2.0));
+	float streak_trail_position = fract(streak_sweep_position - 0.075);
 	float streak_trail_distance = abs(fract(ring_angle_normalized - streak_trail_position + 0.5) - 0.5);
-	float streak_sweep_trail = exp(-pow(streak_trail_distance / 0.12, 2.0)) * 0.32;
-	float streak_sweep_strength = streak_hit * max(streak_sweep_head, streak_sweep_trail);
+	float streak_sweep_trail = exp(-pow(streak_trail_distance / 0.15, 2.0)) * 0.44;
+	float streak_sweep_strength = streak_sweep_envelope * max(streak_sweep_head, streak_sweep_trail);
 	float ring_sector_position = ring_angle_normalized * 3.0;
 	float ring_sector_index = floor(ring_sector_position);
 	float ring_sector_phase = fract(ring_sector_position);
@@ -174,20 +178,22 @@ void fragment() {
 	if (quality_chain == 2) {
 		chain_ring_color = vec3(4.1, 5.0, 5.3); // Perfect: white-cyan
 	} else if (quality_chain == 1) {
-		chain_ring_color = vec3(2.65, 0.58, 6.45); // Epic progress: cooler electric indigo
+		chain_ring_color = vec3(2.8, 1.8, 6.5); // Epic progress: luminous cool violet-indigo
 	} else {
-		chain_ring_color = vec3(0.015, 1.55, 3.05); // Good: saturated cyan, less prone to bloom washout
+		chain_ring_color = vec3(0.08, 3.6, 5.8); // Good: bright saturated cyan
 	}
 	// Keep ring brightness independent of the core tint: the ring means progress,
 	// while the core hue change is reserved for Combo activation.
-	float ring_emission_strength = 0.46;
+	float ring_emission_strength = 0.78;
 	if (quality_chain == 1) {
-		ring_emission_strength = 0.56;
+		ring_emission_strength = 0.72;
+	} else if (quality_chain == 2) {
+		ring_emission_strength = 0.46;
 	}
-	float streak_ring_warmth = streak_hit * 0.14;
-	float streak_ring_mix = max(streak_ring_warmth, streak_sweep_strength * 0.96);
-	vec3 live_chain_ring_color = mix(chain_ring_color, streak_amber_color * 3.8, streak_ring_mix);
-	color += live_chain_ring_color * chain_ring_alpha * ring_light_strength * ring_emission_strength * aura_breath;
+	// Keep the grade color across every enabled segment; Streak is a separate
+	// additive amber sweep, so it reads as an event rather than a muddy recolor.
+	color += chain_ring_color * chain_ring_alpha * ring_light_strength * ring_emission_strength * aura_breath;
+	color += streak_amber_color * chain_ring_alpha * streak_sweep_strength * 0.82;
 	// A small pale-lavender glint moves over Epic segments to make their shape legible.
 	vec3 ring_highlight_color;
 	if (quality_chain == 1) {
@@ -197,13 +203,19 @@ void fragment() {
 	} else {
 		ring_highlight_color = vec3(0.08, 2.5, 4.2);
 	}
-	float ring_glint_strength = chain_ring_alpha * ring_travel_highlight * (1.0 - streak_hit * 0.85);
-	color += ring_highlight_color * ring_glint_strength * (quality_chain == 1 ? 0.24 : 0.08);
+	float ring_glint_strength = chain_ring_alpha * ring_travel_highlight * (1.0 - streak_sweep_strength * 0.70);
+	float ring_glint_scale = 0.16;
+	if (quality_chain == 1) {
+		ring_glint_scale = 0.28;
+	} else if (quality_chain == 2) {
+		ring_glint_scale = 0.08;
+	}
+	color += ring_highlight_color * ring_glint_strength * ring_glint_scale;
 	float core_aura =
 		1.0 - smoothstep(core_radius * 0.62, core_radius * 1.8, d);
 	float active_core_aura_suppression = 1.0 - core * chain_tint_strength * (combo_core_quality == 1 ? 0.96 : 0.72);
 	color += aura_color * core_aura * (0.28 + landing_charge * 0.20) * aura_breath * active_core_aura_suppression;
-	color += confirmation_core_color * core_aura * landing_flash * 0.24;
+	color += confirmation_core_color * core_aura * landing_flash * mix(0.24, 0.035, combo_active_signal);
 
 	// A fast, narrow rim flash makes confirmation visible without trying to
 	// push an already-white centre much brighter.
