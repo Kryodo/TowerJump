@@ -55,8 +55,10 @@ var _orb_core_blend: float = 0.0
 var _orb_core_blend_target: float = 0.0
 var _orb_core_activation_flash: float = 0.0
 var _orb_streak_activation_flash: float = 0.0
+var _orb_streak_sweep_progress: float = 0.0
 var _orb_core_activation_tween: Tween = null
 var _orb_streak_activation_tween: Tween = null
+var _orb_streak_sweep_tween: Tween = null
 var _combo_visual_tier: int = -1
 var _streak_visual_tier: int = -1
 
@@ -797,15 +799,27 @@ func _set_orb_core_activation_flash(value: float) -> void:
 func _play_orb_streak_activation() -> void:
 	if _orb_streak_activation_tween != null and _orb_streak_activation_tween.is_valid():
 		_orb_streak_activation_tween.kill()
+	if _orb_streak_sweep_tween != null and _orb_streak_sweep_tween.is_valid():
+		_orb_streak_sweep_tween.kill()
 	_orb_streak_activation_flash = 0.0
+	_orb_streak_sweep_progress = 0.0
 	_orb_streak_activation_tween = create_tween()
 	var flash_setter := Callable(self, "_set_orb_streak_activation_flash")
 	_orb_streak_activation_tween.tween_method(flash_setter, 0.0, 1.0, 0.08).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	_orb_streak_activation_tween.tween_method(flash_setter, 1.0, 0.0, 0.36).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	# This separate linear tween makes the amber highlight travel one full orbit
+	# from a predictable starting point during the same activation.
+	_orb_streak_sweep_tween = create_tween()
+	var sweep_setter := Callable(self, "_set_orb_streak_sweep_progress")
+	_orb_streak_sweep_tween.tween_method(sweep_setter, 0.0, 1.0, 0.42)
 
 
 func _set_orb_streak_activation_flash(value: float) -> void:
 	_orb_streak_activation_flash = clampf(value, 0.0, 1.0)
+
+
+func _set_orb_streak_sweep_progress(value: float) -> void:
+	_orb_streak_sweep_progress = clampf(value, 0.0, 1.0)
 
 
 func _update_orb_core_blend(delta: float) -> void:
@@ -819,6 +833,7 @@ func _update_orb_core_blend(delta: float) -> void:
 	material.set_shader_parameter("combo_core_blend", _orb_core_blend)
 	material.set_shader_parameter("combo_activation_flash", _orb_core_activation_flash)
 	material.set_shader_parameter("streak_activation_flash", _orb_streak_activation_flash)
+	material.set_shader_parameter("streak_sweep_progress", _orb_streak_sweep_progress)
 
 func _set_indicator(label: Label, text_value: String, color: Color, animate: bool) -> void:
 	if label == null:
