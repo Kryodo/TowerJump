@@ -21,7 +21,7 @@ const STATUS_SIZE := Vector2(184.0, 52.0)
 const CLUTCH_SIZE := Vector2(144.0, 30.0)
 
 const GOOD_COLOR := Color(0.40, 0.86, 1.0, 1.0)
-const EPIC_COLOR := Color(0.60, 0.22, 1.0, 1.0)
+const EPIC_COLOR := Color(0.92, 0.12, 1.0, 1.0)
 const PERFECT_COLOR := Color(0.86, 0.98, 1.0, 1.0)
 const STREAK_COLOR := Color(1.0, 0.56, 0.16, 1.0)
 const SCORE_COLOR := Color(1.0, 0.82, 0.34, 1.0)

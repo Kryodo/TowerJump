@@ -12,7 +12,7 @@ const ARC_STEPS_PER_RADIAN: float = 34.0
 const STREAK_EXPANSION_DISTANCE: float = 3.6
 
 const GOOD_COLOR := Color(0.05, 0.80, 1.0, 1.0)
-const EPIC_COLOR := Color(0.60, 0.22, 1.0, 1.0)
+const EPIC_COLOR := Color(0.92, 0.12, 1.0, 1.0)
 const PERFECT_COLOR := Color(0.82, 0.98, 1.0, 1.0)
 const CONTOUR_COLOR := Color(0.075, 0.055, 0.17, 0.40)
 const STREAK_AMBER := Color(1.0, 0.52, 0.12, 1.0)
