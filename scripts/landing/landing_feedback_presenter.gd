@@ -547,18 +547,16 @@ func _update_status_follow(delta: float) -> void:
 	_status_root.modulate.a = _get_status_edge_visibility(ball_screen, viewport_size)
 
 func _layout_status_row(caption: Label, counter: Label, caption_y: float, counter_y: float) -> void:
-	# Mirror the text arrangement too: the numeric value remains closest to the
-	# orb, at the same gap, whether the status is attached to the left or right.
+	# Keep the reading order consistent on both sides: caption first, counter
+	# second. Right-align the group on the left side so it sits neatly beside the orb.
+	caption.position = Vector2(0.0, caption_y)
+	counter.position = Vector2(84.0, counter_y)
 	if _status_anchor_side > 0:
-		caption.position = Vector2(0.0, caption_y)
 		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		counter.position = Vector2(84.0, counter_y)
 		counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	else:
-		counter.position = Vector2(0.0, counter_y)
-		counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		caption.position = Vector2(100.0, caption_y)
 		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
 
 func _on_combo_state_changed(state: Dictionary) -> void:
