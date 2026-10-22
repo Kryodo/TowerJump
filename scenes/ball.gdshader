@@ -121,7 +121,7 @@ void fragment() {
 	if (combo_core_quality == 2) {
 		combo_core_color = vec3(5.2, 6.0, 6.3); // Perfect: brilliant white-cyan
 	} else if (combo_core_quality == 1) {
-		combo_core_color = vec3(4.0, 0.12, 6.4); // Epic: saturated violet, separated from the outer aura
+		combo_core_color = vec3(3.0, 0.08, 8.0); // Epic: bright electric violet, cooler than the magenta aura
 	} else {
 		combo_core_color = vec3(0.015, 1.35, 2.70); // Good: saturated cyan, with less white-producing emission
 	}
@@ -178,7 +178,7 @@ void fragment() {
 	if (quality_chain == 2) {
 		chain_ring_color = vec3(4.1, 5.0, 5.3); // Perfect: white-cyan
 	} else if (quality_chain == 1) {
-		chain_ring_color = vec3(2.8, 1.8, 6.5); // Epic progress: luminous cool violet-indigo
+		chain_ring_color = vec3(2.3, 0.25, 7.6); // Epic progress: saturated violet-indigo, not near-white
 	} else {
 		chain_ring_color = vec3(0.08, 3.6, 5.8); // Good: bright saturated cyan
 	}
@@ -197,7 +197,7 @@ void fragment() {
 	// A small pale-lavender glint moves over Epic segments to make their shape legible.
 	vec3 ring_highlight_color;
 	if (quality_chain == 1) {
-		ring_highlight_color = vec3(3.8, 3.6, 6.5);
+		ring_highlight_color = vec3(3.0, 0.72, 7.8);
 	} else if (quality_chain == 2) {
 		ring_highlight_color = vec3(4.3, 5.0, 5.3);
 	} else {
