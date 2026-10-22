@@ -4,19 +4,21 @@ extends Node2D
 
 const SEGMENT_COUNT := 3
 const SEGMENT_STEP: float = TAU / 3.0
-const SEGMENT_GAP: float = 0.22
-const RING_RADIUS: float = 14.5
-const RING_WIDTH: float = 1.35
-const CONTOUR_WIDTH: float = 2.15
+const SEGMENT_GAP: float = 0.16
+const RING_RADIUS: float = 20.5
+const RING_WIDTH: float = 2.75
+const CONTOUR_WIDTH: float = 3.25
 const ARC_STEPS_PER_RADIAN: float = 34.0
-const STREAK_EXPANSION_DISTANCE: float = 2.8
+const STREAK_EXPANSION_DISTANCE: float = 3.6
 
 const GOOD_COLOR := Color(0.05, 0.80, 1.0, 1.0)
 const EPIC_COLOR := Color(0.60, 0.22, 1.0, 1.0)
 const PERFECT_COLOR := Color(0.82, 0.98, 1.0, 1.0)
-const CONTOUR_COLOR := Color(0.075, 0.055, 0.17, 0.58)
+const CONTOUR_COLOR := Color(0.075, 0.055, 0.17, 0.40)
 const STREAK_AMBER := Color(1.0, 0.52, 0.12, 1.0)
 const STREAK_HIGHLIGHT := Color(1.0, 0.90, 0.55, 1.0)
+const RIBBON_GLOW_WIDTH: float = 6.2
+const RIBBON_GLOW_ALPHA: float = 0.25
 
 var _active_segments: int = 0
 var _quality: String = "GOOD"
@@ -143,9 +145,9 @@ func _draw_ribbon(
 			taper = 0.015 + 0.985 * pow(maxf(sin(PI * t), 0.0), 0.62)
 
 		var radial_wave: float = (
-			sin(angle * 2.0 + _motion_time * 1.35 + phase) * 0.28
-			+ sin(angle * 5.0 - _motion_time * 1.85 + phase * 1.7) * 0.12
-			+ sin(angle * 3.0 + _motion_time * 0.72 + phase) * 0.10
+			sin(angle * 2.0 + _motion_time * 1.35 + phase) * 0.40
+			+ sin(angle * 5.0 - _motion_time * 1.85 + phase * 1.7) * 0.16
+			+ sin(angle * 3.0 + _motion_time * 0.72 + phase) * 0.13
 		)
 		var center_radius: float = radius + radial_wave
 		var half_width: float = width * 0.5 * taper
@@ -155,10 +157,10 @@ func _draw_ribbon(
 
 		var edge_alpha: float = ribbon_color.a * taper
 		outer_colors.append(Color(
-			ribbon_color.r * 0.72,
-			ribbon_color.g * 0.78,
-			ribbon_color.b * 0.92,
-			edge_alpha * 0.72
+			ribbon_color.r * 0.88,
+			ribbon_color.g * 0.90,
+			ribbon_color.b * 0.97,
+			edge_alpha * 0.84
 		))
 		inner_colors.append(Color(
 			ribbon_color.r,
@@ -187,8 +189,8 @@ func _draw_segment_flow(
 	segment_color: Color
 ) -> void:
 	var span: float = end_angle - start_angle
-	var streak_length: float = 0.36
-	var flow_t: float = fposmod(_motion_time * 0.34 + float(segment_index) * 0.31, 1.0)
+	var streak_length: float = 0.42
+	var flow_t: float = fposmod(_motion_time * 0.46 + float(segment_index) * 0.31, 1.0)
 	var flow_center: float = start_angle + streak_length * 0.5 + flow_t * maxf(span - streak_length, 0.01)
 	var flow_start: float = flow_center - streak_length * 0.5
 	var flow_end: float = flow_center + streak_length * 0.5
@@ -200,24 +202,24 @@ func _draw_segment_flow(
 		segment_color.r,
 		segment_color.g,
 		segment_color.b,
-		0.27 * flow_brightness
+		0.48 * flow_brightness
 	)
 	_draw_ribbon(
 		flow_start - 0.10,
 		flow_end + 0.08,
 		radius,
-		0.76,
+		1.12,
 		wisp,
 		float(segment_index) * 1.4 + 0.8
 	)
 
 	var glint_color: Color = segment_color.lerp(Color.WHITE, 0.20)
-	glint_color.a = 0.74 * flow_brightness
+	glint_color.a = 0.94 * flow_brightness
 	_draw_ribbon(
 		flow_start,
 		flow_end,
 		radius - 0.10,
-		0.78,
+		1.12,
 		glint_color,
 		float(segment_index) * 1.2
 	)
@@ -233,6 +235,16 @@ func _draw() -> void:
 	for segment_index in range(_active_segments):
 		var start_angle: float = -PI * 0.5 + float(segment_index) * SEGMENT_STEP + SEGMENT_GAP * 0.5
 		var end_angle: float = start_angle + SEGMENT_STEP - SEGMENT_GAP
+		var glow_color: Color = segment_color
+		glow_color.a = RIBBON_GLOW_ALPHA
+		_draw_ribbon(
+			start_angle,
+			end_angle,
+			radius,
+			RIBBON_GLOW_WIDTH,
+			glow_color,
+			float(segment_index) * 0.6 + 0.15
+		)
 		_draw_ribbon(
 			start_angle,
 			end_angle,
@@ -254,7 +266,7 @@ func _draw() -> void:
 	if _streak_sweep_strength <= 0.001:
 		return
 
-	var sweep_length: float = 0.68
+	var sweep_length: float = 0.88
 	var sweep_center: float = -PI * 0.5 + TAU * _streak_sweep_progress
 	var sweep_start: float = sweep_center - sweep_length * 0.5
 	var sweep_end: float = sweep_center + sweep_length * 0.5
@@ -264,9 +276,9 @@ func _draw() -> void:
 		STREAK_AMBER.r,
 		STREAK_AMBER.g,
 		STREAK_AMBER.b,
-		0.22 * _streak_sweep_strength
+		0.34 * _streak_sweep_strength
 	)
-	_draw_ribbon(sweep_start, sweep_end, streak_radius, 3.0, streak_glow, 0.4)
+	_draw_ribbon(sweep_start, sweep_end, streak_radius, 5.0, streak_glow, 0.4)
 
 	var streak_core := Color(
 		STREAK_AMBER.r,
@@ -274,7 +286,7 @@ func _draw() -> void:
 		STREAK_AMBER.b,
 		0.98 * _streak_sweep_strength
 	)
-	_draw_ribbon(sweep_start, sweep_end, streak_radius, 1.85, streak_core, 0.7)
+	_draw_ribbon(sweep_start, sweep_end, streak_radius, 2.8, streak_core, 0.7)
 
 	var streak_highlight := Color(
 		STREAK_HIGHLIGHT.r,
@@ -282,4 +294,4 @@ func _draw() -> void:
 		STREAK_HIGHLIGHT.b,
 		0.82 * _streak_sweep_strength
 	)
-	_draw_ribbon(sweep_start + 0.03, sweep_end - 0.03, streak_radius - 0.10, 0.62, streak_highlight, 1.2)
+	_draw_ribbon(sweep_start + 0.03, sweep_end - 0.03, streak_radius - 0.10, 1.0, streak_highlight, 1.2)
