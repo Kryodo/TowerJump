@@ -67,7 +67,7 @@ var _combo_visual_tier: int = -1
 var _streak_visual_tier: int = -1
 var _indicator_energy_tweens: Dictionary = {}
 var _indicator_energy_targets: Dictionary = {}
-var _indicator_energy_fields: Dictionary = {}
+var _indicator_energy_field: Control
 
 
 func _ready() -> void:
@@ -143,6 +143,7 @@ func _create_state_indicators() -> void:
 	_attach_state_energy_material(_combo_counter, GOOD_COLOR, 26.0)
 	_attach_state_energy_material(_streak_label, STREAK_COLOR, 38.0)
 	_attach_state_energy_material(_streak_counter, STREAK_COLOR, 38.0)
+	_create_shared_state_energy_field()
 
 
 func _attach_state_energy_material(label: Label, tint: Color, speed: float) -> void:
@@ -154,18 +155,19 @@ func _attach_state_energy_material(label: Label, tint: Color, speed: float) -> v
 	material.set_shader_parameter("flow_period", 92.0)
 	label.material = material
 
-	# This child draws on top of the glyphs, so tiny moving motes and short,
-	# curved filaments can cross letter strokes and slip through the gaps.
-	var energy_field := Control.new()
-	energy_field.name = "StateIndicatorEnergyField"
-	energy_field.set_script(STATE_INDICATOR_ENERGY_FIELD_SCRIPT)
-	energy_field.position = Vector2(-5.0, -4.0)
-	energy_field.size = label.size + Vector2(10.0, 8.0)
-	energy_field.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	energy_field.z_index = 1
-	label.add_child(energy_field)
-	_indicator_energy_fields[label.name] = energy_field
-	energy_field.call("set_energy", 0.0, tint, speed)
+
+func _create_shared_state_energy_field() -> void:
+	# One continuous field covers the full indicator instead of decorating each
+	# label separately. Filaments can weave around both rows as one energy flow.
+	_indicator_energy_field = Control.new()
+	_indicator_energy_field.name = "StateIndicatorEnergyField"
+	_indicator_energy_field.set_script(STATE_INDICATOR_ENERGY_FIELD_SCRIPT)
+	_indicator_energy_field.position = Vector2.ZERO
+	_indicator_energy_field.size = STATUS_SIZE
+	_indicator_energy_field.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_indicator_energy_field.z_index = 1
+	_status_root.add_child(_indicator_energy_field)
+	_indicator_energy_field.call("set_energy", 0.0, GOOD_COLOR, 34.0)
 
 
 func _set_state_indicator_energy(
@@ -203,6 +205,22 @@ func _set_state_indicator_energy(
 		STREAK_COLOR.lerp(Color.WHITE, 0.14), 44.0, streak_just_activated
 	)
 
+	# One shared set of filaments energizes the entire two-row indicator.
+	if _indicator_energy_field != null:
+		var field_strength: float = 0.0
+		var field_tint: Color = quality_color
+		var field_speed: float = 34.0
+		if combo_active:
+			field_strength = 0.78
+		if streak_active:
+			field_strength = 1.0
+			field_tint = STREAK_COLOR
+			field_speed = 48.0
+		_indicator_energy_field.call(
+			"set_energy", field_strength, field_tint, field_speed,
+			combo_just_activated or streak_just_activated
+		)
+
 
 func _set_state_label_energy(
 	label: Label,
@@ -219,11 +237,6 @@ func _set_state_label_energy(
 
 	material.set_shader_parameter("flow_tint", tint)
 	material.set_shader_parameter("flow_speed", speed)
-	var energy_field := _indicator_energy_fields.get(label.name) as Control
-	if energy_field != null:
-		energy_field.call(
-			"set_energy", float(material.get_shader_parameter("flow_strength")), tint, speed
-		)
 
 	var target: float = clampf(target_strength, 0.0, 1.0)
 	var previous_target: float = float(_indicator_energy_targets.get(label.name, -1.0))
@@ -266,9 +279,6 @@ func _set_state_label_flow_strength(value: float, label: Label) -> void:
 	var material := label.material as ShaderMaterial
 	if material != null:
 		material.set_shader_parameter("flow_strength", value)
-	var energy_field := _indicator_energy_fields.get(label.name) as Control
-	if energy_field != null:
-		energy_field.call("set_strength", value)
 
 
 func _update_state_indicator_motion() -> void:
