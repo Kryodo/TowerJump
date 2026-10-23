@@ -3,6 +3,8 @@ shader_type canvas_item;
 uniform int palette_mode = 0;
 uniform float pulse_progress = -1.0;
 uniform float pulse_strength = 0.0;
+uniform float combo_energy = 0.0;
+uniform vec3 combo_tint = vec3(0.24, 1.02, 1.42);
 
 // Preserve the TrailAura gradient as the base color. A passing pulse adds a
 // short-lived highlight strongest along each outside edge of the ribbon.
@@ -29,10 +31,22 @@ void fragment() {
 		pulse_color = vec3(0.62, 1.18, 1.72);
 	}
 
+	// A restrained current runs along the aura for as long as Combo remains
+	// active, tying the outer silhouette to the moving energy inside the skin.
+	float combo_wave = 0.5 + 0.5 * sin(
+		along * 18.0 - TIME * 2.25 + sin(along * 5.0 + TIME * 0.55)
+	);
+	float combo_current = combo_energy
+		* (0.45 + combo_wave * 0.55)
+		* smoothstep(0.18, 0.72, edge_distance)
+		* (1.0 - smoothstep(0.72, 1.0, along));
+	aura.rgb = mix(aura.rgb, combo_tint, combo_current * 0.095);
+	aura.rgb += combo_tint * combo_current * 0.045;
+
 	float edge_flash = pulse * edge_factor;
 	aura.rgb = mix(aura.rgb, pulse_color, pulse * 0.12);
 	aura.rgb += pulse_color * edge_flash * 0.72;
-	aura.a = clamp(aura.a + pulse * 0.025 + edge_flash * 0.24, 0.0, 0.98);
+	aura.a = clamp(aura.a + combo_current * 0.014 + pulse * 0.025 + edge_flash * 0.24, 0.0, 0.98);
 	aura.a *= edge_fade;
 	COLOR = aura;
 }

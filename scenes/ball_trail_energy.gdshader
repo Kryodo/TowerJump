@@ -10,6 +10,8 @@ uniform float pulse_progress = -1.0;
 uniform float pulse_strength = 0.0;
 uniform float landing_kick_strength = 0.0;
 uniform float landing_kick_progress = 0.0;
+uniform float combo_energy = 0.0;
+uniform vec3 combo_tint = vec3(0.24, 1.02, 1.42);
 
 
 // ------------------------------------------------------------
@@ -200,6 +202,23 @@ void fragment()
 		0.78 + 0.22 * sin(uv.x * 25.0 - time * 1.7 + sin(uv.x * 8.0 + time * 0.4));
 	float edge_strength = edge_ridge * edge_waver * trail_fade;
 
+	// Existing turbulence becomes more coherent and luminous while Combo is
+	// active. The wave travels with the plasma rather than spawning new particles.
+	float combo_wave = 0.5 + 0.5 * sin(
+		uv.x * 18.0 - time * 2.35
+		+ sin(uv.x * 6.0 + time * 0.55)
+		+ uv.y * 2.2
+	);
+	float combo_current = clamp(
+		(field * 0.38 + fine * 0.62)
+		* (0.72 + combo_wave * 0.28)
+		* combo_energy
+		* trail_fade,
+		0.0,
+		1.0
+	);
+	energy += combo_current * 0.11;
+
 	// The same travelling pulse used by the body and outer aura briefly
 	// strengthens the core and pushes a bright ridge toward the ribbon edges.
 	float pulse_gate = step(0.0, pulse_progress);
@@ -270,6 +289,8 @@ void fragment()
 	final_color += edge_color * edge_strength * 0.43;
 	final_color += edge_color * travelling_pulse * 0.30;
 	final_color += landing_kick_color * landing_head_kick * 0.24;
+	final_color = mix(final_color, combo_tint, combo_current * 0.24);
+	final_color += combo_tint * combo_current * 0.085;
 
 	COLOR = vec4(
 		final_color,

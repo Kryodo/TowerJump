@@ -77,6 +77,14 @@ const LANDING_CONFIRMATION_DURATION: float = 0.26
 const LANDING_RIM_CONFIRMATION_DURATION: float = 0.38
 const LANDING_ANTICIPATION_RESPONSE: float = 10.0
 
+# Persistent Combo tint follows the same Good / Epic / Perfect palette as the
+# orb indicators, while the rest of the comet retains its current zone palette.
+const COMBO_GOOD_TINT := Vector3(0.24, 1.02, 1.42)
+const COMBO_EPIC_TINT := Vector3(1.28, 0.13, 1.48)
+const COMBO_PERFECT_TINT := Vector3(1.20, 1.62, 1.78)
+const COMBO_BLEND_IN_RATE: float = 3.8
+const COMBO_BLEND_OUT_RATE: float = 2.8
+
 var _latest_trail_path: Array[Vector2] = []
 var _latest_trail_distances: Array[float] = []
 var _latest_trail_tangents: Array[Vector2] = []
@@ -90,6 +98,10 @@ var _landing_burst_normals: Array[Vector2] = []
 var _landing_burst_half_widths: Array[float] = []
 var _landing_burst_total_distance: float = 0.0
 var _landing_burst_snapshot_valid: bool = false
+
+var _combo_energy_current: float = 0.0
+var _combo_energy_target: float = 0.0
+var _combo_tint: Vector3 = COMBO_GOOD_TINT
 
 func _ready() -> void:
 	z_index = -1
@@ -289,6 +301,7 @@ func _process(delta: float) -> void:
 		return
 
 	_trail_time += delta
+	_update_combo_energy(delta)
 	if not shedding_enabled:
 		_surface_burst_remaining = 0
 		_surface_burst_clock = 0.0
@@ -317,6 +330,49 @@ func _process(delta: float) -> void:
 	_previous_ball_position = current_world_position
 
 
+func _update_combo_energy(delta: float) -> void:
+	# Smoothly transition the whole comet into/out of its persistent Combo state.
+	# The shaders supply the moving currents; this value only controls their state.
+	var blend_rate: float = (
+		COMBO_BLEND_IN_RATE
+		if _combo_energy_target > _combo_energy_current
+		else COMBO_BLEND_OUT_RATE
+	)
+	_combo_energy_current = move_toward(
+		_combo_energy_current,
+		_combo_energy_target,
+		delta * blend_rate
+	)
+
+	_apply_combo_state_to_material(_unified_shape)
+	_apply_combo_state_to_material(_energy_line)
+	_apply_combo_state_to_material(_trail_aura)
+	_apply_combo_state_to_material(_rim_aura)
+
+
+func _apply_combo_state_to_material(item: CanvasItem) -> void:
+	if item == null or not is_instance_valid(item):
+		return
+	var shader_material := item.material as ShaderMaterial
+	if shader_material == null:
+		return
+	shader_material.set_shader_parameter("combo_energy", _combo_energy_current)
+	shader_material.set_shader_parameter("combo_tint", _combo_tint)
+
+
+func _on_combo_state_changed(state: Dictionary) -> void:
+	var combo_active: bool = bool(state.get("combo_active", false))
+	_combo_energy_target = 1.0 if combo_active else 0.0
+
+	match str(state.get("quality", "GOOD")):
+		"EPIC":
+			_combo_tint = COMBO_EPIC_TINT
+		"PERFECT":
+			_combo_tint = COMBO_PERFECT_TINT
+		_:
+			_combo_tint = COMBO_GOOD_TINT
+
+
 func _update_rim_breath() -> void:
 	# Keep the orb rim, its outer halo, and the trail response visually linked.
 	var breathing: float = 0.5 + 0.5 * sin(_trail_time * 1.35)
@@ -336,7 +392,15 @@ func _update_rim_breath() -> void:
 		if rim_aura_material != null:
 			rim_aura_material.set_shader_parameter("rim_breath", rim_breath)
 	if _unified_contour != null:
-		_unified_contour.modulate = Color(rim_breath, rim_breath, rim_breath, 1.0)
+		var contour_modulate := Color(rim_breath, rim_breath, rim_breath, 1.0)
+		if _combo_energy_current > 0.001:
+			var contour_tint: Vector3 = _combo_tint.normalized()
+			var quality_tint := Color(contour_tint.x, contour_tint.y, contour_tint.z, 1.0)
+			contour_modulate = contour_modulate.lerp(
+				quality_tint,
+				_combo_energy_current * 0.16
+			)
+		_unified_contour.modulate = contour_modulate
 
 
 func _update_trail_lines(delta: float = 0.0) -> void:
@@ -601,37 +665,46 @@ func _connect_landing_feedback() -> void:
 	# The main game scene owns this coordinator. Test rooms without it continue
 	# to render the trail without raising any landing-triggered feedback.
 	var controller := scene_root.get_node_or_null("LandingFeedbackController")
-	if controller == null:
-		return
+	if controller != null:
+		var approach_callback := Callable(self, "_on_landing_approach_updated")
+		if (
+			controller.has_signal("landing_approach_updated")
+			and not controller.is_connected("landing_approach_updated", approach_callback)
+		):
+			controller.connect("landing_approach_updated", approach_callback)
 
-	var approach_callback := Callable(self, "_on_landing_approach_updated")
-	if (
-		controller.has_signal("landing_approach_updated")
-		and not controller.is_connected("landing_approach_updated", approach_callback)
-	):
-		controller.connect("landing_approach_updated", approach_callback)
+		var target_callback := Callable(self, "_on_landing_target_changed")
+		if (
+			controller.has_signal("landing_target_changed")
+			and not controller.is_connected("landing_target_changed", target_callback)
+		):
+			controller.connect("landing_target_changed", target_callback)
 
-	var target_callback := Callable(self, "_on_landing_target_changed")
-	if (
-		controller.has_signal("landing_target_changed")
-		and not controller.is_connected("landing_target_changed", target_callback)
-	):
-		controller.connect("landing_target_changed", target_callback)
+		var landing_callback := Callable(self, "_on_landing_confirmed")
+		if (
+			controller.has_signal("landing_confirmed")
+			and not controller.is_connected("landing_confirmed", landing_callback)
+		):
+			controller.connect("landing_confirmed", landing_callback)
 
-	var landing_callback := Callable(self, "_on_landing_confirmed")
-	if (
-		controller.has_signal("landing_confirmed")
-		and not controller.is_connected("landing_confirmed", landing_callback)
-	):
-		controller.connect("landing_confirmed", landing_callback)
-
-	# Special full-ribbon releases count scored ascent progress, not every
-	# physical contact, so rejected repeats cannot trigger the milestone.
+	# Scoring events drive the momentary full-ribbon release, while combo-state
+	# events drive the persistent comet energy independently of landing pulses.
 	var score_controller := scene_root.get_node_or_null("LandingScoreController")
-	if score_controller != null and score_controller.has_signal("landing_scored"):
-		var score_callback := Callable(self, "_on_landing_scored_for_full_release")
-		if not score_controller.is_connected("landing_scored", score_callback):
-			score_controller.connect("landing_scored", score_callback)
+	if score_controller != null:
+		if score_controller.has_signal("landing_scored"):
+			var score_callback := Callable(self, "_on_landing_scored_for_full_release")
+			if not score_controller.is_connected("landing_scored", score_callback):
+				score_controller.connect("landing_scored", score_callback)
+
+		var combo_state_callback := Callable(self, "_on_combo_state_changed")
+		if (
+			score_controller.has_signal("combo_state_changed")
+			and not score_controller.is_connected("combo_state_changed", combo_state_callback)
+		):
+			score_controller.connect("combo_state_changed", combo_state_callback)
+		if score_controller.has_method("get_combo_state"):
+			var initial_combo_state: Dictionary = score_controller.call("get_combo_state")
+			_on_combo_state_changed(initial_combo_state)
 
 
 func _on_landing_target_changed(_previous_target: Node2D, new_target: Node2D) -> void:

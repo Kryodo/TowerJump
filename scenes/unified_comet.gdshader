@@ -8,6 +8,8 @@ uniform float flow_speed = 0.9;
 uniform float surface_flow_strength : hint_range(0.0, 0.5) = 0.16;
 uniform float pulse_progress = -1.0;
 uniform float pulse_strength = 0.0;
+uniform float combo_energy = 0.0;
+uniform vec3 combo_tint = vec3(0.24, 1.02, 1.42);
 
 // Deterministic noise shared with the inner energy shader.
 float hash21(vec2 p) {
@@ -112,6 +114,23 @@ void fragment() {
 	core_influence += travelling_pulse * 0.20;
 	body_color = mix(body_color, inner_energy_color, clamp(core_influence, 0.0, 0.65));
 	body_color *= flow;
+
+	// Combo leaves a persistent moving current in the translucent membrane.
+	// Its intensity is driven by the same eased state as the orb rim and core.
+	float combo_wave = 0.5 + 0.5 * sin(
+		along * 18.0 - time * 2.4 + distortion * 4.2 + across * 3.5
+	);
+	float combo_current = clamp(
+		(surface_current * 0.42 + moving_filaments * 0.58)
+		* (0.70 + combo_wave * 0.30)
+		* combo_energy
+		* tail_fade,
+		0.0,
+		1.0
+	);
+	body_color = mix(body_color, combo_tint, combo_current * 0.18);
+	body_color += combo_tint * combo_current * 0.075;
+
 	// The travelling current briefly lights the membrane's outer edges as well as its core.
 	body_color += pulse_color * travelling_pulse * edge_mask * 0.52;
 
@@ -121,7 +140,8 @@ void fragment() {
 	float body_alpha = translucent_body_alpha * mix(0.93, 1.06, surface_presence);
 	float core_alpha = center_energy * (0.10 + surface_current * 0.02) * head_energy;
 	float pulse_alpha = travelling_pulse * (0.025 + edge_mask * 0.11);
-	float alpha = clamp((body_alpha + core_alpha + pulse_alpha) * tail_fade, 0.0, 0.94);
+	float combo_alpha = combo_current * (0.010 + edge_mask * 0.012);
+	float alpha = clamp((body_alpha + core_alpha + pulse_alpha + combo_alpha) * tail_fade, 0.0, 0.94);
 	alpha = clamp(alpha * fragment_alpha_boost, 0.0, 0.94);
 
 	COLOR = vec4(body_color, alpha);
