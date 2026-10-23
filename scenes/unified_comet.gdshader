@@ -63,7 +63,7 @@ void fragment() {
 	float travelling_pulse = pulse_band * pulse_strength * tail_fade;
 	float edge_mask = smoothstep(0.24, 0.82, abs(across * 2.0 - 1.0));
 
-	float time = TIME * flow_speed;
+	float time = TIME * flow_speed * (1.0 + combo_energy * 0.42);
 
 	// Reuse the inner stream's warped noise coordinates so the body current
 	// travels with its plasma instead of reading like a separate painted layer.
@@ -128,8 +128,24 @@ void fragment() {
 		0.0,
 		1.0
 	);
-	body_color = mix(body_color, combo_tint, combo_current * 0.18);
-	body_color += combo_tint * combo_current * 0.075;
+
+	// Two irregular threads travel inside the membrane while Combo is active.
+	// Their centers bend with the plasma distortion, so they read as living
+	// currents inside the ribbon instead of fixed decorative stripes.
+	float thread_phase = along * 10.5 - time * 1.85
+		+ sin(along * 4.1 + time * 0.72 + distortion * 3.2);
+	float thread_a = 0.29 + 0.12 * sin(thread_phase);
+	float thread_b = 0.70 + 0.10 * sin(thread_phase * 0.91 + 1.9 + distortion);
+	float thread_flicker = 0.72 + 0.28 * sin(along * 26.0 - time * 3.1 + across * 5.0);
+	float combo_threads = (
+		exp(-pow((across - thread_a) / 0.058, 2.0)) * 0.72
+		+ exp(-pow((across - thread_b) / 0.052, 2.0)) * 0.66
+	) * thread_flicker * combo_energy * tail_fade;
+
+	body_color = mix(body_color, combo_tint, combo_current * 0.32);
+	body_color += combo_tint * combo_current * 0.14;
+	body_color = mix(body_color, combo_tint, combo_threads * 0.24);
+	body_color += combo_tint * combo_threads * 0.28;
 
 	// The travelling current briefly lights the membrane's outer edges as well as its core.
 	body_color += pulse_color * travelling_pulse * edge_mask * 0.52;
@@ -140,7 +156,8 @@ void fragment() {
 	float body_alpha = translucent_body_alpha * mix(0.93, 1.06, surface_presence);
 	float core_alpha = center_energy * (0.10 + surface_current * 0.02) * head_energy;
 	float pulse_alpha = travelling_pulse * (0.025 + edge_mask * 0.11);
-	float combo_alpha = combo_current * (0.010 + edge_mask * 0.012);
+	float combo_alpha = combo_current * (0.018 + edge_mask * 0.020);
+	combo_alpha += combo_threads * (0.032 + edge_mask * 0.018);
 	float alpha = clamp((body_alpha + core_alpha + pulse_alpha + combo_alpha) * tail_fade, 0.0, 0.94);
 	alpha = clamp(alpha * fragment_alpha_boost, 0.0, 0.94);
 

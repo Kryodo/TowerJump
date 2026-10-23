@@ -33,20 +33,23 @@ void fragment() {
 
 	// A restrained current runs along the aura for as long as Combo remains
 	// active, tying the outer silhouette to the moving energy inside the skin.
+	float combo_time = TIME * (1.0 + combo_energy * 0.45);
 	float combo_wave = 0.5 + 0.5 * sin(
-		along * 18.0 - TIME * 2.25 + sin(along * 5.0 + TIME * 0.55)
+		along * 18.0 - combo_time * 2.25 + sin(along * 5.0 + combo_time * 0.55)
 	);
 	float combo_current = combo_energy
-		* (0.45 + combo_wave * 0.55)
+		* (0.35 + combo_wave * 0.65)
 		* smoothstep(0.18, 0.72, edge_distance)
 		* (1.0 - smoothstep(0.72, 1.0, along));
-	aura.rgb = mix(aura.rgb, combo_tint, combo_current * 0.095);
-	aura.rgb += combo_tint * combo_current * 0.045;
+	// More visible animated light along the outside of the ribbon makes the
+	// whole comet feel awake, while the feathered aura still stays translucent.
+	aura.rgb = mix(aura.rgb, combo_tint, combo_current * 0.20);
+	aura.rgb += combo_tint * combo_current * 0.10;
 
 	float edge_flash = pulse * edge_factor;
 	aura.rgb = mix(aura.rgb, pulse_color, pulse * 0.12);
 	aura.rgb += pulse_color * edge_flash * 0.72;
-	aura.a = clamp(aura.a + combo_current * 0.014 + pulse * 0.025 + edge_flash * 0.24, 0.0, 0.98);
+	aura.a = clamp(aura.a + combo_current * 0.035 + pulse * 0.025 + edge_flash * 0.24, 0.0, 0.98);
 	aura.a *= edge_fade;
 	COLOR = aura;
 }

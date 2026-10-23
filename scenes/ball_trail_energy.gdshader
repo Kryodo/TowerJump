@@ -77,7 +77,7 @@ void fragment()
 	vec2 uv = UV;
 	uv.x = clamp(trail_progress_start + uv.x * trail_progress_scale, 0.0, 1.0);
 
-	float time = TIME * flow_speed;
+	float time = TIME * flow_speed * (1.0 + combo_energy * 0.58);
 
 	// --------------------------------------------------------
 	// Center of the energy channel
@@ -217,7 +217,20 @@ void fragment()
 		0.0,
 		1.0
 	);
-	energy += combo_current * 0.11;
+
+	// Paired filaments snake through the ribbon and travel toward its tail.
+	// They become part of the existing plasma field only while Combo is active.
+	float thread_phase = uv.x * 11.0 - time * 2.3
+		+ sin(uv.x * 4.8 + time * 0.62);
+	float thread_a = 0.28 + 0.13 * sin(thread_phase);
+	float thread_b = 0.72 + 0.10 * sin(thread_phase * 0.88 + 2.1);
+	float thread_flicker = 0.78 + 0.22 * sin(uv.x * 27.0 - time * 2.8 + uv.y * 4.0);
+	float combo_threads = (
+		exp(-pow((uv.y - thread_a) / 0.050, 2.0)) * 0.85
+		+ exp(-pow((uv.y - thread_b) / 0.045, 2.0)) * 0.78
+	) * thread_flicker * combo_energy * trail_fade;
+
+	energy = min(energy + combo_current * 0.16 + combo_threads * 0.44, 2.0);
 
 	// The same travelling pulse used by the body and outer aura briefly
 	// strengthens the core and pushes a bright ridge toward the ribbon edges.
@@ -289,8 +302,10 @@ void fragment()
 	final_color += edge_color * edge_strength * 0.43;
 	final_color += edge_color * travelling_pulse * 0.30;
 	final_color += landing_kick_color * landing_head_kick * 0.24;
-	final_color = mix(final_color, combo_tint, combo_current * 0.24);
-	final_color += combo_tint * combo_current * 0.085;
+	final_color = mix(final_color, combo_tint, combo_current * 0.38);
+	final_color += combo_tint * combo_current * 0.16;
+	final_color = mix(final_color, combo_tint, combo_threads * 0.34);
+	final_color += combo_tint * combo_threads * 0.48;
 
 	COLOR = vec4(
 		final_color,

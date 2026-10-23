@@ -49,7 +49,7 @@ void fragment() {
 		* organic_variation
 		* rim_breath
 		* (1.0 + landing_charge * 0.28 + landing_flash * 0.62)
-		* (1.0 + combo_energy * (0.04 + angular_flow * 0.06));
+		* (1.0 + combo_energy * (0.15 + angular_flow * 0.16));
 
 	float contour = exp(-pow((d - contour_radius) / 0.027, 2.0));
 	float contour_strength = contour * edge_reveal * field_falloff * 0.24 * rim_breath * (1.0 + landing_charge * 0.30 + landing_flash * 0.72);
@@ -73,9 +73,9 @@ void fragment() {
 	float contact_tint = clamp(landing_flash * 0.24, 0.0, 0.24);
 	field_color = mix(field_color, contour_color, charge_tint + contact_tint);
 	float combo_rim_flow = combo_energy * (0.35 + angular_flow * 0.65);
-	field_color = mix(field_color, combo_tint, combo_rim_flow * 0.10);
+	field_color = mix(field_color, combo_tint, combo_rim_flow * 0.18);
 	field_color += combo_tint * combo_rim_flow
-		* (near_glow * 0.025 + wide_glow * 0.012)
+		* (near_glow * 0.055 + wide_glow * 0.028)
 		* edge_reveal
 		* field_falloff;
 	COLOR = vec4(field_color, strength);
