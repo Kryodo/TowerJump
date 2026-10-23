@@ -91,8 +91,8 @@ func _draw() -> void:
 		return
 	var is_streak: bool = _flow_speed >= 40.0
 	var slot_count: int = 3 if is_streak else 2
-	var cycle_rate: float = 1.12 if is_streak else 0.78
-	var active_fraction: float = 0.26 if is_streak else 0.22
+	var cycle_rate: float = 1.20 if is_streak else 0.88
+	var active_fraction: float = 0.30 if is_streak else 0.27
 	var activation_boost: float = clampf(_activation_flash_time / 0.26, 0.0, 1.0)
 
 	for label_index in range(_label_nodes.size()):
@@ -123,7 +123,7 @@ func _draw() -> void:
 			var pulse: float = sin(
 				clampf(phase / active_fraction, 0.0, 1.0) * PI
 			)
-			pulse = pow(maxf(0.0, pulse), 0.72) * _energy_strength
+			pulse = pow(maxf(0.0, pulse), 0.72) * minf(_energy_strength * 1.10, 1.0)
 			_draw_crackle(
 				text_rect, local_seed, pulse, is_streak,
 				1.0, 1 if is_streak else 1
@@ -184,12 +184,12 @@ func _draw_crackle(
 		return
 	var font_height: float = maxf(10.0, text_rect.size.y - 2.0)
 	var max_length: float = minf(
-		font_height * (1.06 if is_streak else 0.88),
-		text_rect.size.x * 0.38
+		font_height * (1.18 if is_streak else 0.99),
+		text_rect.size.x * 0.42
 	)
 	var length: float = maxf(
 		5.0,
-		lerpf(font_height * 0.48, max_length, _random01(seed + 1.7))
+		lerpf(font_height * 0.52, max_length, _random01(seed + 1.7))
 		* length_scale
 	)
 	length = minf(length, text_rect.size.x - 1.0)
@@ -218,7 +218,7 @@ func _draw_crackle(
 		if point_index > 0 and point_index < FILAMENT_POINTS - 1:
 			var jaggedness: float = (
 				_random01(seed + float(point_index) * 5.37) - 0.5
-			) * font_height * (0.50 if is_streak else 0.42)
+			) * font_height * (0.54 if is_streak else 0.46)
 			y += jaggedness
 		y = clampf(y, text_rect.position.y + 0.5, text_rect.end.y - 0.5)
 		x = clampf(x, text_rect.position.x + 0.5, text_rect.end.x - 0.5)
@@ -236,8 +236,8 @@ func _draw_crackle(
 		var anchor: Vector2 = points[attach_index]
 		var side: float = 1.0 if _random01(seed + branch_index * 3.1 + 11.0) > 0.5 else -1.0
 		var branch_length: float = minf(
-			font_height * (0.42 if is_streak else 0.32),
-			length * 0.34
+			font_height * (0.48 if is_streak else 0.37),
+			length * 0.38
 		)
 		var branch_mid := Vector2(
 			clampf(anchor.x + branch_length * 0.42, text_rect.position.x + 0.5, text_rect.end.x - 0.5),
@@ -270,17 +270,17 @@ func _draw_tapered_crackle(
 		var energy: float = pulse * end_fade * shimmer
 		var glow := Color(
 			_energy_tint.r, _energy_tint.g, _energy_tint.b,
-			0.16 * energy
+			0.20 * energy
 		)
 		var core := _energy_tint.lerp(Color.WHITE, 0.62)
-		core.a = (0.74 if is_streak else 0.64) * energy
+		core.a = (0.80 if is_streak else 0.70) * energy
 		draw_line(
 			points[index - 1], points[index],
-			glow, 1.7 if is_streak else 1.35, true
+			glow, 1.95 if is_streak else 1.55, true
 		)
 		draw_line(
 			points[index - 1], points[index],
-			core, 0.82 if is_streak else 0.65, true
+			core, 0.92 if is_streak else 0.72, true
 		)
 
 
