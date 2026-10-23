@@ -28,6 +28,7 @@ const GOOD_COLOR := Color(0.40, 0.86, 1.0, 1.0)
 const EPIC_COLOR := Color(0.92, 0.12, 1.0, 1.0)
 const PERFECT_COLOR := Color(0.86, 0.98, 1.0, 1.0)
 const STREAK_COLOR := Color(1.0, 0.56, 0.16, 1.0)
+const ENERGY_SPARK_COLOR := Color(1.0, 0.78, 0.34, 1.0)
 const SCORE_COLOR := Color(1.0, 0.82, 0.34, 1.0)
 const CLUTCH_COLOR := Color(0.80, 0.96, 1.0, 1.0)
 const OUTLINE_COLOR := Color(0.012, 0.025, 0.055, 0.98)
@@ -208,13 +209,12 @@ func _set_state_indicator_energy(
 	# One shared set of filaments energizes the entire two-row indicator.
 	if _indicator_energy_field != null:
 		var field_strength: float = 0.0
-		var field_tint: Color = quality_color
+		var field_tint: Color = ENERGY_SPARK_COLOR
 		var field_speed: float = 34.0
 		if combo_active:
 			field_strength = 0.78
 		if streak_active:
 			field_strength = 1.0
-			field_tint = STREAK_COLOR
 			field_speed = 48.0
 		_indicator_energy_field.call(
 			"set_energy", field_strength, field_tint, field_speed,
