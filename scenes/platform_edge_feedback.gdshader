@@ -61,8 +61,9 @@ void fragment() {
 	float confirm = clamp(landing_confirm, 0.0, 1.0);
 	result = mix(result, confirm_color, confirm);
 
-	// A broad oblique reflection band, rather than a narrow spot sliding
-	// along X. The Y-dependent offset gives the highlight a clear angled edge.
+	// A diffuse reflection that melts into the existing neon edge.
+	// Avoid a distinct core or clipped band: the whole highlight is feathered
+	// with a broad Gaussian falloff so it reads as light, not a shape sliding by.
 	float idle_gate = (1.0 - charge) * (1.0 - active) * (1.0 - confirm);
 	float sheen_active = step(0.0, idle_sheen_progress) * (1.0 - step(1.0, idle_sheen_progress));
 	float sheen_progress = clamp(idle_sheen_progress, 0.0, 1.0);
@@ -72,13 +73,17 @@ void fragment() {
 		0.0,
 		1.0
 	);
-	float sheen_axis = x - sheen_position + (sheen_y - 0.5) * 0.26;
+	// Keep the reflection oblique, but less aggressively tilted and less like
+	// a crisp diagonal cut across the narrow edge.
+	float sheen_axis = x - sheen_position + (sheen_y - 0.5) * 0.15;
 	float sheen_distance = abs(sheen_axis);
-	float sheen_field = 1.0 - smoothstep(0.012, 0.125, sheen_distance);
-	float sheen_core = 1.0 - smoothstep(0.018, 0.060, sheen_distance);
-	float sheen_mix = (sheen_field * 0.18 + sheen_core * 0.25) * idle_gate * sheen_active;
-	vec3 sheen_color = vec3(2.25, 3.55, 4.20);
-	result = mix(result, sheen_color, clamp(sheen_mix, 0.0, 0.48));
+	float sheen_bloom = exp(-pow(sheen_distance / 0.34, 2.0) * 1.9);
+	// Tiny, broad variation prevents the glow from reading as a perfectly
+	// uniform capsule while avoiding a separate bright stripe.
+	float sheen_flow = 0.94 + 0.06 * sin(sheen_y * 3.2 + sheen_progress * 1.4);
+	float sheen_mix = sheen_bloom * sheen_flow * 0.18 * idle_gate * sheen_active;
+	vec3 sheen_color = vec3(1.55, 2.35, 2.75);
+	result = mix(result, sheen_color, clamp(sheen_mix, 0.0, 0.18));
 
 	COLOR.rgb = result;
 }
