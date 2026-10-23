@@ -1,8 +1,10 @@
 shader_type canvas_item;
 
-varying float edge_local_x;
+varying vec2 edge_local_position;
 
 instance uniform float platform_width = 220.0;
+instance uniform float platform_height = 20.0;
+instance uniform float edge_height = 8.0;
 instance uniform float approach_charge = 0.0;
 instance uniform float approach_target_x = 0.5;
 instance uniform float landing_confirm = 0.0;
@@ -10,12 +12,12 @@ instance uniform float activated = 0.0;
 instance uniform float idle_sheen_progress = -1.0;
 
 void vertex() {
-	edge_local_x = VERTEX.x;
+	edge_local_position = VERTEX.xy;
 }
 
 void fragment() {
 	float half_width = platform_width * 0.5;
-	float x = clamp((edge_local_x + half_width) / platform_width, 0.0, 1.0);
+	float x = clamp((edge_local_position.x + half_width) / platform_width, 0.0, 1.0);
 	// The script supplies the already-constrained predicted landing point.
 	// Keep the shader permissive so it does not secretly re-center the target.
 	float target = clamp(approach_target_x, 0.02, 0.98);
@@ -59,19 +61,24 @@ void fragment() {
 	float confirm = clamp(landing_confirm, 0.0, 1.0);
 	result = mix(result, confirm_color, confirm);
 
-	// Rare, one-shot mirror flash. A sparse subset of platforms is selected by
-	// the platform script, which drives progress from 0 to 1 exactly once.
-	// A negative value means no sheen is active.
+	// A broad oblique reflection band, rather than a narrow spot sliding
+	// along X. The Y-dependent offset gives the highlight a clear angled edge.
 	float idle_gate = (1.0 - charge) * (1.0 - active) * (1.0 - confirm);
 	float sheen_active = step(0.0, idle_sheen_progress) * (1.0 - step(1.0, idle_sheen_progress));
 	float sheen_progress = clamp(idle_sheen_progress, 0.0, 1.0);
-	float sheen_position = mix(-0.10, 1.10, sheen_progress);
-	float sheen_distance = abs(x - sheen_position);
-	float sheen_field = 1.0 - smoothstep(0.028, 0.095, sheen_distance);
-	float sheen_core = 1.0 - smoothstep(0.003, 0.020, sheen_distance);
-	float sheen_mix = (sheen_field * 0.08 + sheen_core * 0.62) * idle_gate * sheen_active;
-	vec3 sheen_color = vec3(1.2, 3.2, 4.0);
-	result = mix(result, sheen_color, clamp(sheen_mix, 0.0, 0.52));
+	float sheen_position = mix(-0.12, 1.12, sheen_progress);
+	float sheen_y = clamp(
+		(edge_local_position.y + platform_height * 0.5) / max(edge_height, 0.001),
+		0.0,
+		1.0
+	);
+	float sheen_axis = x - sheen_position - (sheen_y - 0.5) * 0.26;
+	float sheen_distance = abs(sheen_axis);
+	float sheen_field = 1.0 - smoothstep(0.012, 0.125, sheen_distance);
+	float sheen_core = 1.0 - smoothstep(0.018, 0.060, sheen_distance);
+	float sheen_mix = (sheen_field * 0.18 + sheen_core * 0.25) * idle_gate * sheen_active;
+	vec3 sheen_color = vec3(2.25, 3.55, 4.20);
+	result = mix(result, sheen_color, clamp(sheen_mix, 0.0, 0.48));
 
 	COLOR.rgb = result;
 }

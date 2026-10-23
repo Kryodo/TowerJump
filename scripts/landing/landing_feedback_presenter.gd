@@ -549,16 +549,37 @@ func _update_status_follow(delta: float) -> void:
 	_status_root.modulate.a = _get_status_edge_visibility(ball_screen, viewport_size)
 
 func _layout_status_row(caption: Label, counter: Label, caption_y: float, counter_y: float) -> void:
-	# Keep the reading order consistent on both sides: caption first, counter
-	# second. Right-align the group on the left side so it sits neatly beside the orb.
+	# Keep caption then number in the same order. On the left side, measure both
+	# strings so right alignment preserves the same visible gap as left alignment.
 	caption.position = Vector2(0.0, caption_y)
-	counter.position = Vector2(84.0, counter_y)
 	if _status_anchor_side > 0:
 		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		counter.position = Vector2(84.0, counter_y)
 	else:
 		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		var caption_font: Font = caption.get_theme_font("font")
+		var caption_text_width: float = caption_font.get_string_size(
+			caption.text,
+			HORIZONTAL_ALIGNMENT_LEFT,
+			-1.0,
+			caption.get_theme_font_size("font_size")
+		).x
+		var right_side_gap: float = maxf(0.0, 84.0 - caption_text_width)
+		var counter_font: Font = counter.get_theme_font("font")
+		var counter_font_size: int = int(
+			counter.get_meta("counter_target_font_size", counter.get_theme_font_size("font_size"))
+		)
+		var counter_text_width: float = counter_font.get_string_size(
+			counter.text,
+			HORIZONTAL_ALIGNMENT_LEFT,
+			-1.0,
+			counter_font_size
+		).x
+		var counter_text_start: float = 84.0 + right_side_gap
+		var counter_x: float = counter_text_start + counter_text_width - counter.size.x
+		counter.position = Vector2(counter_x, counter_y)
 
 
 func _on_combo_state_changed(state: Dictionary) -> void:
@@ -654,6 +675,16 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 		_hide_indicator(_streak_label)
 		_hide_indicator(_streak_counter)
 		_streak_visual_tier = -1
+
+	# Reflow after both texts are updated so left-side spacing uses the current
+	# multiplier and streak count, not the previous frame's string widths.
+	_layout_status_row(
+		_combo_label,
+		_combo_counter,
+		25.0 if streak_active else 13.0,
+		24.0 if streak_active else 11.0
+	)
+	_layout_status_row(_streak_label, _streak_counter, 0.0, -2.0)
 
 	if combo_active:
 		_combo_visual_tier = combo_tier

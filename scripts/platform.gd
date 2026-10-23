@@ -35,11 +35,13 @@ const BEVEL := 4.0
 const EDGE_HEIGHT := 8.0
 const EDGE_INSET := 1.0
 
-const IDLE_SHEEN_CHANCE := 0.40
+const IDLE_SHEEN_CHANCE := 0.38
 const IDLE_SHEEN_MIN_SPAWN_GAP := 2
-const IDLE_SHEEN_DELAY_MIN := 0.25
-const IDLE_SHEEN_DELAY_MAX := 0.85
-const IDLE_SHEEN_DURATION := 0.16
+const IDLE_SHEEN_MAX_SPAWN_GAP := 5
+const IDLE_SHEEN_DELAY_MIN := 0.35
+const IDLE_SHEEN_DELAY_MAX := 1.20
+const IDLE_SHEEN_DURATION_MIN := 0.48
+const IDLE_SHEEN_DURATION_MAX := 0.72
 
 static var _sheen_spawn_sequence: int = 0
 static var _last_sheen_spawn_sequence: int = -1000
@@ -132,6 +134,8 @@ func _apply_geometry() -> void:
 		"platform_width",
 		width * width_scale
 	)
+	_neon_edge.set_instance_shader_parameter("platform_height", height)
+	_neon_edge.set_instance_shader_parameter("edge_height", EDGE_HEIGHT)
 	_neon_edge.set_instance_shader_parameter("idle_sheen_progress", -1.0)
 
 func _process(delta: float) -> void:
@@ -189,9 +193,11 @@ func _schedule_idle_sheen() -> void:
 	_neon_edge.set_instance_shader_parameter("idle_sheen_progress", -1.0)
 
 	_sheen_spawn_sequence += 1
-	if _sheen_spawn_sequence - _last_sheen_spawn_sequence < IDLE_SHEEN_MIN_SPAWN_GAP:
+	var spawn_gap: int = _sheen_spawn_sequence - _last_sheen_spawn_sequence
+	if spawn_gap < IDLE_SHEEN_MIN_SPAWN_GAP:
 		return
-	if randf() > IDLE_SHEEN_CHANCE:
+	# Randomize the gap, but guarantee another event by the maximum gap.
+	if spawn_gap < IDLE_SHEEN_MAX_SPAWN_GAP and randf() > IDLE_SHEEN_CHANCE:
 		return
 
 	_last_sheen_spawn_sequence = _sheen_spawn_sequence
@@ -217,11 +223,15 @@ func _set_idle_sheen_progress(value: float) -> void:
 func _play_idle_sheen() -> void:
 	_neon_edge.set_instance_shader_parameter("idle_sheen_progress", 0.0)
 	_idle_sheen_tween = create_tween()
+	var sheen_duration: float = randf_range(
+		IDLE_SHEEN_DURATION_MIN,
+		IDLE_SHEEN_DURATION_MAX
+	)
 	_idle_sheen_tween.tween_method(
 		_set_idle_sheen_progress,
 		0.0,
 		1.0,
-		IDLE_SHEEN_DURATION
+		sheen_duration
 	).set_trans(Tween.TRANS_LINEAR)
 	_idle_sheen_tween.tween_callback(
 		func() -> void:
