@@ -90,7 +90,7 @@ func _draw() -> void:
 	if _energy_strength <= 0.012:
 		return
 	var is_streak: bool = _flow_speed >= 40.0
-	var slot_count: int = 3 if is_streak else 2
+	var slot_count: int = 4 if is_streak else 3
 	var cycle_rate: float = 1.20 if is_streak else 0.88
 	var active_fraction: float = 0.30 if is_streak else 0.27
 	var activation_boost: float = clampf(_activation_flash_time / 0.26, 0.0, 1.0)
@@ -126,7 +126,7 @@ func _draw() -> void:
 			pulse = pow(maxf(0.0, pulse), 0.72) * _energy_strength
 			_draw_crackle(
 				text_rect, local_seed, pulse, is_streak,
-				1.0, 1 if is_streak else 1
+				1.0, 2
 			)
 
 		# Activation adds one brief extra charge pop around each visible word,
@@ -184,8 +184,8 @@ func _draw_crackle(
 		return
 	var font_height: float = maxf(10.0, text_rect.size.y - 2.0)
 	var max_length: float = minf(
-		font_height * (1.18 if is_streak else 0.99),
-		text_rect.size.x * 0.42
+		font_height * (1.18 if is_streak else 1.08),
+		text_rect.size.x * (0.46 if is_streak else 0.44)
 	)
 	var length: float = maxf(
 		5.0,
@@ -236,8 +236,8 @@ func _draw_crackle(
 		var anchor: Vector2 = points[attach_index]
 		var side: float = 1.0 if _random01(seed + branch_index * 3.1 + 11.0) > 0.5 else -1.0
 		var branch_length: float = minf(
-			font_height * (0.48 if is_streak else 0.37),
-			length * 0.38
+			font_height * (0.48 if is_streak else 0.40),
+			length * (0.40 if is_streak else 0.38)
 		)
 		var branch_mid := Vector2(
 			clampf(anchor.x + branch_length * 0.42, text_rect.position.x + 0.5, text_rect.end.x - 0.5),
