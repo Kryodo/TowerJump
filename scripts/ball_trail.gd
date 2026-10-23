@@ -625,6 +625,14 @@ func _connect_landing_feedback() -> void:
 	):
 		controller.connect("landing_confirmed", landing_callback)
 
+	# Special full-ribbon releases count scored ascent progress, not every
+	# physical contact, so rejected repeats cannot trigger the milestone.
+	var score_controller := scene_root.get_node_or_null("LandingScoreController")
+	if score_controller != null and score_controller.has_signal("landing_scored"):
+		var score_callback := Callable(self, "_on_landing_scored_for_full_release")
+		if not score_controller.is_connected("landing_scored", score_callback):
+			score_controller.connect("landing_scored", score_callback)
+
 
 func _on_landing_target_changed(_previous_target: Node2D, new_target: Node2D) -> void:
 	_landing_approach_platform = new_target
@@ -747,13 +755,6 @@ func _on_landing_confirmed(event: LandingEvent) -> void:
 	_start_landing_response()
 	_spawn_landing_impact(event)
 
-	# The cadence counts confirmed landings only. A pending release is a single
-	# queued event, never a backlog of overlapping full-ribbon pulses.
-	_confirmed_landing_count += 1
-	var release_interval: int = maxi(full_release_every_landings, 1)
-	if _confirmed_landing_count % release_interval == 0:
-		_landing_release_pending = true
-
 	if _pulse_active:
 		# While the full-ribbon release is travelling outward, suppress the
 		# inward flash. Any queued release waits for a later eligible landing.
@@ -792,6 +793,28 @@ func _on_landing_confirmed(event: LandingEvent) -> void:
 	# The larger surface fragments use frozen geometry, not the changing live trail.
 	_surface_burst_remaining = SURFACE_BURST_PIECE_COUNT
 	_surface_burst_clock = 0.0
+
+
+
+func _on_landing_scored_for_full_release(result: Dictionary) -> void:
+	if not bool(result.get("scoring_eligible", true)):
+		return
+
+	_confirmed_landing_count += 1
+	var release_interval: int = maxi(full_release_every_landings, 1)
+	if _confirmed_landing_count % release_interval != 0:
+		return
+
+	# This callback can run before or after the physical-contact listener. Queue
+	# the release if a reverse flash has not started yet; otherwise attach it to
+	# the current reverse flash. Never interrupt an outward pulse already running.
+	if _pulse_active:
+		_landing_release_pending = true
+	elif _landing_trail_kick_elapsed >= 0.0:
+		_landing_release_after_reverse = true
+		_landing_release_pending = false
+	else:
+		_landing_release_pending = true
 
 
 func _process_shed_burst(delta: float) -> void:
