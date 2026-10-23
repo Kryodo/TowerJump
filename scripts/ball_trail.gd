@@ -80,8 +80,8 @@ const LANDING_ANTICIPATION_RESPONSE: float = 10.0
 # Persistent Combo tint follows the same Good / Epic / Perfect palette as the
 # orb indicators, while the rest of the comet retains its current zone palette.
 const COMBO_GOOD_TINT := Vector3(0.24, 1.02, 1.42)
-const COMBO_EPIC_TINT := Vector3(1.28, 0.13, 1.48)
-const COMBO_PERFECT_TINT := Vector3(1.20, 1.62, 1.78)
+const COMBO_EPIC_TINT := Vector3(2.0, 0.20, 2.35)
+const COMBO_PERFECT_TINT := Vector3(1.08, 1.80, 2.25)
 const COMBO_BLEND_IN_RATE: float = 3.8
 const COMBO_BLEND_OUT_RATE: float = 2.8
 
@@ -361,6 +361,7 @@ func _update_combo_energy(delta: float) -> void:
 	_apply_combo_state_to_material(_energy_line)
 	_apply_combo_state_to_material(_trail_aura)
 	_apply_combo_state_to_material(_rim_aura)
+	_apply_combo_state_to_material(_ball_visual)
 
 
 func _apply_combo_state_to_material(item: CanvasItem) -> void:

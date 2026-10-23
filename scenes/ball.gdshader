@@ -7,6 +7,9 @@ uniform int palette_mode = 0;
 uniform float rim_breath = 1.0;
 uniform float landing_anticipation = 0.0;
 uniform float landing_confirmation = 0.0;
+// Persistent Combo adds a restrained traveling highlight to the orb's existing rim.
+uniform float combo_energy = 0.0;
+uniform vec3 combo_tint = vec3(0.24, 1.02, 1.42);
 // Quality-chain feedback is rendered inside the orb, close to the plasma core.
 // Progress is 0..3; quality is 0=Good, 1=Epic, 2=Perfect.
 uniform int combo_core_quality = 0;
@@ -104,6 +107,18 @@ void fragment() {
 		-
 		smoothstep(0.956, 0.982, d);
 	color += ring_color * outer_ring * rim_breath * 0.22;
+	// The whole rim picks up a very small amount of the active quality hue.
+	color += combo_tint * outer_ring * combo_energy * rim_breath * 0.045;
+	// A narrow traveling glimmer makes the orb feel energized without adding
+	// another pulse animation or flattening the existing rim/core contrast.
+	float combo_rim_wave = 0.5 + 0.5 * sin(
+		angle * 2.0 - time * 1.6
+		+ 0.25 * sin(angle * 3.0 + time * 0.5)
+	);
+	float combo_rim_arc = smoothstep(0.80, 0.98, combo_rim_wave);
+	float combo_rim_band = exp(-pow((d - 0.947) / 0.023, 2.0));
+	color += combo_tint * combo_rim_band * combo_rim_arc
+		* combo_energy * rim_breath * 0.095;
 
 	// The activation hit temporarily expands the core and its inner glow. The
 	// sustained hue remains tied to Combo; the hit itself quickly decays.
