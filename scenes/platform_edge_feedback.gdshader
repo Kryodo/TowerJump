@@ -72,7 +72,7 @@ void fragment() {
 		0.0,
 		1.0
 	);
-	float sheen_axis = x - sheen_position - (sheen_y - 0.5) * 0.26;
+	float sheen_axis = x - sheen_position + (sheen_y - 0.5) * 0.26;
 	float sheen_distance = abs(sheen_axis);
 	float sheen_field = 1.0 - smoothstep(0.012, 0.125, sheen_distance);
 	float sheen_core = 1.0 - smoothstep(0.018, 0.060, sheen_distance);

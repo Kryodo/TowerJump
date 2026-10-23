@@ -18,6 +18,7 @@ extends CanvasLayer
 
 const REWARD_SIZE := Vector2(160.0, 66.0)
 const STATUS_SIZE := Vector2(184.0, 52.0)
+const STATUS_ORB_GAP := 15.0
 const CLUTCH_SIZE := Vector2(144.0, 30.0)
 
 const GOOD_COLOR := Color(0.40, 0.86, 1.0, 1.0)
@@ -456,14 +457,57 @@ func _spawn_floating_label(
 	return label
 
 
+func _get_indicator_text_width(label: Label) -> float:
+	if label == null or not is_instance_valid(label):
+		return 0.0
+	var font: Font = label.get_theme_font("font")
+	var font_size: int = label.get_theme_font_size("font_size")
+	if label == _combo_counter or label == _streak_counter:
+		font_size = int(label.get_meta("counter_target_font_size", font_size))
+	return font.get_string_size(
+		label.text,
+		HORIZONTAL_ALIGNMENT_LEFT,
+		-1.0,
+		font_size
+	).x
+
+
+func _get_status_content_width(side: int) -> float:
+	# STATUS_SIZE is the control's maximum footprint, but left-aligned captions
+	# and their live counters don't fill all of it. Measure the actual row so
+	# both sides anchor the visible content at the same distance from the orb.
+	var content_width: float = 0.0
+	var rows: Array[Array] = [
+		[_combo_label, _combo_counter],
+		[_streak_label, _streak_counter],
+	]
+	for row in rows:
+		var caption: Label = row[0] as Label
+		var counter: Label = row[1] as Label
+		var caption_width: float = minf(
+			_get_indicator_text_width(caption),
+			caption.size.x
+		)
+		var counter_width: float = _get_indicator_text_width(counter)
+		var row_width: float
+		if side > 0:
+			row_width = maxf(caption_width, caption.size.x + counter_width)
+		else:
+			var mirrored_counter_gap: float = maxf(0.0, caption.size.x - caption_width)
+			row_width = caption.size.x + mirrored_counter_gap + counter_width
+		content_width = maxf(content_width, row_width)
+	return content_width
+
+
 func _choose_status_anchor_side(ball_screen: Vector2, viewport_size: Vector2) -> int:
 	var radius: float = _get_ball_radius()
-	var gap: float = 8.0
-	var left_space: float = ball_screen.x - radius - gap - screen_safe_margin
-	var right_space: float = viewport_size.x - screen_safe_margin - (ball_screen.x + radius + gap)
-	if right_space >= STATUS_SIZE.x and left_space < STATUS_SIZE.x:
+	var left_space: float = ball_screen.x - radius - STATUS_ORB_GAP - screen_safe_margin
+	var right_space: float = viewport_size.x - screen_safe_margin - (ball_screen.x + radius + STATUS_ORB_GAP)
+	var left_width: float = _get_status_content_width(-1)
+	var right_width: float = _get_status_content_width(1)
+	if right_space >= right_width and left_space < left_width:
 		return 1
-	if left_space >= STATUS_SIZE.x and right_space < STATUS_SIZE.x:
+	if left_space >= left_width and right_space < right_width:
 		return -1
 	# When both sides fit, place the tag on the inboard shoulder.
 	return 1 if ball_screen.x < viewport_size.x * 0.5 else -1
@@ -471,11 +515,10 @@ func _choose_status_anchor_side(ball_screen: Vector2, viewport_size: Vector2) ->
 
 func _get_status_target(ball_screen: Vector2, viewport_size: Vector2) -> Vector2:
 	var radius: float = _get_ball_radius()
-	var gap: float = 8.0
 	var x: float = (
-		ball_screen.x + radius + gap
+		ball_screen.x + radius + STATUS_ORB_GAP
 		if _status_anchor_side > 0
-		else ball_screen.x - radius - gap - STATUS_SIZE.x
+		else ball_screen.x - radius - STATUS_ORB_GAP - _get_status_content_width(-1)
 	)
 	# The tag sits beside the upper shoulder, never directly above the core.
 	var y: float = ball_screen.y - radius * 0.62 - STATUS_SIZE.y * 0.50
@@ -487,13 +530,13 @@ func _get_status_target(ball_screen: Vector2, viewport_size: Vector2) -> Vector2
 
 func _get_status_edge_visibility(ball_screen: Vector2, viewport_size: Vector2) -> float:
 	var radius: float = _get_ball_radius()
-	var gap: float = 8.0
 	var available: float
+	var content_width: float = _get_status_content_width(_status_anchor_side)
 	if _status_anchor_side > 0:
-		available = viewport_size.x - screen_safe_margin - (ball_screen.x + radius + gap)
+		available = viewport_size.x - screen_safe_margin - (ball_screen.x + radius + STATUS_ORB_GAP)
 	else:
-		available = ball_screen.x - radius - gap - screen_safe_margin
-	return clampf(available / STATUS_SIZE.x, 0.0, 1.0)
+		available = ball_screen.x - radius - STATUS_ORB_GAP - screen_safe_margin
+	return clampf(available / maxf(content_width, 1.0), 0.0, 1.0)
 
 
 func _update_status_follow(delta: float) -> void:

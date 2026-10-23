@@ -40,8 +40,8 @@ const IDLE_SHEEN_MIN_SPAWN_GAP := 2
 const IDLE_SHEEN_MAX_SPAWN_GAP := 5
 const IDLE_SHEEN_DELAY_MIN := 0.35
 const IDLE_SHEEN_DELAY_MAX := 1.20
-const IDLE_SHEEN_DURATION_MIN := 0.48
-const IDLE_SHEEN_DURATION_MAX := 0.72
+const IDLE_SHEEN_DURATION_MIN := 0.36
+const IDLE_SHEEN_DURATION_MAX := 0.50
 
 static var _sheen_spawn_sequence: int = 0
 static var _last_sheen_spawn_sequence: int = -1000
