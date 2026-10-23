@@ -1,6 +1,7 @@
 extends CanvasLayer
 
 const STATE_INDICATOR_ENERGY_SHADER = preload("res://scenes/state_indicator_energy.gdshader")
+const STATE_INDICATOR_ENERGY_FIELD_SCRIPT = preload("res://scripts/landing/state_indicator_energy_field.gd")
 ## Presents landing rewards and persistent landing states in screen space.
 ## Scoring remains in LandingScoreController; this node only handles presentation.
 
@@ -66,6 +67,7 @@ var _combo_visual_tier: int = -1
 var _streak_visual_tier: int = -1
 var _indicator_energy_tweens: Dictionary = {}
 var _indicator_energy_targets: Dictionary = {}
+var _indicator_energy_fields: Dictionary = {}
 
 
 func _ready() -> void:
@@ -135,8 +137,8 @@ func _create_state_indicators() -> void:
 	_streak_counter.visible = false
 	_status_root.add_child(_streak_counter)
 
-	# Each persistent text label gets its own flowing glyph highlight. No panels,
-	# bars, shards, or detached geometric decorations are added to the indicator.
+	# Keep the subtle glyph sheen, then layer animated motes and short filaments
+	# directly over the letters so activation reads as moving energy, not just shine.
 	_attach_state_energy_material(_combo_label, GOOD_COLOR, 26.0)
 	_attach_state_energy_material(_combo_counter, GOOD_COLOR, 26.0)
 	_attach_state_energy_material(_streak_label, STREAK_COLOR, 38.0)
@@ -151,6 +153,19 @@ func _attach_state_energy_material(label: Label, tint: Color, speed: float) -> v
 	material.set_shader_parameter("flow_speed", speed)
 	material.set_shader_parameter("flow_period", 92.0)
 	label.material = material
+
+	# This child draws on top of the glyphs, so tiny moving motes and short,
+	# curved filaments can cross letter strokes and slip through the gaps.
+	var energy_field := Control.new()
+	energy_field.name = "StateIndicatorEnergyField"
+	energy_field.set_script(STATE_INDICATOR_ENERGY_FIELD_SCRIPT)
+	energy_field.position = Vector2(-5.0, -4.0)
+	energy_field.size = label.size + Vector2(10.0, 8.0)
+	energy_field.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	energy_field.z_index = 1
+	label.add_child(energy_field)
+	_indicator_energy_fields[label.name] = energy_field
+	energy_field.call("set_energy", 0.0, tint, speed)
 
 
 func _set_state_indicator_energy(
@@ -204,6 +219,11 @@ func _set_state_label_energy(
 
 	material.set_shader_parameter("flow_tint", tint)
 	material.set_shader_parameter("flow_speed", speed)
+	var energy_field := _indicator_energy_fields.get(label.name) as Control
+	if energy_field != null:
+		energy_field.call(
+			"set_energy", float(material.get_shader_parameter("flow_strength")), tint, speed
+		)
 
 	var target: float = clampf(target_strength, 0.0, 1.0)
 	var previous_target: float = float(_indicator_energy_targets.get(label.name, -1.0))
@@ -246,6 +266,9 @@ func _set_state_label_flow_strength(value: float, label: Label) -> void:
 	var material := label.material as ShaderMaterial
 	if material != null:
 		material.set_shader_parameter("flow_strength", value)
+	var energy_field := _indicator_energy_fields.get(label.name) as Control
+	if energy_field != null:
+		energy_field.call("set_strength", value)
 
 
 func _update_state_indicator_motion() -> void:
