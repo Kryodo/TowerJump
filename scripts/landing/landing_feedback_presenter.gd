@@ -464,8 +464,22 @@ func _get_indicator_text_width(label: Label) -> float:
 	var font_size: int = label.get_theme_font_size("font_size")
 	if label == _combo_counter or label == _streak_counter:
 		font_size = int(label.get_meta("counter_target_font_size", font_size))
+
+	# When the side is first selected, the live label text may not have been
+	# assigned yet. Measure the current state values in that brief window.
+	var text_value: String = label.text
+	if text_value.is_empty():
+		if label == _combo_label:
+			text_value = "✦  COMBO"
+		elif label == _streak_label:
+			text_value = "▲  STREAK"
+		elif label == _combo_counter:
+			text_value = "×%.2f" % float(_last_state.get("multiplier", 1.0))
+		elif label == _streak_counter:
+			text_value = "%02d" % int(_last_state.get("chain_count", 0))
+
 	return font.get_string_size(
-		label.text,
+		text_value,
 		HORIZONTAL_ALIGNMENT_LEFT,
 		-1.0,
 		font_size
@@ -474,13 +488,17 @@ func _get_indicator_text_width(label: Label) -> float:
 
 func _get_status_content_width(side: int) -> float:
 	# STATUS_SIZE is the control's maximum footprint, but left-aligned captions
-	# and their live counters don't fill all of it. Measure the actual row so
-	# both sides anchor the visible content at the same distance from the orb.
+	# and their live counters don't fill all of it. Measure only active rows so
+	# the visible counter ends at the same orb gap on either side.
 	var content_width: float = 0.0
-	var rows: Array[Array] = [
-		[_combo_label, _combo_counter],
-		[_streak_label, _streak_counter],
-	]
+	var rows: Array[Array] = []
+	if bool(_last_state.get("combo_active", false)):
+		rows.append([_combo_label, _combo_counter])
+	if bool(_last_state.get("streak_active", false)):
+		rows.append([_streak_label, _streak_counter])
+	if rows.is_empty():
+		return STATUS_SIZE.x
+
 	for row in rows:
 		var caption: Label = row[0] as Label
 		var counter: Label = row[1] as Label
