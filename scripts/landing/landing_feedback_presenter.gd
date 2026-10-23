@@ -149,7 +149,7 @@ func _attach_state_energy_material(label: Label, tint: Color, speed: float) -> v
 	material.set_shader_parameter("flow_strength", 0.0)
 	material.set_shader_parameter("flow_tint", tint)
 	material.set_shader_parameter("flow_speed", speed)
-	material.set_shader_parameter("flow_period", 138.0)
+	material.set_shader_parameter("flow_period", 92.0)
 	label.material = material
 
 
@@ -162,11 +162,11 @@ func _set_state_indicator_energy(
 ) -> void:
 	var combo_strength: float = 0.0
 	if combo_active:
-		combo_strength = 0.36
+		combo_strength = 0.56
 		if streak_active:
-			combo_strength = 0.46
+			combo_strength = 0.68
 
-	var combo_speed: float = 26.0 if not streak_active else 31.0
+	var combo_speed: float = 32.0 if not streak_active else 36.0
 	_set_state_label_energy(
 		_combo_label, combo_strength, quality_color, combo_speed,
 		combo_just_activated or streak_just_activated
@@ -179,13 +179,13 @@ func _set_state_indicator_energy(
 
 	var streak_strength: float = 0.0
 	if streak_active:
-		streak_strength = 0.74
+		streak_strength = 0.92
 	_set_state_label_energy(
-		_streak_label, streak_strength, STREAK_COLOR, 38.0, streak_just_activated
+		_streak_label, streak_strength, STREAK_COLOR, 44.0, streak_just_activated
 	)
 	_set_state_label_energy(
 		_streak_counter, streak_strength * 0.90,
-		STREAK_COLOR.lerp(Color.WHITE, 0.14), 38.0, streak_just_activated
+		STREAK_COLOR.lerp(Color.WHITE, 0.14), 44.0, streak_just_activated
 	)
 
 
@@ -249,23 +249,27 @@ func _set_state_label_flow_strength(value: float, label: Label) -> void:
 
 
 func _update_state_indicator_motion() -> void:
-	# The captions breathe almost imperceptibly while active. STREAK increases
-	# their motion slightly; counters keep their existing reward animations.
+	# Keep the micro-sway alive between landings. Scale breathing waits until
+	# short activation/counter pop tweens finish so it never overrides them.
 	var streak_active: bool = bool(_last_state.get("streak_active", false))
+	var allow_breathing: bool = _state_pop_timer <= 0.0
+
 	if _combo_label != null and _combo_label.visible and not bool(_indicator_hiding.get(_combo_label.name, false)):
-		var combo_motion: float = 0.006 if not streak_active else 0.009
-		_combo_label.scale = Vector2.ONE * (
-			1.0 + sin(_pulse_clock * 4.2) * combo_motion
-		)
-		_combo_label.rotation = sin(_pulse_clock * 3.5 + 0.45) * 0.0035
+		if allow_breathing:
+			var combo_motion: float = 0.012 if not streak_active else 0.016
+			_combo_label.scale = Vector2.ONE * (
+				1.0 + sin(_pulse_clock * 4.2) * combo_motion
+			)
+		_combo_label.rotation = sin(_pulse_clock * 3.5 + 0.45) * 0.006
 	elif _combo_label != null:
 		_combo_label.rotation = 0.0
 
 	if _streak_label != null and _streak_label.visible and not bool(_indicator_hiding.get(_streak_label.name, false)):
-		_streak_label.scale = Vector2.ONE * (
-			1.0 + sin(_pulse_clock * 5.1 + 0.9) * 0.013
-		)
-		_streak_label.rotation = sin(_pulse_clock * 4.3 + 1.2) * 0.008
+		if allow_breathing:
+			_streak_label.scale = Vector2.ONE * (
+				1.0 + sin(_pulse_clock * 5.1 + 0.9) * 0.022
+			)
+		_streak_label.rotation = sin(_pulse_clock * 4.3 + 1.2) * 0.013
 	elif _streak_label != null:
 		_streak_label.rotation = 0.0
 
@@ -1362,4 +1366,4 @@ func _process(delta: float) -> void:
 		for label in [_combo_label, _combo_counter, _streak_label, _streak_counter]:
 			if label.visible and not bool(_indicator_hiding.get(label.name, false)):
 				label.modulate.a = 0.94 + pulse * 0.045
-		_update_state_indicator_motion()
+	_update_state_indicator_motion()
