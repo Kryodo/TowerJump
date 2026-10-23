@@ -1,4 +1,6 @@
 extends CanvasLayer
+
+const STATE_INDICATOR_ENERGY_SHADER = preload("res://scenes/state_indicator_energy.gdshader")
 ## Presents landing rewards and persistent landing states in screen space.
 ## Scoring remains in LandingScoreController; this node only handles presentation.
 
@@ -62,6 +64,8 @@ var _orb_core_activation_tween: Tween = null
 var _orb_streak_activation_tween: Tween = null
 var _combo_visual_tier: int = -1
 var _streak_visual_tier: int = -1
+var _indicator_energy_tweens: Dictionary = {}
+var _indicator_energy_targets: Dictionary = {}
 
 
 func _ready() -> void:
@@ -130,6 +134,135 @@ func _create_state_indicators() -> void:
 	_streak_counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_streak_counter.visible = false
 	_status_root.add_child(_streak_counter)
+
+	# Each persistent text label gets its own flowing glyph highlight. No panels,
+	# bars, shards, or detached geometric decorations are added to the indicator.
+	_attach_state_energy_material(_combo_label, GOOD_COLOR, 26.0)
+	_attach_state_energy_material(_combo_counter, GOOD_COLOR, 26.0)
+	_attach_state_energy_material(_streak_label, STREAK_COLOR, 38.0)
+	_attach_state_energy_material(_streak_counter, STREAK_COLOR, 38.0)
+
+
+func _attach_state_energy_material(label: Label, tint: Color, speed: float) -> void:
+	var material := ShaderMaterial.new()
+	material.shader = STATE_INDICATOR_ENERGY_SHADER
+	material.set_shader_parameter("flow_strength", 0.0)
+	material.set_shader_parameter("flow_tint", tint)
+	material.set_shader_parameter("flow_speed", speed)
+	material.set_shader_parameter("flow_period", 138.0)
+	label.material = material
+
+
+func _set_state_indicator_energy(
+	combo_active: bool,
+	streak_active: bool,
+	quality_color: Color,
+	combo_just_activated: bool,
+	streak_just_activated: bool
+) -> void:
+	var combo_strength: float = 0.0
+	if combo_active:
+		combo_strength = 0.36
+		if streak_active:
+			combo_strength = 0.46
+
+	var combo_speed: float = 26.0 if not streak_active else 31.0
+	_set_state_label_energy(
+		_combo_label, combo_strength, quality_color, combo_speed,
+		combo_just_activated or streak_just_activated
+	)
+	_set_state_label_energy(
+		_combo_counter, combo_strength * 0.90,
+		quality_color.lerp(Color.WHITE, 0.12), combo_speed,
+		combo_just_activated or streak_just_activated
+	)
+
+	var streak_strength: float = 0.0
+	if streak_active:
+		streak_strength = 0.74
+	_set_state_label_energy(
+		_streak_label, streak_strength, STREAK_COLOR, 38.0, streak_just_activated
+	)
+	_set_state_label_energy(
+		_streak_counter, streak_strength * 0.90,
+		STREAK_COLOR.lerp(Color.WHITE, 0.14), 38.0, streak_just_activated
+	)
+
+
+func _set_state_label_energy(
+	label: Label,
+	target_strength: float,
+	tint: Color,
+	speed: float,
+	activation: bool
+) -> void:
+	if label == null or not is_instance_valid(label):
+		return
+	var material := label.material as ShaderMaterial
+	if material == null:
+		return
+
+	material.set_shader_parameter("flow_tint", tint)
+	material.set_shader_parameter("flow_speed", speed)
+
+	var target: float = clampf(target_strength, 0.0, 1.0)
+	var previous_target: float = float(_indicator_energy_targets.get(label.name, -1.0))
+	if is_equal_approx(previous_target, target):
+		return
+	_indicator_energy_targets[label.name] = target
+
+	var current: float = float(material.get_shader_parameter("flow_strength"))
+	var existing_tween := _indicator_energy_tweens.get(label.name) as Tween
+	if existing_tween != null and existing_tween.is_valid():
+		existing_tween.kill()
+
+	if is_equal_approx(current, target):
+		material.set_shader_parameter("flow_strength", target)
+		return
+
+	var duration: float = 0.16
+	if target > current:
+		duration = 0.34 if streak_just_activated else (0.28 if activation else 0.20)
+
+	var tween := create_tween()
+	_indicator_energy_tweens[label.name] = tween
+	tween.tween_method(
+		Callable(self, "_set_state_label_flow_strength").bind(label),
+		current,
+		target,
+		duration
+	).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+
+func _set_state_label_flow_strength(value: float, label: Label) -> void:
+	if label == null or not is_instance_valid(label):
+		return
+	var material := label.material as ShaderMaterial
+	if material != null:
+		material.set_shader_parameter("flow_strength", value)
+
+
+func _update_state_indicator_motion() -> void:
+	# The captions breathe almost imperceptibly while active. STREAK increases
+	# their motion slightly; counters keep their existing reward animations.
+	var streak_active: bool = bool(_last_state.get("streak_active", false))
+	if _combo_label != null and _combo_label.visible and not bool(_indicator_hiding.get(_combo_label.name, false)):
+		var combo_motion: float = 0.006 if not streak_active else 0.009
+		_combo_label.scale = Vector2.ONE * (
+			1.0 + sin(_pulse_clock * 4.2) * combo_motion
+		)
+		_combo_label.rotation = sin(_pulse_clock * 3.5 + 0.45) * 0.0035
+	elif _combo_label != null:
+		_combo_label.rotation = 0.0
+
+	if _streak_label != null and _streak_label.visible and not bool(_indicator_hiding.get(_streak_label.name, false)):
+		_streak_label.scale = Vector2.ONE * (
+			1.0 + sin(_pulse_clock * 5.1 + 0.9) * 0.013
+		)
+		_streak_label.rotation = sin(_pulse_clock * 4.3 + 1.2) * 0.008
+	elif _streak_label != null:
+		_streak_label.rotation = 0.0
+
 
 func _make_label(
 	label_name: String,
@@ -661,6 +794,11 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 	var streak_active: bool = bool(state.get("streak_active", false))
 	var combo_just_activated: bool = combo_active and not previous_combo_active
 	var streak_just_activated: bool = streak_active and not previous_streak_active
+	var quality_color: Color = _quality_color(quality)
+	_set_state_indicator_energy(
+		combo_active, streak_active, quality_color,
+		combo_just_activated, streak_just_activated
+	)
 	if combo_just_activated:
 		_play_orb_combo_activation()
 	if streak_just_activated:
@@ -681,7 +819,6 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 		return
 
 	var multiplier: float = float(state.get("multiplier", 1.0))
-	var quality_color: Color = _quality_color(quality)
 	if not _status_root.visible:
 		_status_anchor_side = _choose_status_anchor_side(
 			_get_ball_screen_position(),
@@ -949,6 +1086,7 @@ func _set_indicator(label: Label, text_value: String, color: Color, animate: boo
 	var target_font_size: int = maxi(label.get_theme_font_size("font_size"), 15)
 	label.modulate = Color(1.0, 1.0, 1.0, 0.0)
 	label.scale = Vector2.ONE * 0.78
+	label.rotation = 0.0
 
 	var peak_scale: float = 1.16 if label == _combo_label else 1.12
 	var tween := create_tween()
@@ -1031,6 +1169,7 @@ func _hide_indicator(label: Label) -> void:
 		label.visible = false
 		label.modulate = Color.WHITE
 		label.scale = Vector2.ONE
+		label.rotation = 0.0
 	)
 
 
@@ -1217,3 +1356,4 @@ func _process(delta: float) -> void:
 		for label in [_combo_label, _combo_counter, _streak_label, _streak_counter]:
 			if label.visible and not bool(_indicator_hiding.get(label.name, false)):
 				label.modulate.a = 0.94 + pulse * 0.045
+		_update_state_indicator_motion()
