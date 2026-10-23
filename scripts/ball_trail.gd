@@ -1791,36 +1791,72 @@ func _update_combo_filaments(delta: float) -> void:
 		line.modulate = Color(1.0, 1.0, 1.0, opacity)
 		line.width = float(filament_data["base_width"]) * (0.88 + flicker * 0.16)
 
-		# Re-sample the ribbon each frame so the accents cling to its edge instead
-		# of being left behind as the comet moves.
+		# Sample several points along the local trail so each filament runs
+		# longitudinally beside the comet and naturally follows its curves.
 		if (
 			_latest_trail_path.size() >= 4
 			and _latest_trail_total_distance >= 1.0
 		):
-			var section: Dictionary = _sample_trail_cross_section(
-				_latest_trail_total_distance * float(filament_data["progress"]),
+			var center_distance: float = (
+				_latest_trail_total_distance * float(filament_data["progress"])
+			)
+			var center_section: Dictionary = _sample_trail_cross_section(
+				center_distance,
 				_latest_trail_path,
 				_latest_trail_distances,
 				_latest_trail_tangents,
 				_latest_trail_normals,
 				_latest_trail_half_widths
 			)
-			var tangent: Vector2 = section["tangent"]
-			var outward: Vector2 = section["normal"] * float(filament_data["side"])
-			var half_width: float = float(section["half_width"])
-			var anchor: Vector2 = section["position"] + outward * (half_width * 0.98)
+			var side: float = float(filament_data["side"])
+			var center_normal: Vector2 = center_section["normal"] * side
+			var center_half_width: float = float(center_section["half_width"])
+			var lateral_gap: float = float(filament_data["lateral_gap"])
+			var anchor: Vector2 = (
+				center_section["position"]
+				+ center_normal * (center_half_width + lateral_gap)
+			)
 			var length: float = float(filament_data["length"])
-			var bend: float = float(filament_data["bend"])
+			var flare: float = float(filament_data["flare"])
+			var wave_amplitude: float = float(filament_data["wave_amplitude"])
 			var phase: float = float(filament_data["phase"])
 			line.global_position = anchor
+
 			for point_index in range(line.get_point_count()):
-				var along: float = float(point_index) / float(maxi(line.get_point_count() - 1, 1))
-				var wave: float = sin(_trail_time * 7.6 + phase + along * 3.2) * 1.8 * sin(PI * along)
-				var offset: Vector2 = (
-					outward * length * along
-					+ tangent * (bend * along + wave)
+				var along: float = (
+					float(point_index) / float(maxi(line.get_point_count() - 1, 1))
 				)
-				line.set_point_position(point_index, offset)
+				var sample_distance: float = clampf(
+					center_distance + (along - 0.5) * length,
+					0.0,
+					_latest_trail_total_distance
+				)
+				var section: Dictionary = _sample_trail_cross_section(
+					sample_distance,
+					_latest_trail_path,
+					_latest_trail_distances,
+					_latest_trail_tangents,
+					_latest_trail_normals,
+					_latest_trail_half_widths
+				)
+				var outward: Vector2 = section["normal"] * side
+				var half_width: float = float(section["half_width"])
+				var outward_flare: float = flare * sin(PI * along)
+				var live_wave: float = (
+					sin(_trail_time * 7.6 + phase + along * 3.2)
+					* wave_amplitude
+					* sin(PI * along)
+				)
+				var world_point: Vector2 = (
+					section["position"]
+					+ outward * (
+						half_width
+						+ lateral_gap
+						+ outward_flare
+						+ live_wave
+					)
+				)
+				line.set_point_position(point_index, world_point - anchor)
 
 		filament_data["age"] = age
 		if age >= lifetime or _combo_energy_current < 0.015:
@@ -1838,7 +1874,15 @@ func _spawn_combo_filament() -> void:
 	):
 		return
 
-	var progress: float = _visual_rng.randf_range(0.14, 0.80)
+	var length: float = _visual_rng.randf_range(18.0, 33.0)
+	# Keep the whole streak on the visible trail, so it can extend both ways
+	# along the local flow without being clipped at the orb head or tail.
+	var edge_margin: float = clampf(
+		length * 0.58 / _latest_trail_total_distance,
+		0.16,
+		0.42
+	)
+	var progress: float = _visual_rng.randf_range(edge_margin, 1.0 - edge_margin)
 	var section: Dictionary = _sample_trail_cross_section(
 		_latest_trail_total_distance * progress,
 		_latest_trail_path,
@@ -1849,8 +1893,10 @@ func _spawn_combo_filament() -> void:
 	)
 	var side: float = -1.0 if _visual_rng.randf() < 0.5 else 1.0
 	var outward: Vector2 = section["normal"] * side
-	var anchor: Vector2 = section["position"] + outward * (float(section["half_width"]) * 0.98)
-	var length: float = _visual_rng.randf_range(18.0, 33.0)
+	var lateral_gap: float = _visual_rng.randf_range(4.5, 7.0)
+	var anchor: Vector2 = section["position"] + outward * (
+		float(section["half_width"]) + lateral_gap
+	)
 	var line_width: float = _visual_rng.randf_range(1.0, 1.65)
 	var lifetime: float = _visual_rng.randf_range(
 		COMBO_FILAMENT_LIFETIME_MIN,
@@ -1912,7 +1958,9 @@ func _spawn_combo_filament() -> void:
 		"progress": progress,
 		"side": side,
 		"length": length,
-		"bend": _visual_rng.randf_range(-8.0, 8.0),
+		"lateral_gap": lateral_gap,
+		"flare": _visual_rng.randf_range(1.2, 4.8),
+		"wave_amplitude": _visual_rng.randf_range(0.8, 1.9),
 		"phase": phase,
 	})
 
