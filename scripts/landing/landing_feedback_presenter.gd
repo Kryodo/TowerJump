@@ -177,35 +177,31 @@ func _set_state_indicator_energy(
 	combo_just_activated: bool,
 	streak_just_activated: bool
 ) -> void:
-	var combo_strength: float = 0.0
+	# One status slot is reused for COMBO and STREAK, so its own glyph sheen
+	# follows whichever state currently owns the row.
+	var status_strength: float = 0.0
 	if combo_active:
-		combo_strength = 0.56
+		status_strength = 0.56
 		if streak_active:
-			combo_strength = 0.68
+			status_strength = 0.68
+	elif streak_active:
+		status_strength = 0.92
 
-	var combo_speed: float = 32.0 if not streak_active else 36.0
+	var status_tint: Color = STREAK_COLOR if streak_active else quality_color
+	var status_speed: float = 44.0 if streak_active else 32.0
+	var activation: bool = combo_just_activated or streak_just_activated
 	_set_state_label_energy(
-		_combo_label, combo_strength, quality_color, combo_speed,
-		combo_just_activated or streak_just_activated
+		_combo_label, status_strength, status_tint, status_speed, activation
 	)
 	_set_state_label_energy(
-		_combo_counter, combo_strength * 0.90,
-		quality_color.lerp(Color.WHITE, 0.12), combo_speed,
-		combo_just_activated or streak_just_activated
-	)
-
-	var streak_strength: float = 0.0
-	if streak_active:
-		streak_strength = 0.92
-	_set_state_label_energy(
-		_streak_label, streak_strength, STREAK_COLOR, 44.0, streak_just_activated
-	)
-	_set_state_label_energy(
-		_streak_counter, streak_strength * 0.90,
-		STREAK_COLOR.lerp(Color.WHITE, 0.14), 44.0, streak_just_activated
+		_combo_counter, status_strength * 0.90,
+		quality_color.lerp(Color.WHITE, 0.12), status_speed, activation
 	)
 
-	# One shared set of filaments energizes the entire two-row indicator.
+	# These legacy nodes stay inactive: STREAK takes over the single status row.
+	_set_state_label_energy(_streak_label, 0.0, STREAK_COLOR, 44.0, false)
+	_set_state_label_energy(_streak_counter, 0.0, STREAK_COLOR, 44.0, false)
+
 	if _indicator_energy_field != null:
 		var field_strength: float = 0.0
 		var field_tint: Color = quality_color
@@ -217,8 +213,7 @@ func _set_state_indicator_energy(
 			field_tint = STREAK_COLOR
 			field_speed = 48.0
 		_indicator_energy_field.call(
-			"set_energy", field_strength, field_tint, field_speed,
-			combo_just_activated or streak_just_activated
+			"set_energy", field_strength, field_tint, field_speed, activation
 		)
 
 
@@ -646,7 +641,10 @@ func _get_indicator_text_width(label: Label) -> float:
 	var text_value: String = label.text
 	if text_value.is_empty():
 		if label == _combo_label:
-			text_value = "✦  COMBO"
+			if bool(_last_state.get("streak_active", false)):
+				text_value = "STREAK %02d" % int(_last_state.get("chain_count", 0))
+			else:
+				text_value = "✦  COMBO"
 		elif label == _streak_label:
 			text_value = "▲  STREAK"
 		elif label == _combo_counter:
@@ -663,34 +661,20 @@ func _get_indicator_text_width(label: Label) -> float:
 
 
 func _get_status_content_width(side: int) -> float:
-	# STATUS_SIZE is the control's maximum footprint, but left-aligned captions
-	# and their live counters don't fill all of it. Measure only active rows so
-	# the visible counter ends at the same orb gap on either side.
-	var content_width: float = 0.0
-	var rows: Array[Array] = []
-	if bool(_last_state.get("combo_active", false)):
-		rows.append([_combo_label, _combo_counter])
-	if bool(_last_state.get("streak_active", false)):
-		rows.append([_streak_label, _streak_counter])
-	if rows.is_empty():
+	# There is exactly one status row now, whether it reads COMBO or STREAK.
+	if not bool(_last_state.get("combo_active", false)) and not bool(_last_state.get("streak_active", false)):
 		return STATUS_SIZE.x
 
-	for row in rows:
-		var caption: Label = row[0] as Label
-		var counter: Label = row[1] as Label
-		var caption_width: float = minf(
-			_get_indicator_text_width(caption),
-			caption.size.x
-		)
-		var counter_width: float = _get_indicator_text_width(counter)
-		var row_width: float
-		if side > 0:
-			row_width = maxf(caption_width, caption.size.x + counter_width)
-		else:
-			var mirrored_counter_gap: float = maxf(0.0, caption.size.x - caption_width)
-			row_width = caption.size.x + mirrored_counter_gap + counter_width
-		content_width = maxf(content_width, row_width)
-	return content_width
+	var caption_width: float = minf(
+		_get_indicator_text_width(_combo_label),
+		_combo_label.size.x
+	)
+	var counter_width: float = _get_indicator_text_width(_combo_counter)
+	if side > 0:
+		return maxf(caption_width, _combo_label.size.x + counter_width)
+
+	var mirrored_counter_gap: float = maxf(0.0, _combo_label.size.x - caption_width)
+	return _combo_label.size.x + mirrored_counter_gap + counter_width
 
 
 func _choose_status_anchor_side(ball_screen: Vector2, viewport_size: Vector2) -> int:
@@ -750,8 +734,7 @@ func _update_status_follow(delta: float) -> void:
 		# locked side no longer fits at the destination.
 		if _get_status_edge_visibility(ball_screen, viewport_size) < 1.0:
 			_status_anchor_side = _choose_status_anchor_side(ball_screen, viewport_size)
-			_layout_status_row(_combo_label, _combo_counter, 25.0 if bool(_last_state.get("streak_active", false)) else 13.0, 24.0 if bool(_last_state.get("streak_active", false)) else 11.0)
-			_layout_status_row(_streak_label, _streak_counter, 0.0, -2.0)
+			_layout_status_row(_combo_label, _combo_counter, 13.0, 11.0)
 		_last_ball_screen_position = ball_screen
 	elif not _status_position_initialized:
 		_last_ball_screen_position = ball_screen
@@ -871,66 +854,79 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 		_last_ball_screen_position = _get_ball_screen_position()
 	_status_root.visible = true
 
-	# Streak occupies the first row; Combo shifts down when both states are active.
-	_layout_status_row(_combo_label, _combo_counter, 25.0 if streak_active else 13.0, 24.0 if streak_active else 11.0)
-	_layout_status_row(_streak_label, _streak_counter, 0.0, -2.0)
+	# COMBO and STREAK share one fixed row. STREAK replaces the status text
+	# and folds its live count into that slot; the multiplier never moves.
+	_layout_status_row(_combo_label, _combo_counter, 13.0, 11.0)
+	_streak_label.visible = false
+	_streak_label.modulate = Color.WHITE
+	_streak_label.scale = Vector2.ONE
+	_streak_label.rotation = 0.0
+	_streak_counter.visible = false
+	_streak_counter.modulate = Color.WHITE
+	_streak_counter.scale = Vector2.ONE
+	_streak_counter.rotation = 0.0
 
-	var combo_tier_up: bool = false
-	var streak_tier_up: bool = false
+	var combo_intensity: float = 0.0
 	var combo_tier: int = -1
-	var streak_tier: int = -1
-	var streak_activation_count: int = int(state.get("streak_activation_landings", 10))
-
+	var combo_tier_up: bool = false
 	if combo_active:
-		var combo_intensity: float = _get_combo_visual_intensity(multiplier, quality)
+		combo_intensity = _get_combo_visual_intensity(multiplier, quality)
 		combo_tier = _get_visual_tier(combo_intensity)
 		combo_tier_up = previous_combo_active and combo_tier > previous_combo_tier
-		_apply_counter_intensity(_combo_counter, combo_intensity, 20, 9)
-		_set_indicator(_combo_label, "✦  COMBO", quality_color, combo_just_activated)
-		var combo_counter_color: Color = quality_color.lerp(Color.WHITE, 0.08)
-		_set_counter_indicator(
-			_combo_counter, "×%.2f" % multiplier, combo_counter_color, combo_just_activated
-		)
-		if previous_combo_active and multiplier > previous_multiplier + 0.001:
-			_animate_counter_change(_combo_counter, combo_intensity, combo_tier_up, combo_counter_color)
-	else:
-		_hide_indicator(_combo_label)
-		_hide_indicator(_combo_counter)
-		_combo_visual_tier = -1
 
+	var streak_intensity: float = 0.0
+	var streak_tier: int = -1
+	var streak_tier_up: bool = false
+	var streak_activation_count: int = int(state.get("streak_activation_landings", 10))
 	if streak_active:
-		var streak_intensity: float = _get_streak_visual_intensity(
+		streak_intensity = _get_streak_visual_intensity(
 			chain_count, streak_activation_count
 		)
 		streak_tier = _get_visual_tier(streak_intensity)
 		streak_tier_up = previous_streak_active and streak_tier > previous_streak_tier
-		_apply_counter_intensity(_streak_counter, streak_intensity, 20, 9)
-		_set_indicator(_streak_label, "▲  STREAK", STREAK_COLOR, streak_just_activated)
-		var streak_counter_color: Color = STREAK_COLOR.lerp(Color.WHITE, 0.08)
-		_set_counter_indicator(
-			_streak_counter, "%02d" % chain_count, streak_counter_color, streak_just_activated
-		)
-		if previous_streak_active and chain_count > previous_chain_count:
-			_animate_counter_change(_streak_counter, streak_intensity, streak_tier_up, streak_counter_color)
-	else:
-		_hide_indicator(_streak_label)
-		_hide_indicator(_streak_counter)
-		_streak_visual_tier = -1
 
-	# Reflow after both texts are updated so left-side spacing uses the current
-	# multiplier and streak count, not the previous frame's string widths.
-	_layout_status_row(
-		_combo_label,
-		_combo_counter,
-		25.0 if streak_active else 13.0,
-		24.0 if streak_active else 11.0
-	)
-	_layout_status_row(_streak_label, _streak_counter, 0.0, -2.0)
-
-	if combo_active:
-		_combo_visual_tier = combo_tier
+	var combo_counter_color: Color = quality_color.lerp(Color.WHITE, 0.08)
 	if streak_active:
-		_streak_visual_tier = streak_tier
+		# Take over the existing caption instead of creating a second important
+		# indicator. No separate STREAK row or count counter is shown.
+		var multiplier_intensity: float = combo_intensity if combo_active else streak_intensity
+		_apply_counter_intensity(_combo_counter, multiplier_intensity, 20, 9)
+		_set_indicator(
+			_combo_label, "STREAK %02d" % chain_count,
+			STREAK_COLOR, streak_just_activated
+		)
+		_set_counter_indicator(
+			_combo_counter, "×%.2f" % multiplier,
+			combo_counter_color, combo_just_activated or streak_just_activated
+		)
+
+		if previous_streak_active and chain_count > previous_chain_count:
+			# Let the count update give the shared status slot a compact impact.
+			_animate_counter_change(
+				_combo_label, streak_intensity, streak_tier_up, STREAK_COLOR
+			)
+		if (previous_combo_active or previous_streak_active) and multiplier > previous_multiplier + 0.001:
+			_animate_counter_change(
+				_combo_counter, multiplier_intensity, combo_tier_up, combo_counter_color
+			)
+	else:
+		if combo_active:
+			_apply_counter_intensity(_combo_counter, combo_intensity, 20, 9)
+			_set_indicator(_combo_label, "✦  COMBO", quality_color, combo_just_activated)
+			_set_counter_indicator(
+				_combo_counter, "×%.2f" % multiplier,
+				combo_counter_color, combo_just_activated
+			)
+			if previous_combo_active and multiplier > previous_multiplier + 0.001:
+				_animate_counter_change(
+					_combo_counter, combo_intensity, combo_tier_up, combo_counter_color
+				)
+		else:
+			_hide_indicator(_combo_label)
+			_hide_indicator(_combo_counter)
+
+	_combo_visual_tier = combo_tier if combo_active else -1
+	_streak_visual_tier = streak_tier if streak_active else -1
 
 	if combo_just_activated or streak_just_activated:
 		_state_pop_timer = 0.62
@@ -938,6 +934,7 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 		_state_pop_timer = 0.34
 	elif previous_chain_count != chain_count:
 		_state_pop_timer = 0.24
+
 
 func _get_combo_visual_intensity(multiplier: float, quality: String) -> float:
 	var start_multiplier: float = 1.15
