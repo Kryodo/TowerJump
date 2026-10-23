@@ -123,7 +123,7 @@ func _draw() -> void:
 			var pulse: float = sin(
 				clampf(phase / active_fraction, 0.0, 1.0) * PI
 			)
-			pulse = pow(maxf(0.0, pulse), 0.72) * minf(_energy_strength * 1.10, 1.0)
+			pulse = pow(maxf(0.0, pulse), 0.72) * _energy_strength
 			_draw_crackle(
 				text_rect, local_seed, pulse, is_streak,
 				1.0, 1 if is_streak else 1
