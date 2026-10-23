@@ -53,6 +53,8 @@ const LandingApproachStateScript := preload(
 signal landing_occurred(landing_world_x: float)
 
 var platform_type: PlatformType = PlatformType.NORMAL
+## Increments every time this pooled node is assigned a new platform spawn.
+var spawn_generation: int = 0
 
 var _base_position: Vector2 = Vector2.ZERO
 var _move_phase: float = 0.0
@@ -242,6 +244,7 @@ func spawn_as(
 	new_position: Vector2,
 	new_width_scale: float = 1.0
 ) -> void:
+	spawn_generation += 1
 	platform_type = type
 	width_scale = new_width_scale
 

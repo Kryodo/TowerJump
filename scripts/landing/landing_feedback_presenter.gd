@@ -159,6 +159,8 @@ func _make_label(
 
 
 func _on_landing_scored(result: Dictionary) -> void:
+	if not bool(result.get("scoring_eligible", true)):
+		return
 	var platform := result.get("platform") as Node2D
 	if platform == null or not is_instance_valid(platform):
 		return

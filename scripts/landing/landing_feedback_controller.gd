@@ -26,6 +26,8 @@ signal landing_confirmed(event: LandingEvent)
 const LANDING_FEEDBACK_TARGET_META := "_towerjump_landing_feedback_target"
 
 const TARGET_SWITCH_DY_MARGIN := 36.0
+const CLUTCH_RECOVERY_WINDOW: float = 0.32
+const CLUTCH_RISK_MARGIN: float = 2.0
 
 const LandingPredictionFilterScript := preload(
 	"res://scripts/landing/landing_prediction_filter.gd"
@@ -41,6 +43,8 @@ const MAX_CATCHUP_MULTIPLIER := 2.25
 var _ball: CharacterBody2D = null
 var _approach_target: Node2D = null
 var _retracting_targets: Array[Node2D] = []
+## Platform instance ID -> spawn generation that had a late predicted miss.
+var _late_edge_risk_generation: Dictionary = {}
 
 var _prediction_filter: LandingPredictionFilter = LandingPredictionFilter.new()
 
@@ -105,6 +109,18 @@ func _update_landing_target(delta: float) -> void:
 	var time_to_land := float(prediction.get("time_to_land", INF))
 	var predicted_x := float(prediction.get("predicted_x", _approach_target.global_position.x))
 	var edge_factor := float(prediction.get("edge_factor", 0.0))
+	var predicted_local_x: float = float(
+		prediction.get("local_x", predicted_x - _approach_target.global_position.x)
+	)
+	var approach_half_width: float = float(_approach_target.call("half_width"))
+	if (
+		time_to_land > 0.0
+		and time_to_land <= CLUTCH_RECOVERY_WINDOW
+		and absf(predicted_local_x) > approach_half_width + CLUTCH_RISK_MARGIN
+	):
+		_late_edge_risk_generation[_approach_target.get_instance_id()] = int(
+			_approach_target.get("spawn_generation")
+		)
 
 	var filtered_x := _prediction_filter.update(
 		predicted_x,
@@ -658,6 +674,13 @@ func _on_platform_landed(
 	if platform.has_method("get_landing_approach_progress"):
 		approach_progress = platform.get_landing_approach_progress()
 
+	var platform_instance_id: int = platform.get_instance_id()
+	var platform_generation: int = int(platform.get("spawn_generation"))
+	var late_edge_recovery: bool = int(
+		_late_edge_risk_generation.get(platform_instance_id, -1)
+	) == platform_generation
+	_late_edge_risk_generation.erase(platform_instance_id)
+
 	var event := LandingEvent.new(
 		_ball,
 		platform,
@@ -667,7 +690,9 @@ func _on_platform_landed(
 		float(_ball.velocity.x),
 		float(_ball.velocity.y),
 		approach_progress,
-		int(platform.get("platform_type"))
+		int(platform.get("platform_type")),
+		platform_generation,
+		late_edge_recovery
 	)
 
 	# The actual landing is authoritative. Complete this platform's approach

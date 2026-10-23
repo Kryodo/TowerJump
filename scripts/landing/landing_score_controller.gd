@@ -18,6 +18,9 @@ signal combo_state_changed(state: Dictionary)
 @export_range(1, 1000, 1) var epic_points: int = 25
 @export_range(1, 1000, 1) var perfect_points: int = 50
 @export_range(0, 1000, 1) var clutch_bonus_points: int = 25
+@export_range(0, 10, 1) var clutch_cooldown_landings: int = 2
+
+const MIN_VERTICAL_PROGRESS_PX: float = 12.0
 
 @export_category("Combo Milestones")
 @export_range(2, 10, 1) var combo_activation_landings: int = 3
@@ -50,6 +53,10 @@ var _chain_count: int = 0
 var _combo_active: bool = false
 var _streak_active: bool = false
 var _max_chain_count: int = 0
+var _last_seen_generation_by_platform: Dictionary = {}
+var _has_scored_platform_progress: bool = false
+var _highest_scored_platform_y: float = 0.0
+var _clutch_cooldown_remaining: int = 0
 
 
 func _ready() -> void:
@@ -85,6 +92,60 @@ func _on_landing_confirmed(event: LandingEvent) -> void:
 	if event == null or event.platform == null or not is_instance_valid(event.platform):
 		return
 
+	var platform_instance_id: int = event.platform.get_instance_id()
+	var platform_generation: int = event.platform_generation
+	var previous_generation: int = int(
+		_last_seen_generation_by_platform.get(platform_instance_id, -1)
+	)
+	var repeated_platform_landing: bool = previous_generation == platform_generation
+	_last_seen_generation_by_platform[platform_instance_id] = platform_generation
+
+	# Landing points require real upward progress. This also prevents alternating
+	# between separate branch platforms at the same height to farm score.
+	var platform_y: float = event.platform.global_position.y
+	var advances_height: bool = (
+		not _has_scored_platform_progress
+		or platform_y < _highest_scored_platform_y - MIN_VERTICAL_PROGRESS_PX
+	)
+	if repeated_platform_landing or not advances_height:
+		var chain_was_active: bool = _chain_count > 0
+		_reset_combo_chain()
+		var rejected_result := {
+			"quality": "GOOD",
+			"base_points": 0,
+			"multiplier": 1.0,
+			"multiplied_points": 0,
+			"clutch": false,
+			"clutch_bonus": 0,
+			"clutch_recovery": event.late_edge_recovery,
+			"combo_active": false,
+			"combo_activated": false,
+			"chain_broken": chain_was_active,
+			"chain_count": 0,
+			"streak_active": false,
+			"streak_activated": false,
+			"streak_bonus": 0,
+			"total_points": 0,
+			"best_chain_count": _max_chain_count,
+			"landing_world_x": event.landing_world_x,
+			"platform": event.platform,
+			"platform_generation": platform_generation,
+			"edge_factor": event.edge_factor,
+			"horizontal_velocity": event.horizontal_velocity,
+			"platform_type": event.platform_type,
+			"scoring_eligible": false,
+			"repeat_platform_landing": repeated_platform_landing,
+			"progression_blocked": not advances_height,
+		}
+		# Keep physical platform confirmation, but don't grant score, stats,
+		# Combo/Streak progress, reward text, or Clutch for rejected contacts.
+		landing_scored.emit(rejected_result)
+		combo_state_changed.emit(get_combo_state())
+		return
+
+	_has_scored_platform_progress = true
+	_highest_scored_platform_y = platform_y
+
 	var quality: String = _classify_landing(event)
 	var previous_quality: String = _chain_quality
 	var previous_combo_active: bool = _combo_active
@@ -105,11 +166,24 @@ func _on_landing_confirmed(event: LandingEvent) -> void:
 	var base_points: int = _base_points_for_quality(quality)
 	var multiplier: float = _get_combo_multiplier(quality, _chain_count) if _combo_active else 1.0
 	var multiplied_points: int = roundi(float(base_points) * multiplier)
-	var clutch_bonus: int = (
-		clutch_bonus_points
-		if quality == "GOOD" and event.edge_factor >= clutch_edge_factor_threshold
-		else 0
+
+	var platform_half_width: float = maxf(float(event.platform.call("half_width")), 1.0)
+	var actual_local_x: float = absf(
+		event.landing_world_x - event.platform.global_position.x
 	)
+	var clutch_candidate: bool = (
+		quality == "GOOD"
+		and event.edge_factor >= clutch_edge_factor_threshold
+		and event.late_edge_recovery
+		and actual_local_x <= platform_half_width
+	)
+	var clutch_bonus: int = 0
+	if _clutch_cooldown_remaining > 0:
+		_clutch_cooldown_remaining -= 1
+	elif clutch_candidate:
+		clutch_bonus = clutch_bonus_points
+		_clutch_cooldown_remaining = clutch_cooldown_landings
+
 	var streak_bonus: int = (
 		base_points * streak_bonus_base_point_multiple
 		if streak_activated
@@ -124,6 +198,7 @@ func _on_landing_confirmed(event: LandingEvent) -> void:
 		"multiplied_points": multiplied_points,
 		"clutch": clutch_bonus > 0,
 		"clutch_bonus": clutch_bonus,
+		"clutch_recovery": event.late_edge_recovery,
 		"combo_active": _combo_active,
 		"combo_activated": combo_activated,
 		"chain_broken": chain_broken,
@@ -135,15 +210,26 @@ func _on_landing_confirmed(event: LandingEvent) -> void:
 		"best_chain_count": _max_chain_count,
 		"landing_world_x": event.landing_world_x,
 		"platform": event.platform,
+		"platform_generation": platform_generation,
 		"edge_factor": event.edge_factor,
 		"horizontal_velocity": event.horizontal_velocity,
 		"platform_type": event.platform_type,
+		"scoring_eligible": true,
+		"repeat_platform_landing": false,
+		"progression_blocked": false,
 	}
 
 	# GameManager remains the authority for the run total and run statistics.
 	GameManager.record_landing_result(result)
 	landing_scored.emit(result)
 	combo_state_changed.emit(get_combo_state())
+
+
+func _reset_combo_chain() -> void:
+	_chain_quality = ""
+	_chain_count = 0
+	_combo_active = false
+	_streak_active = false
 
 
 func _classify_landing(event: LandingEvent) -> String:
