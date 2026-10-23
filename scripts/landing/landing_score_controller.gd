@@ -9,8 +9,6 @@ signal combo_state_changed(state: Dictionary)
 @export_category("Landing Quality")
 @export_range(0.05, 0.50, 0.01) var perfect_center_threshold: float = 0.18
 @export_range(0.10, 0.80, 0.01) var epic_center_threshold: float = 0.48
-@export_range(0.0, 600.0, 10.0) var perfect_horizontal_speed_limit: float = 120.0
-@export_range(0.0, 900.0, 10.0) var epic_horizontal_speed_limit: float = 360.0
 @export_range(0.50, 1.0, 0.01) var clutch_edge_factor_threshold: float = 0.92
 
 @export_category("Base Points")
@@ -239,20 +237,14 @@ func _classify_landing(event: LandingEvent) -> String:
 	var center_offset: float = absf(
 		event.landing_world_x - event.platform.global_position.x
 	)
-	# Width-relative thresholds keep the grade zones proportional on narrow
-	# and wide platforms rather than relying on fixed pixel distances.
+	# For now, COMBO grades measure landing precision only. Horizontal speed
+	# remains available on LandingEvent for possible future systems, but it
+	# must not automatically downgrade a precise landing.
 	var normalized_offset: float = center_offset / platform_half_width
-	var horizontal_speed: float = absf(event.horizontal_velocity)
 
-	if (
-		normalized_offset <= perfect_center_threshold
-		and horizontal_speed <= perfect_horizontal_speed_limit
-	):
+	if normalized_offset <= perfect_center_threshold:
 		return "PERFECT"
-	if (
-		normalized_offset <= epic_center_threshold
-		and horizontal_speed <= epic_horizontal_speed_limit
-	):
+	if normalized_offset <= epic_center_threshold:
 		return "EPIC"
 	return "GOOD"
 
