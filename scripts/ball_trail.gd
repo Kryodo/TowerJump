@@ -85,6 +85,14 @@ const COMBO_PERFECT_TINT := Vector3(1.20, 1.62, 1.78)
 const COMBO_BLEND_IN_RATE: float = 3.8
 const COMBO_BLEND_OUT_RATE: float = 2.8
 
+# Persistent COMBO accents live just outside the ribbon silhouette. They are
+# separate from the stronger, landing-triggered full-release filaments.
+const COMBO_FILAMENT_MAX_ACTIVE: int = 3
+const COMBO_FILAMENT_INTERVAL_MIN: float = 0.20
+const COMBO_FILAMENT_INTERVAL_MAX: float = 0.34
+const COMBO_FILAMENT_LIFETIME_MIN: float = 0.32
+const COMBO_FILAMENT_LIFETIME_MAX: float = 0.62
+
 var _latest_trail_path: Array[Vector2] = []
 var _latest_trail_distances: Array[float] = []
 var _latest_trail_tangents: Array[Vector2] = []
@@ -102,11 +110,15 @@ var _landing_burst_snapshot_valid: bool = false
 var _combo_energy_current: float = 0.0
 var _combo_energy_target: float = 0.0
 var _combo_tint: Vector3 = COMBO_GOOD_TINT
+var _combo_filaments: Array[Dictionary] = []
+var _combo_filament_spawn_clock: float = 0.0
+var _combo_filament_next_spawn: float = 0.22
 
 func _ready() -> void:
 	z_index = -1
 	_previous_ball_position = global_position
 	_visual_rng.randomize()
+	_combo_filament_next_spawn = _visual_rng.randf_range(COMBO_FILAMENT_INTERVAL_MIN, COMBO_FILAMENT_INTERVAL_MAX)
 	_ball_surface_radius = _measure_ball_surface_radius()
 	if _unified_shape != null:
 		_unified_shape.mesh = ArrayMesh.new()
@@ -325,6 +337,7 @@ func _process(delta: float) -> void:
 	_update_detached_shed_fragments(delta)
 	_update_landing_surface_streaks(delta)
 	_update_energy_filaments(delta)
+	_update_combo_filaments(delta)
 	_update_rim_breath()
 	_update_particle_emitters(current_world_position, movement, distance_from_trail)
 	_previous_ball_position = current_world_position
@@ -1725,6 +1738,182 @@ func _update_energy_filaments(delta: float) -> void:
 		else:
 			_energy_filaments[index] = filament_data
 
+
+ 
+func _update_combo_filaments(delta: float) -> void:
+	# These small exterior accents remain attached to the moving ribbon. Unlike
+	# full-release filaments, they are sparse, thin, tapered, and allowed to flicker.
+	var combo_ready: bool = (
+		_combo_energy_target > 0.5
+		and _combo_energy_current > 0.18
+		and _latest_trail_path.size() >= 4
+		and _latest_trail_total_distance >= 48.0
+	)
+
+	if combo_ready:
+		_combo_filament_spawn_clock += delta
+		if (
+			_combo_filament_spawn_clock >= _combo_filament_next_spawn
+			and _combo_filaments.size() < COMBO_FILAMENT_MAX_ACTIVE
+		):
+			_combo_filament_spawn_clock = 0.0
+			_combo_filament_next_spawn = _visual_rng.randf_range(
+				COMBO_FILAMENT_INTERVAL_MIN,
+				COMBO_FILAMENT_INTERVAL_MAX
+			)
+			_spawn_combo_filament()
+	else:
+		_combo_filament_spawn_clock = 0.0
+
+	for index in range(_combo_filaments.size() - 1, -1, -1):
+		var filament_data: Dictionary = _combo_filaments[index]
+		var line := filament_data.get("line") as Line2D
+		if not is_instance_valid(line):
+			_combo_filaments.remove_at(index)
+			continue
+
+		var age: float = float(filament_data["age"]) + delta
+		var lifetime: float = float(filament_data["lifetime"])
+		var progress: float = clampf(age / maxf(lifetime, 0.001), 0.0, 1.0)
+		var attack: float = smoothstep(0.0, 0.035, age)
+		var fade: float = 1.0 - smoothstep(0.58, 1.0, progress)
+		var flicker_phase: float = float(filament_data["phase"])
+		var flicker_wave: float = 0.5 + 0.5 * sin(_trail_time * 12.0 + flicker_phase)
+		var flicker: float = 0.24 + 0.76 * pow(flicker_wave, 3.5)
+		var opacity: float = (
+			attack
+			* fade
+			* flicker
+			* float(filament_data["base_alpha"])
+			* _combo_energy_current
+		)
+		line.modulate = Color(1.0, 1.0, 1.0, opacity)
+		line.width = float(filament_data["base_width"]) * (0.88 + flicker * 0.16)
+
+		# Re-sample the ribbon each frame so the accents cling to its edge instead
+		# of being left behind as the comet moves.
+		if (
+			_latest_trail_path.size() >= 4
+			and _latest_trail_total_distance >= 1.0
+		):
+			var section: Dictionary = _sample_trail_cross_section(
+				_latest_trail_total_distance * float(filament_data["progress"]),
+				_latest_trail_path,
+				_latest_trail_distances,
+				_latest_trail_tangents,
+				_latest_trail_normals,
+				_latest_trail_half_widths
+			)
+			var tangent: Vector2 = section["tangent"]
+			var outward: Vector2 = section["normal"] * float(filament_data["side"])
+			var half_width: float = float(section["half_width"])
+			var anchor: Vector2 = section["position"] + outward * (half_width * 0.98)
+			var length: float = float(filament_data["length"])
+			var bend: float = float(filament_data["bend"])
+			var phase: float = float(filament_data["phase"])
+			line.global_position = anchor
+			for point_index in range(line.get_point_count()):
+				var along: float = float(point_index) / float(maxi(line.get_point_count() - 1, 1))
+				var wave: float = sin(_trail_time * 7.6 + phase + along * 3.2) * 1.8 * sin(PI * along)
+				var offset: Vector2 = (
+					outward * length * along
+					+ tangent * (bend * along + wave)
+				)
+				line.set_point_position(point_index, offset)
+
+		filament_data["age"] = age
+		if age >= lifetime or _combo_energy_current < 0.015:
+			line.queue_free()
+			_combo_filaments.remove_at(index)
+		else:
+			_combo_filaments[index] = filament_data
+
+
+func _spawn_combo_filament() -> void:
+	if (
+		_combo_filaments.size() >= COMBO_FILAMENT_MAX_ACTIVE
+		or _latest_trail_path.size() < 4
+		or _latest_trail_total_distance < 48.0
+	):
+		return
+
+	var progress: float = _visual_rng.randf_range(0.14, 0.80)
+	var section: Dictionary = _sample_trail_cross_section(
+		_latest_trail_total_distance * progress,
+		_latest_trail_path,
+		_latest_trail_distances,
+		_latest_trail_tangents,
+		_latest_trail_normals,
+		_latest_trail_half_widths
+	)
+	var side: float = -1.0 if _visual_rng.randf() < 0.5 else 1.0
+	var outward: Vector2 = section["normal"] * side
+	var anchor: Vector2 = section["position"] + outward * (float(section["half_width"]) * 0.98)
+	var length: float = _visual_rng.randf_range(18.0, 33.0)
+	var line_width: float = _visual_rng.randf_range(1.0, 1.65)
+	var lifetime: float = _visual_rng.randf_range(
+		COMBO_FILAMENT_LIFETIME_MIN,
+		COMBO_FILAMENT_LIFETIME_MAX
+	)
+	var phase: float = _visual_rng.randf_range(0.0, TAU)
+
+	var world_root: Node2D = get_tree().current_scene as Node2D
+	if world_root == null:
+		world_root = get_parent() as Node2D
+	if world_root == null:
+		return
+
+	var filament := Line2D.new()
+	filament.name = "PersistentComboFilament"
+	filament.z_as_relative = false
+	filament.z_index = -1
+	filament.width = line_width
+	filament.joint_mode = Line2D.LINE_JOINT_ROUND
+	filament.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	filament.end_cap_mode = Line2D.LINE_CAP_ROUND
+	filament.antialiased = true
+
+	var taper := Curve.new()
+	taper.add_point(Vector2(0.0, 0.10))
+	taper.add_point(Vector2(0.16, 0.82))
+	taper.add_point(Vector2(0.43, 1.0))
+	taper.add_point(Vector2(0.76, 0.48))
+	taper.add_point(Vector2(1.0, 0.015))
+	filament.width_curve = taper
+
+	var additive := CanvasItemMaterial.new()
+	additive.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	filament.material = additive
+
+	var gradient := Gradient.new()
+	var tint := Color(_combo_tint.x, _combo_tint.y, _combo_tint.z, 0.94)
+	var tail_tint := Color(
+		_combo_tint.x * 0.48,
+		_combo_tint.y * 0.48,
+		_combo_tint.z * 0.48,
+		0.0
+	)
+	gradient.set_color(0, tint)
+	gradient.set_color(1, tail_tint)
+	filament.gradient = gradient
+	for point_index in range(5):
+		filament.add_point(Vector2.ZERO)
+
+	world_root.add_child(filament)
+	filament.global_position = anchor
+
+	_combo_filaments.append({
+		"line": filament,
+		"age": 0.0,
+		"lifetime": lifetime,
+		"base_width": line_width,
+		"base_alpha": _visual_rng.randf_range(0.58, 0.82),
+		"progress": progress,
+		"side": side,
+		"length": length,
+		"bend": _visual_rng.randf_range(-8.0, 8.0),
+		"phase": phase,
+	})
 
 
 func _apply_visual_palette() -> void:
