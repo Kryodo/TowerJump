@@ -222,7 +222,13 @@ func _set_state_label_energy(
 
 	var duration: float = 0.16
 	if target > current:
-		duration = 0.34 if streak_just_activated else (0.28 if activation else 0.20)
+		if activation:
+			duration = (
+				0.34 if label == _streak_label or label == _streak_counter
+				else 0.28
+			)
+		else:
+			duration = 0.20
 
 	var tween := create_tween()
 	_indicator_energy_tweens[label.name] = tween
