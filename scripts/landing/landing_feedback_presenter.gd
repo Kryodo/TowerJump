@@ -211,7 +211,7 @@ func _set_state_indicator_energy(
 		var field_tint: Color = quality_color
 		var field_speed: float = 34.0
 		if combo_active:
-			field_strength = 0.92
+			field_strength = 0.97
 		if streak_active:
 			field_strength = 1.0
 			field_tint = STREAK_COLOR
