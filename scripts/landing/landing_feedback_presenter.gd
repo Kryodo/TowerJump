@@ -373,23 +373,22 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 
 	# The detail remains the last visual row, but the quality-chain progress is
 	# communicated by the orb's segmented core ring.
+	# The emblem is a stable sibling layer, not a child of the grade text.
+	# It follows the text's position but never inherits its scale or rotation.
+	var grade_emblem := Control.new()
+	grade_emblem.name = "LandingGradeEmblem"
+	grade_emblem.set_script(LANDING_GRADE_EMBLEM_SCRIPT)
+	grade_emblem.position = Vector2(0.0, -4.0)
+	grade_emblem.size = Vector2(REWARD_SIZE.x, 30.0)
+	grade_emblem.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	reward_root.add_child(grade_emblem)
+
 	var grade_label := _make_label(
 		"LandingGrade", Vector2(REWARD_SIZE.x, 22.0), 19, quality_color, 5
 	)
 	grade_label.position = Vector2.ZERO
 	grade_label.text = quality
 	reward_root.add_child(grade_label)
-
-	# Every grade gets a compact geometric emblem. Parenting it to the grade
-	# makes the banner feel integrated with the typography during the grade reveal.
-	var grade_emblem := Control.new()
-	grade_emblem.name = "LandingGradeEmblem"
-	grade_emblem.set_script(LANDING_GRADE_EMBLEM_SCRIPT)
-	grade_emblem.position = Vector2(-4.0, -3.0)
-	grade_emblem.size = grade_label.size + Vector2(8.0, 6.0)
-	grade_emblem.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	grade_emblem.show_behind_parent = true
-	grade_label.add_child(grade_emblem)
 	grade_emblem.call("configure", quality, quality_color)
 
 	var points_label := _make_label(
@@ -438,6 +437,9 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 			"drop_factor": 0.18,
 			"spring": 0.84,
 			"grade_entrance": true,
+			"background_emblem": grade_emblem,
+			"entry_slide_x": float(grade_profile["entry_slide_x"]),
+			"entry_slide_direction": -float(reward_side),
 			"preload_scale": float(grade_profile["preload_scale"]),
 			"anticipation_duration": float(grade_profile["anticipation_duration"]),
 			"entry_duration": float(grade_profile["entry_duration"]),
@@ -511,6 +513,7 @@ func _get_grade_celebration_profile(quality: String) -> Dictionary:
 				"ambient_breath": 0.0025,
 				"ambient_rotation": 0.0015,
 				"entry_lift": 5.5,
+				"entry_slide_x": 14.0,
 				"entrance_fade_duration": 0.18,
 				"points_delay": 0.12,
 				"points_preload_scale": 0.78,
@@ -532,6 +535,7 @@ func _get_grade_celebration_profile(quality: String) -> Dictionary:
 				"ambient_breath": 0.002,
 				"ambient_rotation": 0.001,
 				"entry_lift": 4.5,
+				"entry_slide_x": 11.0,
 				"entrance_fade_duration": 0.15,
 				"points_delay": 0.09,
 				"points_preload_scale": 0.80,
@@ -553,6 +557,7 @@ func _get_grade_celebration_profile(quality: String) -> Dictionary:
 				"ambient_breath": 0.003,
 				"ambient_rotation": 0.0,
 				"entry_lift": 0.0,
+				"entry_slide_x": 8.0,
 				"entrance_fade_duration": 0.12,
 				"points_delay": 0.04,
 				"points_preload_scale": 0.76,
@@ -1454,6 +1459,9 @@ func _update_reward_animations(delta: float) -> void:
 				var fade_progress: float = clampf(local_age / entrance_fade_duration, 0.0, 1.0)
 				var fade_eased: float = 1.0 - pow(1.0 - fade_progress, 3.0)
 				label.modulate.a = minf(label.modulate.a, fade_eased)
+				var entry_slide_x: float = float(part.get("entry_slide_x", 0.0))
+				var entry_slide_direction: float = float(part.get("entry_slide_direction", -1.0))
+				var entrance_offset_x: float = 0.0
 				var entrance_offset_y: float = 0.0
 
 				if anticipation > 0.0 and local_age < anticipation:
@@ -1463,6 +1471,7 @@ func _update_reward_animations(delta: float) -> void:
 						preload_scale, windup_scale, anticipation_eased
 					)
 					label.rotation = lerpf(0.0, windup_rotation, anticipation_eased)
+					entrance_offset_x = entry_slide_x * entry_slide_direction * (1.0 - anticipation_progress * 0.10)
 					entrance_offset_y = entry_lift * (1.0 - anticipation_progress * 0.10)
 				elif local_age < anticipation + entry_duration:
 					var entry_progress: float = clampf(
@@ -1475,6 +1484,7 @@ func _update_reward_animations(delta: float) -> void:
 						windup_scale, impact_scale, entry_eased
 					)
 					label.rotation = lerpf(windup_rotation, impact_rotation, entry_eased)
+					entrance_offset_x = entry_slide_x * entry_slide_direction * (1.0 - entry_eased)
 					entrance_offset_y = entry_lift * (1.0 - entry_eased)
 				elif local_age < anticipation + entry_duration + settle_duration:
 					var settle_progress: float = clampf(
@@ -1490,7 +1500,7 @@ func _update_reward_animations(delta: float) -> void:
 						1.0 + sin(local_age * 7.0 + phase) * ambient_breath
 					)
 					label.rotation = sin(local_age * 7.0 + phase) * ambient_rotation
-				label.position += Vector2(0.0, entrance_offset_y)
+				label.position += Vector2(entrance_offset_x, entrance_offset_y)
 			elif bool(part.get("points_entrance", false)):
 				var points_preload_scale: float = float(part.get("points_preload_scale", 0.76))
 				var points_impact_scale: float = float(part.get("points_impact_scale", 1.10))
@@ -1527,6 +1537,13 @@ func _update_reward_animations(delta: float) -> void:
 					label.scale = Vector2.ONE * lerpf(1.035, 1.0, (local_age - 0.13) / 0.08)
 				else:
 					label.scale = Vector2.ONE * (1.0 + sin(local_age * 7.0 + phase) * 0.004)
+
+			# The emblem tracks only the grade's translation and fade. Its own
+			# geometry stays fixed while the text scales and rotates over it.
+			var background_emblem := part.get("background_emblem") as Control
+			if background_emblem != null and is_instance_valid(background_emblem):
+				background_emblem.position = label.position + Vector2(0.0, -4.0)
+				background_emblem.modulate.a = label.modulate.a
 
 		if age >= lifetime:
 			root.queue_free()
