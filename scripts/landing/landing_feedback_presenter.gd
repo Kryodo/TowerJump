@@ -1427,10 +1427,10 @@ func _update_reward_animations(delta: float) -> void:
 				var impact_rotation: float = float(part.get("impact_rotation", 0.0))
 				var ambient_rotation: float = float(part.get("ambient_rotation", 0.0))
 				var entry_lift: float = float(part.get("entry_lift", 0.0))
-				var fade_duration: float = maxf(
+				var entrance_fade_duration: float = maxf(
 					float(part.get("entrance_fade_duration", 0.14)), 0.01
 				)
-				var fade_progress: float = clampf(local_age / fade_duration, 0.0, 1.0)
+				var fade_progress: float = clampf(local_age / entrance_fade_duration, 0.0, 1.0)
 				var fade_eased: float = 1.0 - pow(1.0 - fade_progress, 3.0)
 				label.modulate.a = minf(label.modulate.a, fade_eased)
 				var entrance_offset_y: float = 0.0
