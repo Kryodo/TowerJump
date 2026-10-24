@@ -43,9 +43,17 @@ func _draw() -> void:
 	var is_perfect: bool = _quality == "PERFECT"
 	var center := Vector2(size.x * 0.5, size.y * 0.5)
 
-	# Let the word overhang the colored silhouette slightly, avoiding a badge-like frame.
+	# Give each tier an intentional width profile instead of tightly tracing the word.
+	# Good gets modest breathing room, Epic a broader plate, and Perfect keeps
+	# a deliberate text overhang so its longer word breaks beyond the flare.
 	var half_text_width: float = minf(text_width * 0.5, size.x * 0.42)
-	var half_width: float = minf(half_text_width * 0.97, size.x * 0.46)
+	var half_width: float
+	if is_perfect:
+		half_width = minf(half_text_width * 0.90, size.x * 0.46)
+	elif is_epic:
+		half_width = minf(maxf(half_text_width * 1.10, 31.5), size.x * 0.46)
+	else:
+		half_width = minf(maxf(half_text_width * 1.08, 29.0), size.x * 0.46)
 	var half_height: float = 8.5 if not is_epic and not is_perfect else (10.8 if is_epic else 12.2)
 
 	var shape_points := _build_flash_shape(

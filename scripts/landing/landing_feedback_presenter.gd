@@ -389,8 +389,22 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 	grade_emblem.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	grade_composition.add_child(grade_emblem)
 
+	var grade_font_size: int = 19
+	var grade_label_height: float = 22.0
+	match quality:
+		"EPIC":
+			grade_font_size = 21
+			grade_label_height = 25.0
+		"PERFECT":
+			grade_font_size = 23
+			grade_label_height = 28.0
+
 	var grade_label := _make_label(
-		"LandingGrade", Vector2(REWARD_SIZE.x, 22.0), 19, quality_color, 5
+		"LandingGrade",
+		Vector2(REWARD_SIZE.x, grade_label_height),
+		grade_font_size,
+		quality_color,
+		5
 	)
 	grade_label.text = quality
 	# Explicitly center the text on the emblem's drawing center, both axes.
