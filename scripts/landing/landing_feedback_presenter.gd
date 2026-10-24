@@ -371,24 +371,28 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 	reward_root.z_index = 30
 	add_child(reward_root)
 
-	# The detail remains the last visual row, but the quality-chain progress is
-	# communicated by the orb's segmented core ring.
-	# The emblem is a stable sibling layer, not a child of the grade text.
-	# It follows the text's position but never inherits its scale or rotation.
+	# Treat the grade and its geometry as one composition. The composition
+	# slides into place; the text gets only a restrained scale impact within it.
+	var grade_composition := Control.new()
+	grade_composition.name = "LandingGradeComposition"
+	grade_composition.size = REWARD_SIZE
+	grade_composition.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	reward_root.add_child(grade_composition)
+
 	var grade_emblem := Control.new()
 	grade_emblem.name = "LandingGradeEmblem"
 	grade_emblem.set_script(LANDING_GRADE_EMBLEM_SCRIPT)
 	grade_emblem.position = Vector2(0.0, -4.0)
 	grade_emblem.size = Vector2(REWARD_SIZE.x, 30.0)
 	grade_emblem.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	reward_root.add_child(grade_emblem)
+	grade_composition.add_child(grade_emblem)
 
 	var grade_label := _make_label(
 		"LandingGrade", Vector2(REWARD_SIZE.x, 22.0), 19, quality_color, 5
 	)
 	grade_label.position = Vector2.ZERO
 	grade_label.text = quality
-	reward_root.add_child(grade_label)
+	grade_composition.add_child(grade_label)
 	grade_emblem.call("configure", quality, quality_color)
 
 	var points_label := _make_label(
@@ -428,7 +432,8 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 	var parts: Array[Dictionary] = [
 		{
 			"label": grade_label,
-			"base_position": grade_label.position,
+			"motion_node": grade_composition,
+			"base_position": grade_composition.position,
 			"delay": 0.0,
 			"fade_start": 0.48,
 			"fade_duration": 0.22,
@@ -437,7 +442,6 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 			"drop_factor": 0.18,
 			"spring": 0.84,
 			"grade_entrance": true,
-			"background_emblem": grade_emblem,
 			"entry_slide_x": float(grade_profile["entry_slide_x"]),
 			"entry_slide_direction": -float(reward_side),
 			"preload_scale": float(grade_profile["preload_scale"]),
@@ -502,12 +506,12 @@ func _get_grade_celebration_profile(quality: String) -> Dictionary:
 	match quality:
 		"PERFECT":
 			return {
-				"preload_scale": 0.68,
-				"windup_scale": 0.78,
+				"preload_scale": 0.92,
+				"windup_scale": 0.98,
 				"anticipation_duration": 0.035,
-				"entry_duration": 0.22,
-				"impact_scale": 1.62,
-				"settle_duration": 0.18,
+				"entry_duration": 0.20,
+				"impact_scale": 1.18,
+				"settle_duration": 0.15,
 				"windup_rotation": -0.018,
 				"impact_rotation": 0.006,
 				"ambient_breath": 0.0025,
@@ -524,12 +528,12 @@ func _get_grade_celebration_profile(quality: String) -> Dictionary:
 			}
 		"EPIC":
 			return {
-				"preload_scale": 0.64,
-				"windup_scale": 0.76,
+				"preload_scale": 0.91,
+				"windup_scale": 0.97,
 				"anticipation_duration": 0.03,
-				"entry_duration": 0.21,
-				"impact_scale": 1.60,
-				"settle_duration": 0.18,
+				"entry_duration": 0.19,
+				"impact_scale": 1.14,
+				"settle_duration": 0.14,
 				"windup_rotation": -0.014,
 				"impact_rotation": 0.005,
 				"ambient_breath": 0.002,
@@ -546,12 +550,12 @@ func _get_grade_celebration_profile(quality: String) -> Dictionary:
 			}
 		_:
 			return {
-				"preload_scale": 0.82,
-				"windup_scale": 0.82,
+				"preload_scale": 0.94,
+				"windup_scale": 0.98,
 				"anticipation_duration": 0.0,
-				"entry_duration": 0.105,
-				"impact_scale": 1.055,
-				"settle_duration": 0.105,
+				"entry_duration": 0.12,
+				"impact_scale": 1.045,
+				"settle_duration": 0.10,
 				"windup_rotation": 0.0,
 				"impact_rotation": 0.0,
 				"ambient_breath": 0.003,
@@ -1416,15 +1420,24 @@ func _update_reward_animations(delta: float) -> void:
 			if label == null or not is_instance_valid(label):
 				continue
 
+			var motion_node := part.get("motion_node") as Control
+			var position_node: Control = (
+				motion_node
+				if motion_node != null and is_instance_valid(motion_node)
+				else label
+			)
+
 			var local_age: float = age - float(part.get("delay", 0.0))
 			if local_age < 0.0:
 				label.modulate.a = 0.0
+				if motion_node != null and is_instance_valid(motion_node):
+					motion_node.modulate.a = 0.0
 				continue
 
 			var duration: float = maxf(float(part.get("duration", lifetime)), 0.1)
 			var part_progress: float = clampf(local_age / duration, 0.0, 1.0)
 			var part_eased: float = 1.0 - pow(1.0 - part_progress, 2.0)
-			var base_position: Vector2 = part.get("base_position", label.position)
+			var base_position: Vector2 = part.get("base_position", position_node.position)
 			var part_drift: float = drift_x * float(part.get("drift_factor", 1.0))
 			var part_drop: float = 7.0 * float(part.get("drop_factor", 0.5))
 			var part_flutter: float = sin(local_age * 9.0 + phase) * 1.0 * (1.0 - part_progress)
@@ -1432,7 +1445,7 @@ func _update_reward_animations(delta: float) -> void:
 				part_drift * part_eased + part_flutter,
 				part_drop * part_eased
 			)
-			label.position = part_motion_position
+			position_node.position = part_motion_position
 
 			var alpha: float = 1.0
 			if local_age < 0.07:
@@ -1441,7 +1454,12 @@ func _update_reward_animations(delta: float) -> void:
 			var fade_duration: float = maxf(float(part.get("fade_duration", 0.2)), 0.05)
 			if local_age > fade_start:
 				alpha *= 1.0 - clampf((local_age - fade_start) / fade_duration, 0.0, 1.0)
-			label.modulate.a = clampf(alpha, 0.0, 1.0)
+			if motion_node != null and is_instance_valid(motion_node):
+				# Fade the whole grade composition once, keeping both layers joined.
+				label.modulate.a = 1.0
+				motion_node.modulate.a = clampf(alpha, 0.0, 1.0)
+			else:
+				label.modulate.a = clampf(alpha, 0.0, 1.0)
 
 			if bool(part.get("grade_entrance", false)):
 				var preload_scale: float = float(part.get("preload_scale", 0.82))
@@ -1459,7 +1477,10 @@ func _update_reward_animations(delta: float) -> void:
 				)
 				var fade_progress: float = clampf(local_age / entrance_fade_duration, 0.0, 1.0)
 				var fade_eased: float = 1.0 - pow(1.0 - fade_progress, 3.0)
-				label.modulate.a = minf(label.modulate.a, fade_eased)
+				if motion_node != null and is_instance_valid(motion_node):
+					motion_node.modulate.a = minf(motion_node.modulate.a, fade_eased)
+				else:
+					label.modulate.a = minf(label.modulate.a, fade_eased)
 				var entry_slide_x: float = float(part.get("entry_slide_x", 0.0))
 				var entry_slide_direction: float = float(part.get("entry_slide_direction", -1.0))
 				var entrance_offset_x: float = 0.0
@@ -1501,7 +1522,7 @@ func _update_reward_animations(delta: float) -> void:
 						1.0 + sin(local_age * 7.0 + phase) * ambient_breath
 					)
 					label.rotation = sin(local_age * 7.0 + phase) * ambient_rotation
-				label.position += Vector2(entrance_offset_x, entrance_offset_y)
+				position_node.position += Vector2(entrance_offset_x, entrance_offset_y)
 			elif bool(part.get("points_entrance", false)):
 				var points_preload_scale: float = float(part.get("points_preload_scale", 0.76))
 				var points_impact_scale: float = float(part.get("points_impact_scale", 1.10))
@@ -1539,12 +1560,6 @@ func _update_reward_animations(delta: float) -> void:
 				else:
 					label.scale = Vector2.ONE * (1.0 + sin(local_age * 7.0 + phase) * 0.004)
 
-			# The backdrop follows the reward cluster's gentle drift, but not
-			# the grade's entrance slide, scale or rotation. The text moves onto it.
-			var background_emblem := part.get("background_emblem") as Control
-			if background_emblem != null and is_instance_valid(background_emblem):
-				background_emblem.position = part_motion_position + Vector2(0.0, -4.0)
-				background_emblem.modulate.a = label.modulate.a
 
 		if age >= lifetime:
 			root.queue_free()
