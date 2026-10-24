@@ -16,6 +16,7 @@ extends CharacterBody2D
 @export_category("State Activation Jump Boost")
 @export_range(1.0, 1.20, 0.01) var combo_activation_jump_multiplier: float = 1.04
 @export_range(1.0, 1.20, 0.01) var streak_activation_jump_multiplier: float = 1.06
+@export_range(0.0, 60.0, 1.0) var combo_activation_jump_boost_cooldown_seconds: float = 15.0
 @export var landing_score_controller_path: NodePath = NodePath("../LandingScoreController")
 
 ## Aktuelle Steuerrichtung, binär: -1 = voll links, 0 = keine, 1 = voll rechts
@@ -30,6 +31,7 @@ var _combo_was_active: bool = false
 var _streak_was_active: bool = false
 var _pending_activation_jump_multiplier: float = 1.0
 var _pending_activation_boost_kind: int = 0
+var _combo_jump_boost_cooldown_remaining: float = 0.0
 
 @onready var _collision_shape: CollisionShape2D = $CollisionShape2D
 
@@ -75,11 +77,19 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 	# callback, just before this frame assigns the bounce velocity. Queue one
 	# boost for that bounce only; Streak replaces Combo rather than stacking.
 	if streak_active and not _streak_was_active:
+		# Streak is its own milestone reward and ignores the Combo boost cooldown.
 		_pending_activation_jump_multiplier = streak_activation_jump_multiplier
 		_pending_activation_boost_kind = 2
 	elif combo_active and not _combo_was_active:
-		_pending_activation_jump_multiplier = combo_activation_jump_multiplier
-		_pending_activation_boost_kind = 1
+		# This cooldown is deliberately scoped to the placeholder Combo boost;
+		# Combo state, scoring and the future FLOW system continue normally.
+		if _combo_jump_boost_cooldown_remaining <= 0.0:
+			_pending_activation_jump_multiplier = combo_activation_jump_multiplier
+			_pending_activation_boost_kind = 1
+			_combo_jump_boost_cooldown_remaining = maxf(
+				combo_activation_jump_boost_cooldown_seconds,
+				0.0
+			)
 
 	_combo_was_active = combo_active
 	_streak_was_active = streak_active
@@ -100,6 +110,10 @@ func _consume_activation_jump_boost() -> float:
 
 
 func _physics_process(delta: float) -> void:
+	_combo_jump_boost_cooldown_remaining = maxf(
+		_combo_jump_boost_cooldown_remaining - delta,
+		0.0
+	)
 	input_direction = _read_input_direction()
 
 	# --- Gravitation ---
