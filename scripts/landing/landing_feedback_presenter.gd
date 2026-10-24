@@ -376,6 +376,8 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 	var grade_composition := Control.new()
 	grade_composition.name = "LandingGradeComposition"
 	grade_composition.size = REWARD_SIZE
+	# Scale and rotate the word and its background around the word's visual center.
+	grade_composition.pivot_offset = Vector2(REWARD_SIZE.x * 0.5, 11.0)
 	grade_composition.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	reward_root.add_child(grade_composition)
 
@@ -1489,10 +1491,10 @@ func _update_reward_animations(delta: float) -> void:
 				if anticipation > 0.0 and local_age < anticipation:
 					var anticipation_progress: float = clampf(local_age / anticipation, 0.0, 1.0)
 					var anticipation_eased: float = 1.0 - pow(1.0 - anticipation_progress, 2.0)
-					label.scale = Vector2.ONE * lerpf(
+					position_node.scale = Vector2.ONE * lerpf(
 						preload_scale, windup_scale, anticipation_eased
 					)
-					label.rotation = lerpf(0.0, windup_rotation, anticipation_eased)
+					position_node.rotation = lerpf(0.0, windup_rotation, anticipation_eased)
 					entrance_offset_x = entry_slide_x * entry_slide_direction * (1.0 - anticipation_progress * 0.10)
 					entrance_offset_y = entry_lift * (1.0 - anticipation_progress * 0.10)
 				elif local_age < anticipation + entry_duration:
@@ -1502,10 +1504,10 @@ func _update_reward_animations(delta: float) -> void:
 					# A controlled, non-elastic reveal: quick acceleration with no
 					# back-ease overshoot or visible rotational whip.
 					var entry_eased: float = 1.0 - pow(1.0 - entry_progress, 3.0)
-					label.scale = Vector2.ONE * lerpf(
+					position_node.scale = Vector2.ONE * lerpf(
 						windup_scale, impact_scale, entry_eased
 					)
-					label.rotation = lerpf(windup_rotation, impact_rotation, entry_eased)
+					position_node.rotation = lerpf(windup_rotation, impact_rotation, entry_eased)
 					entrance_offset_x = entry_slide_x * entry_slide_direction * (1.0 - entry_eased)
 					entrance_offset_y = entry_lift * (1.0 - entry_eased)
 				elif local_age < anticipation + entry_duration + settle_duration:
@@ -1514,14 +1516,14 @@ func _update_reward_animations(delta: float) -> void:
 						0.0, 1.0
 					)
 					var settle_eased: float = 1.0 - pow(1.0 - settle_progress, 3.0)
-					label.scale = Vector2.ONE * lerpf(impact_scale, 1.0, settle_eased)
-					label.rotation = lerpf(impact_rotation, 0.0, settle_eased)
+					position_node.scale = Vector2.ONE * lerpf(impact_scale, 1.0, settle_eased)
+					position_node.rotation = lerpf(impact_rotation, 0.0, settle_eased)
 				else:
 					var ambient_breath: float = float(part.get("ambient_breath", 0.003))
-					label.scale = Vector2.ONE * (
+					position_node.scale = Vector2.ONE * (
 						1.0 + sin(local_age * 7.0 + phase) * ambient_breath
 					)
-					label.rotation = sin(local_age * 7.0 + phase) * ambient_rotation
+					position_node.rotation = sin(local_age * 7.0 + phase) * ambient_rotation
 				position_node.position += Vector2(entrance_offset_x, entrance_offset_y)
 			elif bool(part.get("points_entrance", false)):
 				var points_preload_scale: float = float(part.get("points_preload_scale", 0.76))

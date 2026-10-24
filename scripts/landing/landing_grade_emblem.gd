@@ -1,15 +1,11 @@
 extends Control
 
-## A single filled geometric flash behind the landing grade.
-## There are no outlines or rails to compete with the lettering: the silhouette
-## expands quickly, gives one soft quality-colored flash, then settles to a
-## very faint tint so the word remains the clear focal point.
+## Static filled geometry behind the landing grade.
+## The parent grade composition owns all motion, entrance scaling, rotation,
+## and fading so the shape always behaves as part of the word, not a separate flash.
 
 var _quality: String = "GOOD"
 var _quality_color: Color = Color(0.40, 0.86, 1.0, 1.0)
-var _elapsed: float = 0.0
-var _flash_duration: float = 0.17
-var _processing_duration: float = 0.30
 
 
 func _ready() -> void:
@@ -20,29 +16,6 @@ func _ready() -> void:
 func configure(quality: String, quality_color: Color) -> void:
 	_quality = quality
 	_quality_color = quality_color
-	match _quality:
-		"EPIC":
-			_flash_duration = 0.20
-			_processing_duration = 0.24
-		"PERFECT":
-			_flash_duration = 0.23
-			_processing_duration = 0.28
-		_:
-			_flash_duration = 0.17
-			_processing_duration = 0.21
-	_elapsed = 0.0
-	visible = true
-	set_process(true)
-	queue_redraw()
-
-
-func _process(delta: float) -> void:
-	_elapsed += delta
-	if _elapsed >= _processing_duration:
-		_elapsed = _processing_duration
-		queue_redraw()
-		set_process(false)
-		return
 	queue_redraw()
 
 
@@ -70,33 +43,22 @@ func _draw() -> void:
 	var is_perfect: bool = _quality == "PERFECT"
 	var center := Vector2(size.x * 0.5, size.y * 0.5)
 
-	# Adapt the flash to the rendered word, but keep it slightly narrower so
-	# the text overhangs the silhouette instead of appearing inside a badge.
+	# Let the word overhang the colored silhouette slightly, avoiding a badge-like frame.
 	var half_text_width: float = minf(text_width * 0.5, size.x * 0.42)
 	var half_width: float = minf(half_text_width * 0.97, size.x * 0.46)
 	var half_height: float = 9.0 if not is_epic and not is_perfect else (10.0 if is_epic else 11.5)
-
-	# A fast horizontal expansion creates the impact. Once expanded, the
-	# silhouette stays still while the light peaks and quickly recedes.
-	var expansion_progress: float = clampf(_elapsed / 0.095, 0.0, 1.0)
-	var expansion_eased: float = 1.0 - pow(1.0 - expansion_progress, 3.0)
-	var expansion: float = lerpf(0.68, 1.0, expansion_eased)
-	half_width *= expansion
-	half_height *= lerpf(0.72, 1.0, expansion_eased)
 
 	var shape_points := _build_flash_shape(
 		center, half_width, half_height, is_epic, is_perfect
 	)
 
-	var flash_progress: float = clampf(_elapsed / maxf(_flash_duration, 0.01), 0.0, 1.0)
-	var flash_envelope: float = sin(flash_progress * PI)
-	var idle_alpha: float = 0.045 if not is_epic and not is_perfect else (0.060 if is_epic else 0.075)
-	var peak_alpha: float = 0.52 if not is_epic and not is_perfect else (0.62 if is_epic else 0.74)
 	var fill_color: Color = _quality_color.lerp(
 		Color.WHITE,
 		0.16 if not is_epic and not is_perfect else (0.30 if is_epic else 0.58)
 	)
-	fill_color.a = idle_alpha + peak_alpha * flash_envelope
+	# This remains visible beneath the outlined lettering for the entire reward life.
+	# The composition's shared alpha fade controls its disappearance along with the text.
+	fill_color.a = 0.28 if not is_epic and not is_perfect else (0.36 if is_epic else 0.44)
 	draw_colored_polygon(shape_points, fill_color)
 
 
@@ -110,7 +72,7 @@ func _build_flash_shape(
 	var points := PackedVector2Array()
 
 	if is_perfect:
-		# The top tier gets a broader, faceted energy flare—but still one solid fill.
+		# Perfect has a broad, faceted flare, still a single solid shape.
 		points.append(Vector2(center.x - half_width, center.y))
 		points.append(Vector2(center.x - half_width * 0.82, center.y - half_height * 0.44))
 		points.append(Vector2(center.x - half_width * 0.68, center.y - half_height))
@@ -126,7 +88,7 @@ func _build_flash_shape(
 		points.append(Vector2(center.x - half_width * 0.68, center.y + half_height))
 		points.append(Vector2(center.x - half_width * 0.82, center.y + half_height * 0.44))
 	elif is_epic:
-		# Epic has a sharper shoulder cut than Good, without adding linework.
+		# Epic has a sharper shoulder cut than Good.
 		points.append(Vector2(center.x - half_width, center.y))
 		points.append(Vector2(center.x - half_width * 0.78, center.y - half_height * 0.54))
 		points.append(Vector2(center.x - half_width * 0.42, center.y - half_height))
@@ -138,7 +100,7 @@ func _build_flash_shape(
 		points.append(Vector2(center.x - half_width * 0.42, center.y + half_height))
 		points.append(Vector2(center.x - half_width * 0.78, center.y + half_height * 0.54))
 	else:
-		# Good stays a simple, low-profile elongated hex flash.
+		# Good stays a simple, low-profile elongated hex.
 		points.append(Vector2(center.x - half_width, center.y))
 		points.append(Vector2(center.x - half_width * 0.78, center.y - half_height))
 		points.append(Vector2(center.x + half_width * 0.78, center.y - half_height))
