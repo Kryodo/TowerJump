@@ -73,8 +73,8 @@ func _draw() -> void:
 	# Adapt the flash to the rendered word, but keep it slightly narrower so
 	# the text overhangs the silhouette instead of appearing inside a badge.
 	var half_text_width: float = minf(text_width * 0.5, size.x * 0.42)
-	var half_width: float = minf(half_text_width * 0.93, size.x * 0.46)
-	var half_height: float = 5.3 if not is_epic and not is_perfect else (6.0 if is_epic else 6.8)
+	var half_width: float = minf(half_text_width * 0.97, size.x * 0.46)
+	var half_height: float = 9.0 if not is_epic and not is_perfect else (10.0 if is_epic else 11.5)
 
 	# A fast horizontal expansion creates the impact. Once expanded, the
 	# silhouette stays still while the light peaks and quickly recedes.
@@ -90,11 +90,11 @@ func _draw() -> void:
 
 	var flash_progress: float = clampf(_elapsed / maxf(_flash_duration, 0.01), 0.0, 1.0)
 	var flash_envelope: float = sin(flash_progress * PI)
-	var idle_alpha: float = 0.030 if not is_epic and not is_perfect else (0.038 if is_epic else 0.044)
-	var peak_alpha: float = 0.15 if not is_epic and not is_perfect else (0.18 if is_epic else 0.21)
+	var idle_alpha: float = 0.045 if not is_epic and not is_perfect else (0.060 if is_epic else 0.075)
+	var peak_alpha: float = 0.52 if not is_epic and not is_perfect else (0.62 if is_epic else 0.74)
 	var fill_color: Color = _quality_color.lerp(
 		Color.WHITE,
-		0.0 if not is_epic and not is_perfect else (0.12 if is_epic else 0.48)
+		0.16 if not is_epic and not is_perfect else (0.30 if is_epic else 0.58)
 	)
 	fill_color.a = idle_alpha + peak_alpha * flash_envelope
 	draw_colored_polygon(shape_points, fill_color)
