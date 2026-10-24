@@ -218,7 +218,10 @@ func _draw_membrane_band(
 			sin(t * TAU * 1.25 + phase) * amplitude
 			+ sin(t * TAU * 2.3 - phase * 0.66) * amplitude * 0.31
 		) * taper
-		var lower_y: float = half_height + top_offset + wave + depth * taper
+		var lower_y: float = (
+			half_height + top_offset + wave + depth * taper
+			+ (1.0 - taper) * 2.2
+		)
 		points.append(Vector2(x, lower_y))
 	draw_colored_polygon(points, tint)
 
