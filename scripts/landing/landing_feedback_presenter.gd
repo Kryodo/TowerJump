@@ -1376,30 +1376,31 @@ func _update_reward_animations(delta: float) -> void:
 				var impact_scale: float = float(part.get("impact_scale", 1.055))
 				var settle_duration: float = maxf(float(part.get("settle_duration", 0.105)), 0.01)
 				var entry_start_scale: float = preload_scale * (0.86 if anticipation > 0.0 else 1.0)
+
 				if anticipation > 0.0 and local_age < anticipation:
 					var anticipation_progress: float = local_age / anticipation
 					label.scale = Vector2.ONE * lerpf(
 						preload_scale, entry_start_scale, anticipation_progress
 					)
-			elif local_age < anticipation + entry_duration:
+				elif local_age < anticipation + entry_duration:
 					var entry_progress: float = clampf(
 						(local_age - anticipation) / entry_duration, 0.0, 1.0
 					)
-				var entry_eased: float = 1.0 - pow(1.0 - entry_progress, 3.0)
-				label.scale = Vector2.ONE * lerpf(
+					var entry_eased: float = 1.0 - pow(1.0 - entry_progress, 3.0)
+					label.scale = Vector2.ONE * lerpf(
 						entry_start_scale, impact_scale, entry_eased
 					)
-			elif local_age < anticipation + entry_duration + settle_duration:
-				var settle_progress: float = (
-					local_age - anticipation - entry_duration
-				) / settle_duration
-				var settle_eased: float = 1.0 - pow(1.0 - settle_progress, 2.0)
-				label.scale = Vector2.ONE * lerpf(impact_scale, 1.0, settle_eased)
-			else:
-				var ambient_breath: float = float(part.get("ambient_breath", 0.003))
-				label.scale = Vector2.ONE * (
-					1.0 + sin(local_age * 7.0 + phase) * ambient_breath
-				)
+				elif local_age < anticipation + entry_duration + settle_duration:
+					var settle_progress: float = (
+						local_age - anticipation - entry_duration
+					) / settle_duration
+					var settle_eased: float = 1.0 - pow(1.0 - settle_progress, 2.0)
+					label.scale = Vector2.ONE * lerpf(impact_scale, 1.0, settle_eased)
+				else:
+					var ambient_breath: float = float(part.get("ambient_breath", 0.003))
+					label.scale = Vector2.ONE * (
+						1.0 + sin(local_age * 7.0 + phase) * ambient_breath
+					)
 			else:
 				var spring: float = float(part.get("spring", 0.85))
 				if local_age < 0.13:
