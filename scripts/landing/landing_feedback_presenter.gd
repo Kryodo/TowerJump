@@ -384,8 +384,8 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 		var fragment_field := Control.new()
 		fragment_field.name = "LandingGradeFragments"
 		fragment_field.set_script(LANDING_GRADE_FRAGMENTS_SCRIPT)
-		fragment_field.position = Vector2(0.0, -5.0)
-		fragment_field.size = grade_label.size + Vector2(0.0, 10.0)
+		fragment_field.position = Vector2(0.0, -13.0)
+		fragment_field.size = grade_label.size + Vector2(0.0, 26.0)
 		fragment_field.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		fragment_field.clip_contents = true
 		fragment_field.z_index = 2
@@ -444,17 +444,27 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 			"impact_scale": float(grade_profile["impact_scale"]),
 			"settle_duration": float(grade_profile["settle_duration"]),
 			"ambient_breath": float(grade_profile["ambient_breath"]),
+			"ambient_rotation": float(grade_profile["ambient_rotation"]),
+			"windup_scale": float(grade_profile["windup_scale"]),
+			"windup_rotation": float(grade_profile["windup_rotation"]),
+			"impact_rotation": float(grade_profile["impact_rotation"]),
+			"entry_lift": float(grade_profile["entry_lift"]),
 		},
 		{
 			"label": points_label,
 			"base_position": points_label.position,
-			"delay": 0.05,
+			"delay": float(grade_profile["points_delay"]),
 			"fade_start": 0.73,
 			"fade_duration": 0.23,
 			"duration": 1.02,
 			"drift_factor": 0.20,
 			"drop_factor": 0.28,
-			"spring": 0.76,
+			"points_entrance": true,
+			"points_preload_scale": float(grade_profile["points_preload_scale"]),
+			"points_impact_scale": float(grade_profile["points_impact_scale"]),
+			"points_entry_duration": float(grade_profile["points_entry_duration"]),
+			"points_settle_duration": float(grade_profile["points_settle_duration"]),
+			"points_entry_lift": float(grade_profile["points_entry_lift"]),
 		},
 		{
 			"label": detail_label,
@@ -483,36 +493,68 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 
 
 func _get_grade_celebration_profile(quality: String) -> Dictionary:
-	# All grades share the same reward treatment, but the entrance grows more
-	# deliberate and impactful with the grade. Values are starting points for
-	# in-game tuning, measured against the existing grade-label size.
+	# Epic and Perfect now have a clear wind-up -> snap -> settle sequence.
+	# Points use the same grade ladder, arriving just after the grade itself.
 	match quality:
 		"PERFECT":
 			return {
-				"preload_scale": 0.62,
-				"anticipation_duration": 0.055,
-				"entry_duration": 0.17,
-				"impact_scale": 1.24,
-				"settle_duration": 0.155,
-				"ambient_breath": 0.005,
+				"preload_scale": 0.24,
+				"windup_scale": 0.15,
+				"anticipation_duration": 0.075,
+				"entry_duration": 0.21,
+				"impact_scale": 1.70,
+				"settle_duration": 0.19,
+				"windup_rotation": -0.20,
+				"impact_rotation": 0.035,
+				"ambient_breath": 0.007,
+				"ambient_rotation": 0.009,
+				"entry_lift": 12.0,
+				"points_delay": 0.075,
+				"points_preload_scale": 0.44,
+				"points_impact_scale": 1.48,
+				"points_entry_duration": 0.19,
+				"points_settle_duration": 0.16,
+				"points_entry_lift": 6.0,
 			}
 		"EPIC":
 			return {
-				"preload_scale": 0.72,
-				"anticipation_duration": 0.035,
-				"entry_duration": 0.14,
-				"impact_scale": 1.14,
-				"settle_duration": 0.12,
-				"ambient_breath": 0.004,
+				"preload_scale": 0.35,
+				"windup_scale": 0.24,
+				"anticipation_duration": 0.055,
+				"entry_duration": 0.18,
+				"impact_scale": 1.52,
+				"settle_duration": 0.16,
+				"windup_rotation": -0.15,
+				"impact_rotation": 0.045,
+				"ambient_breath": 0.005,
+				"ambient_rotation": 0.007,
+				"entry_lift": 8.0,
+				"points_delay": 0.055,
+				"points_preload_scale": 0.54,
+				"points_impact_scale": 1.31,
+				"points_entry_duration": 0.16,
+				"points_settle_duration": 0.13,
+				"points_entry_lift": 4.0,
 			}
 		_:
 			return {
 				"preload_scale": 0.82,
+				"windup_scale": 0.82,
 				"anticipation_duration": 0.0,
 				"entry_duration": 0.105,
 				"impact_scale": 1.055,
 				"settle_duration": 0.105,
+				"windup_rotation": 0.0,
+				"impact_rotation": 0.0,
 				"ambient_breath": 0.003,
+				"ambient_rotation": 0.0,
+				"entry_lift": 0.0,
+				"points_delay": 0.04,
+				"points_preload_scale": 0.76,
+				"points_impact_scale": 1.10,
+				"points_entry_duration": 0.13,
+				"points_settle_duration": 0.10,
+				"points_entry_lift": 1.5,
 			}
 
 
@@ -1371,36 +1413,87 @@ func _update_reward_animations(delta: float) -> void:
 
 			if bool(part.get("grade_entrance", false)):
 				var preload_scale: float = float(part.get("preload_scale", 0.82))
+				var windup_scale: float = float(part.get("windup_scale", preload_scale))
 				var anticipation: float = float(part.get("anticipation_duration", 0.0))
 				var entry_duration: float = maxf(float(part.get("entry_duration", 0.105)), 0.01)
 				var impact_scale: float = float(part.get("impact_scale", 1.055))
 				var settle_duration: float = maxf(float(part.get("settle_duration", 0.105)), 0.01)
-				var entry_start_scale: float = preload_scale * (0.86 if anticipation > 0.0 else 1.0)
+				var windup_rotation: float = float(part.get("windup_rotation", 0.0))
+				var impact_rotation: float = float(part.get("impact_rotation", 0.0))
+				var ambient_rotation: float = float(part.get("ambient_rotation", 0.0))
+				var entry_lift: float = float(part.get("entry_lift", 0.0))
+				var entrance_offset_y: float = 0.0
 
 				if anticipation > 0.0 and local_age < anticipation:
-					var anticipation_progress: float = local_age / anticipation
+					var anticipation_progress: float = clampf(local_age / anticipation, 0.0, 1.0)
 					label.scale = Vector2.ONE * lerpf(
-						preload_scale, entry_start_scale, anticipation_progress
+						preload_scale, windup_scale, anticipation_progress
 					)
+					label.rotation = lerpf(0.0, windup_rotation, anticipation_progress)
+					entrance_offset_y = entry_lift * (1.0 - anticipation_progress * 0.15)
 				elif local_age < anticipation + entry_duration:
 					var entry_progress: float = clampf(
 						(local_age - anticipation) / entry_duration, 0.0, 1.0
 					)
-					var entry_eased: float = 1.0 - pow(1.0 - entry_progress, 3.0)
-					label.scale = Vector2.ONE * lerpf(
-						entry_start_scale, impact_scale, entry_eased
+					# Back-easing briefly overshoots the target, then returns to it
+					# before the settle phase. This gives Epic/Perfect an actual impact.
+					var entry_eased: float = (
+						1.0 + 2.70158 * pow(entry_progress - 1.0, 3.0)
+						+ 1.70158 * pow(entry_progress - 1.0, 2.0)
 					)
+					label.scale = Vector2.ONE * lerpf(
+						windup_scale, impact_scale, entry_eased
+					)
+					label.rotation = lerpf(windup_rotation, impact_rotation, entry_eased)
+					entrance_offset_y = entry_lift * (1.0 - entry_eased)
 				elif local_age < anticipation + entry_duration + settle_duration:
-					var settle_progress: float = (
-						local_age - anticipation - entry_duration
-					) / settle_duration
+					var settle_progress: float = clampf(
+						(local_age - anticipation - entry_duration) / settle_duration,
+						0.0, 1.0
+					)
 					var settle_eased: float = 1.0 - pow(1.0 - settle_progress, 2.0)
 					label.scale = Vector2.ONE * lerpf(impact_scale, 1.0, settle_eased)
+					label.rotation = lerpf(impact_rotation, 0.0, settle_eased)
 				else:
 					var ambient_breath: float = float(part.get("ambient_breath", 0.003))
 					label.scale = Vector2.ONE * (
 						1.0 + sin(local_age * 7.0 + phase) * ambient_breath
 					)
+					label.rotation = sin(local_age * 7.0 + phase) * ambient_rotation
+				label.position += Vector2(0.0, entrance_offset_y)
+			elif bool(part.get("points_entrance", false)):
+				var points_preload_scale: float = float(part.get("points_preload_scale", 0.76))
+				var points_impact_scale: float = float(part.get("points_impact_scale", 1.10))
+				var points_entry_duration: float = maxf(
+					float(part.get("points_entry_duration", 0.13)), 0.01
+				)
+				var points_settle_duration: float = maxf(
+					float(part.get("points_settle_duration", 0.10)), 0.01
+				)
+				var points_entry_lift: float = float(part.get("points_entry_lift", 0.0))
+				if local_age < points_entry_duration:
+					var points_progress: float = clampf(local_age / points_entry_duration, 0.0, 1.0)
+					# A smaller, grade-scaled back pop makes the number feel tied to
+					# the quality hit without competing with the grade word.
+					var points_eased: float = (
+						1.0 + 2.70158 * pow(points_progress - 1.0, 3.0)
+						+ 1.70158 * pow(points_progress - 1.0, 2.0)
+					)
+					label.scale = Vector2.ONE * lerpf(
+						points_preload_scale, points_impact_scale, points_eased
+					)
+					label.position += Vector2(0.0, points_entry_lift * (1.0 - points_eased))
+				elif local_age < points_entry_duration + points_settle_duration:
+					var points_settle_progress: float = clampf(
+						(local_age - points_entry_duration) / points_settle_duration,
+						0.0, 1.0
+					)
+					var points_settle_eased: float = 1.0 - pow(1.0 - points_settle_progress, 2.0)
+					label.scale = Vector2.ONE * lerpf(
+						points_impact_scale, 1.0, points_settle_eased
+					)
+				else:
+					label.scale = Vector2.ONE * (1.0 + sin(local_age * 8.0 + phase) * 0.004)
 			else:
 				var spring: float = float(part.get("spring", 0.85))
 				if local_age < 0.13:

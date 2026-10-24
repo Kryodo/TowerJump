@@ -4,7 +4,9 @@ extends Control
 ## The strands flare from the word, fork slightly, then dissolve; there are no
 ## dot particles or screen-wide effects.
 
-const FRAGMENT_ANGLES: Array[float] = [-2.65, -1.72, -0.78, 0.20, 2.72, 1.95]
+const FRAGMENT_ANGLES: Array[float] = [
+	-2.65, -1.72, -0.78, 0.20, 2.72, 1.95, -2.20, 0.96
+]
 
 var _label: Label
 var _quality: String = "EPIC"
@@ -27,11 +29,11 @@ func configure(quality: String, quality_color: Color) -> void:
 	_quality = quality
 	_quality_color = quality_color
 	if quality == "PERFECT":
-		_fragment_count = 5
-		_duration = 0.38
+		_fragment_count = 8
+		_duration = 0.50
 	else:
-		_fragment_count = 3
-		_duration = 0.30
+		_fragment_count = 5
+		_duration = 0.42
 	_elapsed = 0.0
 	visible = true
 	set_process(true)
@@ -67,7 +69,7 @@ func _draw() -> void:
 		size.y * 0.5
 	)
 	var is_perfect: bool = _quality == "PERFECT"
-	var base_length: float = 14.0 if is_perfect else 10.0
+	var base_length: float = 31.0 if is_perfect else 23.0
 
 	for fragment_index in range(_fragment_count):
 		var start_delay: float = float(fragment_index % 3) * 0.018
@@ -77,7 +79,7 @@ func _draw() -> void:
 		var life: float = _duration - start_delay
 		var progress: float = clampf(local_time / life, 0.0, 1.0)
 		var ramp: float = clampf(progress / 0.12, 0.0, 1.0)
-		var visibility: float = ramp * pow(1.0 - progress, 1.25)
+		var visibility: float = ramp * pow(1.0 - progress, 0.95)
 		if visibility <= 0.015:
 			continue
 
@@ -99,18 +101,22 @@ func _draw() -> void:
 		var points := PackedVector2Array([anchor, middle, tip])
 		_draw_filament(points, visibility, is_perfect, seed)
 
-		# Perfect gets a few short forks that make the burst feel more electric,
-		# without adding round particles or a large radial explosion.
-		if is_perfect and fragment_index % 2 == 0:
+		# Both grades fork, but Perfect gets denser and brighter branching.
+		var should_fork: bool = fragment_index % (2 if is_perfect else 3) == 0
+		if should_fork:
 			var fork_anchor: Vector2 = middle
-			var fork_tip: Vector2 = middle + perpendicular * distance * 0.34 * (1.0 - progress * 0.25)
+			var fork_factor: float = 0.38 if is_perfect else 0.28
+			var fork_tip: Vector2 = middle + perpendicular * distance * fork_factor * (1.0 - progress * 0.25)
 			fork_tip += direction * distance * 0.10
 			var fork_points := PackedVector2Array([
 				fork_anchor,
 				fork_anchor.lerp(fork_tip, 0.55) + direction * 1.5,
 				fork_tip
 			])
-			_draw_filament(fork_points, visibility * 0.56, true, seed + 7.0)
+			_draw_filament(
+				fork_points, visibility * (0.72 if is_perfect else 0.58),
+				is_perfect, seed + 7.0
+			)
 
 
 func _draw_filament(
@@ -123,10 +129,10 @@ func _draw_filament(
 		return
 	var glow_color := Color(
 		_quality_color.r, _quality_color.g, _quality_color.b,
-		(0.24 if is_perfect else 0.18) * visibility
+		(0.46 if is_perfect else 0.34) * visibility
 	)
-	var core_color := _quality_color.lerp(Color.WHITE, 0.74 if is_perfect else 0.58)
-	core_color.a = (0.88 if is_perfect else 0.76) * visibility
+	var core_color := _quality_color.lerp(Color.WHITE, 0.82 if is_perfect else 0.70)
+	core_color.a = (1.0 if is_perfect else 0.94) * visibility
 	for segment in range(1, points.size()):
 		var segment_progress: float = float(segment) / float(points.size() - 1)
 		var shimmer: float = 0.78 + 0.22 * absf(
@@ -139,11 +145,11 @@ func _draw_filament(
 		core.a *= shimmer
 		draw_line(
 			points[segment - 1], points[segment], glow,
-			1.8 if is_perfect else 1.45, true
+			4.0 if is_perfect else 3.0, true
 		)
 		draw_line(
 			points[segment - 1], points[segment], core,
-			lerpf(0.85, 0.48, segment_progress), true
+			lerpf(1.65, 0.72, segment_progress), true
 		)
 
 
