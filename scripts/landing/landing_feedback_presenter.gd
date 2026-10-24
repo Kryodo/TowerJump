@@ -1,7 +1,7 @@
 extends CanvasLayer
 
 const STATE_INDICATOR_ENERGY_SHADER = preload("res://scenes/state_indicator_energy.gdshader")
-const LANDING_GRADE_FRAGMENTS_SCRIPT = preload("res://scripts/landing/landing_grade_fragments.gd")
+const LANDING_GRADE_EMBLEM_SCRIPT = preload("res://scripts/landing/landing_grade_emblem.gd")
 const STATE_INDICATOR_ENERGY_FIELD_SCRIPT = preload("res://scripts/landing/state_indicator_energy_field.gd")
 ## Presents landing rewards and persistent landing states in screen space.
 ## Scoring remains in LandingScoreController; this node only handles presentation.
@@ -380,19 +380,17 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 	grade_label.text = quality
 	reward_root.add_child(grade_label)
 
-	# Epic and Perfect use a separate electrical layer. It follows the grade's
-	# position, but deliberately does not inherit its scale or rotation.
-	if quality == "EPIC" or quality == "PERFECT":
-		var fragment_field := Control.new()
-		fragment_field.name = "LandingGradeFragments"
-		fragment_field.set_script(LANDING_GRADE_FRAGMENTS_SCRIPT)
-		fragment_field.position = grade_label.position + Vector2(-4.0, -3.0)
-		fragment_field.size = grade_label.size + Vector2(8.0, 6.0)
-		fragment_field.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		fragment_field.clip_contents = true
-		fragment_field.z_index = 2
-		reward_root.add_child(fragment_field)
-		fragment_field.call("configure", quality, quality_color)
+	# Every grade gets a compact geometric emblem. Parenting it to the grade
+	# makes the banner feel integrated with the typography during the grade reveal.
+	var grade_emblem := Control.new()
+	grade_emblem.name = "LandingGradeEmblem"
+	grade_emblem.set_script(LANDING_GRADE_EMBLEM_SCRIPT)
+	grade_emblem.position = Vector2(-4.0, -3.0)
+	grade_emblem.size = grade_label.size + Vector2(8.0, 6.0)
+	grade_emblem.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	grade_emblem.show_behind_parent = true
+	grade_label.add_child(grade_emblem)
+	grade_emblem.call("configure", quality, quality_color)
 
 	var points_label := _make_label(
 		"LandingPoints", Vector2(REWARD_SIZE.x, 30.0), 29, SCORE_COLOR, 6
