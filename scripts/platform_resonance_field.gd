@@ -14,7 +14,7 @@ const CLOUD_MARGIN_X: float = 70.0
 const CLOUD_MARGIN_Y: float = 68.0
 const LANDING_WAVE_DURATION: float = 0.58
 const FRAGMENT_COUNT: int = 10
-const FILAMENT_COUNT: int = 4
+const FILAMENT_COUNT: int = 5
 
 var _platform_type: int = PLATFORM_TYPE_NORMAL
 var _platform_width: float = 220.0
@@ -229,14 +229,19 @@ func _draw_emergent_filament(
 			tangent = Vector2(0.0, 1.0)
 
 	var direction: float = -1.0 if _random01(seed + 3.7) < 0.5 else 1.0
-	var bend: float = (_random01(seed + 4.9) - 0.5) * 10.0
-	var length: float = lerpf(9.0, 20.0, _random01(seed + 5.3))
+	var bend: float = (_random01(seed + 4.9) - 0.5) * 13.0
+	var length: float = lerpf(12.0, 26.0, _random01(seed + 5.3))
+	# Most filaments still grow out of the platform edge. A few begin several
+	# pixels into the cloud, so the energy occasionally appears already detached.
+	var detached_gap: float = 0.0
+	if _random01(seed + 6.7) < 0.38:
+		detached_gap = lerpf(3.5, 7.0, _random01(seed + 7.1))
 	var points := PackedVector2Array()
-	points.append(origin + tangent * direction * 1.5)
-	points.append(origin + normal * 3.8 + tangent * (direction * length * 0.23 + bend * 0.25))
-	points.append(origin + normal * (length * 0.50) + tangent * (direction * length * 0.62 + bend))
-	points.append(origin + normal * (length * 0.83) + tangent * (direction * length * 0.45 - bend * 0.45))
-	points.append(origin + normal * length + tangent * (direction * length * 0.22))
+	points.append(origin + normal * detached_gap + tangent * direction * 1.5)
+	points.append(origin + normal * (detached_gap + 3.8) + tangent * (direction * length * 0.23 + bend * 0.25))
+	points.append(origin + normal * (detached_gap + length * 0.50) + tangent * (direction * length * 0.62 + bend))
+	points.append(origin + normal * (detached_gap + length * 0.83) + tangent * (direction * length * 0.45 - bend * 0.45))
+	points.append(origin + normal * (detached_gap + length) + tangent * (direction * length * 0.22))
 
 	_draw_tapered_filament(points, energy, seed)
 
@@ -313,6 +318,16 @@ func _draw_edge_fragments(half_width: float, half_height: float) -> void:
 		)
 		var radius: float = 0.65 + _random01(local_seed + 6.2) * 0.60
 		var alpha: float = alpha_envelope * (0.38 + _approach_charge * 0.20)
+		# A barely visible curved trace gives a few drifting fragments direction
+		# and a sense of motion without turning them into particle streaks.
+		var trail_start: Vector2 = (
+			position_now - outward * (3.5 + phase * 1.5)
+			- tangent * curl * 0.16
+		)
+		draw_line(
+			trail_start, position_now,
+			Color(0.035, 0.36, 1.35, alpha * 0.16), 0.85, true
+		)
 		draw_circle(position_now, radius * 4.2, Color(0.025, 0.24, 1.2, alpha * 0.28))
 		draw_circle(position_now, radius * 2.1, Color(0.045, 0.72, 2.0, alpha * 0.52))
 		draw_circle(position_now, radius * 0.78, Color(0.64, 1.28, 2.65, alpha * 0.72))
