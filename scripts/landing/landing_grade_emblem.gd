@@ -46,7 +46,7 @@ func _draw() -> void:
 	# Let the word overhang the colored silhouette slightly, avoiding a badge-like frame.
 	var half_text_width: float = minf(text_width * 0.5, size.x * 0.42)
 	var half_width: float = minf(half_text_width * 0.97, size.x * 0.46)
-	var half_height: float = 9.0 if not is_epic and not is_perfect else (10.0 if is_epic else 11.5)
+	var half_height: float = 8.5 if not is_epic and not is_perfect else (10.8 if is_epic else 12.2)
 
 	var shape_points := _build_flash_shape(
 		center, half_width, half_height, is_epic, is_perfect
@@ -88,18 +88,27 @@ func _build_flash_shape(
 		points.append(Vector2(center.x - half_width * 0.68, center.y + half_height))
 		points.append(Vector2(center.x - half_width * 0.82, center.y + half_height * 0.44))
 	elif is_epic:
-		# Epic keeps Good's clean horizontal silhouette but adds balanced,
-		# clipped shoulders. Perfect remains the only tier with inward facets.
+		# Epic gets a faceted, double-shoulder silhouette with small inward
+		# cuts that make it feel more crafted than Good's simple hex. Perfect
+		# remains the brighter, broader flare with its more elaborate facets.
 		points.append(Vector2(center.x - half_width, center.y))
-		points.append(Vector2(center.x - half_width * 0.82, center.y - half_height * 0.42))
-		points.append(Vector2(center.x - half_width * 0.60, center.y - half_height))
-		points.append(Vector2(center.x + half_width * 0.60, center.y - half_height))
-		points.append(Vector2(center.x + half_width * 0.82, center.y - half_height * 0.42))
+		points.append(Vector2(center.x - half_width * 0.90, center.y - half_height * 0.30))
+		points.append(Vector2(center.x - half_width * 0.76, center.y - half_height * 0.78))
+		points.append(Vector2(center.x - half_width * 0.55, center.y - half_height))
+		points.append(Vector2(center.x - half_width * 0.39, center.y - half_height * 0.66))
+		points.append(Vector2(center.x + half_width * 0.39, center.y - half_height * 0.66))
+		points.append(Vector2(center.x + half_width * 0.55, center.y - half_height))
+		points.append(Vector2(center.x + half_width * 0.76, center.y - half_height * 0.78))
+		points.append(Vector2(center.x + half_width * 0.90, center.y - half_height * 0.30))
 		points.append(Vector2(center.x + half_width, center.y))
-		points.append(Vector2(center.x + half_width * 0.82, center.y + half_height * 0.42))
-		points.append(Vector2(center.x + half_width * 0.60, center.y + half_height))
-		points.append(Vector2(center.x - half_width * 0.60, center.y + half_height))
-		points.append(Vector2(center.x - half_width * 0.82, center.y + half_height * 0.42))
+		points.append(Vector2(center.x + half_width * 0.90, center.y + half_height * 0.30))
+		points.append(Vector2(center.x + half_width * 0.76, center.y + half_height * 0.78))
+		points.append(Vector2(center.x + half_width * 0.55, center.y + half_height))
+		points.append(Vector2(center.x + half_width * 0.39, center.y + half_height * 0.66))
+		points.append(Vector2(center.x - half_width * 0.39, center.y + half_height * 0.66))
+		points.append(Vector2(center.x - half_width * 0.55, center.y + half_height))
+		points.append(Vector2(center.x - half_width * 0.76, center.y + half_height * 0.78))
+		points.append(Vector2(center.x - half_width * 0.90, center.y + half_height * 0.30))
 	else:
 		# Good stays a simple, low-profile elongated hex.
 		points.append(Vector2(center.x - half_width, center.y))

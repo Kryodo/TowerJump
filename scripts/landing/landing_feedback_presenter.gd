@@ -392,8 +392,15 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 	var grade_label := _make_label(
 		"LandingGrade", Vector2(REWARD_SIZE.x, 22.0), 19, quality_color, 5
 	)
-	grade_label.position = Vector2.ZERO
 	grade_label.text = quality
+	# Explicitly center the text on the emblem's drawing center, both axes.
+	grade_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	grade_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	grade_label.position = Vector2(
+		0.0,
+		grade_emblem.position.y + (grade_emblem.size.y - grade_label.size.y) * 0.5
+	)
+	grade_label.pivot_offset = grade_label.size * 0.5
 	grade_composition.add_child(grade_label)
 	grade_emblem.call("configure", quality, quality_color)
 
