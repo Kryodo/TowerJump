@@ -378,18 +378,18 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 	grade_label.text = quality
 	reward_root.add_child(grade_label)
 
-	# Epic and Perfect get short, grade-tinted electrical fragments around the
-	# word itself. Good keeps the cleaner baseline entrance without fragments.
+	# Epic and Perfect use a separate electrical layer. It follows the grade's
+	# position, but deliberately does not inherit its scale or rotation.
 	if quality == "EPIC" or quality == "PERFECT":
 		var fragment_field := Control.new()
 		fragment_field.name = "LandingGradeFragments"
 		fragment_field.set_script(LANDING_GRADE_FRAGMENTS_SCRIPT)
-		fragment_field.position = Vector2(0.0, -13.0)
-		fragment_field.size = grade_label.size + Vector2(0.0, 26.0)
+		fragment_field.position = grade_label.position + Vector2(0.0, -7.0)
+		fragment_field.size = grade_label.size + Vector2(0.0, 14.0)
 		fragment_field.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		fragment_field.clip_contents = true
+		fragment_field.clip_contents = false
 		fragment_field.z_index = 2
-		grade_label.add_child(fragment_field)
+		reward_root.add_child(fragment_field)
 		fragment_field.call("configure", quality, quality_color)
 
 	var points_label := _make_label(
