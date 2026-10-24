@@ -42,7 +42,7 @@ func _process(delta: float) -> void:
 		return
 
 	# Track only the label's center position. Never copy its scale or rotation.
-	position = _label.position + Vector2(0.0, -7.0)
+	position = _label.position + Vector2(-4.0, -3.0)
 	if _elapsed >= _duration:
 		visible = false
 		set_process(false)
@@ -65,8 +65,15 @@ func _draw() -> void:
 	if text_width <= 1.0:
 		return
 
-	var text_left: float = (_label.size.x - text_width) * 0.5
+	# The effect sits 4 px outside the word horizontally and 3 px vertically.
+	# Coordinates are in this sibling layer, whose origin is offset from the label.
+	var text_left: float = (_label.size.x - text_width) * 0.5 + 4.0
+	var text_top: float = (size.y - float(font_size)) * 0.5
 	var word_center := Vector2(text_left + text_width * 0.5, size.y * 0.5)
+	var filament_bounds := Rect2(
+		Vector2(text_left - 4.0, text_top - 3.0),
+		Vector2(text_width + 8.0, float(font_size) + 6.0)
+	)
 	var is_perfect: bool = _quality == "PERFECT"
 	var angles: Array[float] = PERFECT_ANGLES if is_perfect else EPIC_ANGLES
 	var strand_length: float = 17.0 if is_perfect else 13.5
@@ -102,6 +109,7 @@ func _draw() -> void:
 		var main_points := _build_filament(
 			anchor, direction, live_length, seed, 2.25
 		)
+		main_points = _clamp_filament_points(main_points, filament_bounds)
 		_draw_tapered_filament(main_points, energy, seed, 1.0, is_perfect)
 
 		# Tiny offshoots fork at uneven points and angles, like live current—not
@@ -121,6 +129,7 @@ func _draw() -> void:
 				fork_point, fork_direction, fork_length,
 				seed + 13.0 + float(branch_index) * 3.7, 1.25
 			)
+			fork_points = _clamp_filament_points(fork_points, filament_bounds)
 			_draw_tapered_filament(
 				fork_points, energy * (0.70 if is_perfect else 0.58),
 				seed + float(branch_index) * 2.3, 0.72, is_perfect
@@ -155,6 +164,19 @@ func _build_filament(
 		var point := start + direction * distance + perpendicular * displacement
 		points.append(point)
 	return points
+
+
+func _clamp_filament_points(
+	points: PackedVector2Array,
+	bounds: Rect2
+) -> PackedVector2Array:
+	var clamped_points := PackedVector2Array()
+	for point in points:
+		clamped_points.append(Vector2(
+			clampf(point.x, bounds.position.x, bounds.end.x),
+			clampf(point.y, bounds.position.y, bounds.end.y)
+		))
+	return clamped_points
 
 
 func _draw_tapered_filament(

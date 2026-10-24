@@ -384,10 +384,10 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 		var fragment_field := Control.new()
 		fragment_field.name = "LandingGradeFragments"
 		fragment_field.set_script(LANDING_GRADE_FRAGMENTS_SCRIPT)
-		fragment_field.position = grade_label.position + Vector2(0.0, -7.0)
-		fragment_field.size = grade_label.size + Vector2(0.0, 14.0)
+		fragment_field.position = grade_label.position + Vector2(-4.0, -3.0)
+		fragment_field.size = grade_label.size + Vector2(8.0, 6.0)
 		fragment_field.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		fragment_field.clip_contents = false
+		fragment_field.clip_contents = true
 		fragment_field.z_index = 2
 		reward_root.add_child(fragment_field)
 		fragment_field.call("configure", quality, quality_color)
@@ -449,6 +449,7 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 			"windup_rotation": float(grade_profile["windup_rotation"]),
 			"impact_rotation": float(grade_profile["impact_rotation"]),
 			"entry_lift": float(grade_profile["entry_lift"]),
+			"entrance_fade_duration": float(grade_profile["entrance_fade_duration"]),
 		},
 		{
 			"label": points_label,
@@ -493,48 +494,51 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 
 
 func _get_grade_celebration_profile(quality: String) -> Dictionary:
-	# Epic and Perfect now have a clear wind-up -> snap -> settle sequence.
-	# Points use the same grade ladder, arriving just after the grade itself.
+	# Cinematic reveal: a deliberate scale rise, restrained lift, then a smooth
+	# settle. Grade hierarchy is carried by timing, filament density and color,
+	# not a hard squash, rotation whip or elastic overshoot.
 	match quality:
 		"PERFECT":
 			return {
-				"preload_scale": 0.24,
-				"windup_scale": 0.15,
-				"anticipation_duration": 0.075,
-				"entry_duration": 0.21,
-				"impact_scale": 1.70,
-				"settle_duration": 0.19,
-				"windup_rotation": -0.20,
-				"impact_rotation": 0.035,
-				"ambient_breath": 0.007,
-				"ambient_rotation": 0.009,
-				"entry_lift": 12.0,
-				"points_delay": 0.075,
-				"points_preload_scale": 0.44,
-				"points_impact_scale": 1.48,
+				"preload_scale": 0.68,
+				"windup_scale": 0.78,
+				"anticipation_duration": 0.035,
+				"entry_duration": 0.22,
+				"impact_scale": 1.62,
+				"settle_duration": 0.18,
+				"windup_rotation": -0.018,
+				"impact_rotation": 0.006,
+				"ambient_breath": 0.0025,
+				"ambient_rotation": 0.0015,
+				"entry_lift": 5.5,
+				"entrance_fade_duration": 0.18,
+				"points_delay": 0.12,
+				"points_preload_scale": 0.78,
+				"points_impact_scale": 1.32,
 				"points_entry_duration": 0.19,
-				"points_settle_duration": 0.16,
-				"points_entry_lift": 6.0,
+				"points_settle_duration": 0.15,
+				"points_entry_lift": 3.0,
 			}
 		"EPIC":
 			return {
-				"preload_scale": 0.35,
-				"windup_scale": 0.24,
-				"anticipation_duration": 0.055,
-				"entry_duration": 0.18,
-				"impact_scale": 1.52,
-				"settle_duration": 0.16,
-				"windup_rotation": -0.15,
-				"impact_rotation": 0.045,
-				"ambient_breath": 0.005,
-				"ambient_rotation": 0.007,
-				"entry_lift": 8.0,
-				"points_delay": 0.055,
-				"points_preload_scale": 0.54,
-				"points_impact_scale": 1.31,
-				"points_entry_duration": 0.16,
-				"points_settle_duration": 0.13,
-				"points_entry_lift": 4.0,
+				"preload_scale": 0.64,
+				"windup_scale": 0.76,
+				"anticipation_duration": 0.03,
+				"entry_duration": 0.21,
+				"impact_scale": 1.60,
+				"settle_duration": 0.18,
+				"windup_rotation": -0.014,
+				"impact_rotation": 0.005,
+				"ambient_breath": 0.002,
+				"ambient_rotation": 0.001,
+				"entry_lift": 4.5,
+				"entrance_fade_duration": 0.15,
+				"points_delay": 0.09,
+				"points_preload_scale": 0.80,
+				"points_impact_scale": 1.27,
+				"points_entry_duration": 0.17,
+				"points_settle_duration": 0.14,
+				"points_entry_lift": 2.5,
 			}
 		_:
 			return {
@@ -549,6 +553,7 @@ func _get_grade_celebration_profile(quality: String) -> Dictionary:
 				"ambient_breath": 0.003,
 				"ambient_rotation": 0.0,
 				"entry_lift": 0.0,
+				"entrance_fade_duration": 0.12,
 				"points_delay": 0.04,
 				"points_preload_scale": 0.76,
 				"points_impact_scale": 1.10,
@@ -1422,25 +1427,29 @@ func _update_reward_animations(delta: float) -> void:
 				var impact_rotation: float = float(part.get("impact_rotation", 0.0))
 				var ambient_rotation: float = float(part.get("ambient_rotation", 0.0))
 				var entry_lift: float = float(part.get("entry_lift", 0.0))
+				var fade_duration: float = maxf(
+					float(part.get("entrance_fade_duration", 0.14)), 0.01
+				)
+				var fade_progress: float = clampf(local_age / fade_duration, 0.0, 1.0)
+				var fade_eased: float = 1.0 - pow(1.0 - fade_progress, 3.0)
+				label.modulate.a = minf(label.modulate.a, fade_eased)
 				var entrance_offset_y: float = 0.0
 
 				if anticipation > 0.0 and local_age < anticipation:
 					var anticipation_progress: float = clampf(local_age / anticipation, 0.0, 1.0)
+					var anticipation_eased: float = 1.0 - pow(1.0 - anticipation_progress, 2.0)
 					label.scale = Vector2.ONE * lerpf(
-						preload_scale, windup_scale, anticipation_progress
+						preload_scale, windup_scale, anticipation_eased
 					)
-					label.rotation = lerpf(0.0, windup_rotation, anticipation_progress)
-					entrance_offset_y = entry_lift * (1.0 - anticipation_progress * 0.15)
+					label.rotation = lerpf(0.0, windup_rotation, anticipation_eased)
+					entrance_offset_y = entry_lift * (1.0 - anticipation_progress * 0.10)
 				elif local_age < anticipation + entry_duration:
 					var entry_progress: float = clampf(
 						(local_age - anticipation) / entry_duration, 0.0, 1.0
 					)
-					# Back-easing briefly overshoots the target, then returns to it
-					# before the settle phase. This gives Epic/Perfect an actual impact.
-					var entry_eased: float = (
-						1.0 + 2.70158 * pow(entry_progress - 1.0, 3.0)
-						+ 1.70158 * pow(entry_progress - 1.0, 2.0)
-					)
+					# A controlled, non-elastic reveal: quick acceleration with no
+					# back-ease overshoot or visible rotational whip.
+					var entry_eased: float = 1.0 - pow(1.0 - entry_progress, 3.0)
 					label.scale = Vector2.ONE * lerpf(
 						windup_scale, impact_scale, entry_eased
 					)
@@ -1451,7 +1460,7 @@ func _update_reward_animations(delta: float) -> void:
 						(local_age - anticipation - entry_duration) / settle_duration,
 						0.0, 1.0
 					)
-					var settle_eased: float = 1.0 - pow(1.0 - settle_progress, 2.0)
+					var settle_eased: float = 1.0 - pow(1.0 - settle_progress, 3.0)
 					label.scale = Vector2.ONE * lerpf(impact_scale, 1.0, settle_eased)
 					label.rotation = lerpf(impact_rotation, 0.0, settle_eased)
 				else:
@@ -1473,12 +1482,7 @@ func _update_reward_animations(delta: float) -> void:
 				var points_entry_lift: float = float(part.get("points_entry_lift", 0.0))
 				if local_age < points_entry_duration:
 					var points_progress: float = clampf(local_age / points_entry_duration, 0.0, 1.0)
-					# A smaller, grade-scaled back pop makes the number feel tied to
-					# the quality hit without competing with the grade word.
-					var points_eased: float = (
-						1.0 + 2.70158 * pow(points_progress - 1.0, 3.0)
-						+ 1.70158 * pow(points_progress - 1.0, 2.0)
-					)
+					var points_eased: float = 1.0 - pow(1.0 - points_progress, 3.0)
 					label.scale = Vector2.ONE * lerpf(
 						points_preload_scale, points_impact_scale, points_eased
 					)
@@ -1488,7 +1492,7 @@ func _update_reward_animations(delta: float) -> void:
 						(local_age - points_entry_duration) / points_settle_duration,
 						0.0, 1.0
 					)
-					var points_settle_eased: float = 1.0 - pow(1.0 - points_settle_progress, 2.0)
+					var points_settle_eased: float = 1.0 - pow(1.0 - points_settle_progress, 3.0)
 					label.scale = Vector2.ONE * lerpf(
 						points_impact_scale, 1.0, points_settle_eased
 					)
