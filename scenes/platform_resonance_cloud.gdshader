@@ -120,6 +120,10 @@ void fragment() {
 	// darkness. This is part of the same cloud, not a separate circular halo.
 	float haze_mass = smoothstep(0.22, 0.68, deep_noise)
 		* (0.42 + broad_noise * 0.58);
+	// Haze reaches a little farther than the main cloud, then fades completely
+	// before the larger canvas edge so neighboring fields stay visually distinct.
+	float haze_falloff = exp(-distance_from_edge / 46.0)
+		* (1.0 - smoothstep(58.0, 86.0, distance_from_edge));
 
 	// Underside currents are long, softly masked ridges in a warped flow field.
 	// Noise bends and breaks them so they read as irregular streams, not lines.
@@ -134,8 +138,8 @@ void fragment() {
 	float flow_ridge = 1.0 - abs(sin(
 		flow_phase * 5.25 + sin(warped.y * 0.52 - time * 0.16) * 0.48
 	));
-	float flow_visibility = smoothstep(0.87, 0.985, flow_ridge)
-		* smoothstep(0.30, 0.66, broad_noise);
+	float flow_visibility = smoothstep(0.81, 0.965, flow_ridge)
+		* smoothstep(0.27, 0.64, broad_noise);
 	float underside_gate = smoothstep(
 		platform_half_height + 2.0,
 		platform_half_height + 13.0,
@@ -153,8 +157,8 @@ void fragment() {
 		+ current_threads * 0.075
 		+ cloud_pockets * 0.042;
 	float cloud_alpha = base_density * spatial_falloff * outside_edge * breathe;
-	cloud_alpha += haze_mass * spatial_falloff * outside_edge * 0.014;
-	cloud_alpha += underside_streams * spatial_falloff * 0.033;
+	cloud_alpha += haze_mass * haze_falloff * outside_edge * 0.018;
+	cloud_alpha += underside_streams * spatial_falloff * 0.060;
 
 	// Irregular edge light makes the energy feel attached to the neon hardware.
 	// Because its brightness is modulated by noise, it never becomes a halo ring.
@@ -196,7 +200,7 @@ void fragment() {
 	cloud_color += vec3(0.10, 0.22, 0.42) * (soft_wisps * 0.30 + current_threads * 0.22);
 	// Gentle violet depth in denser pockets; cool highlights in the currents.
 	cloud_color += vec3(0.13, 0.035, 0.36) * cloud_pockets * 0.24;
-	cloud_color += vec3(0.06, 0.15, 0.42) * underside_streams * 0.34;
+	cloud_color += vec3(0.06, 0.16, 0.46) * underside_streams * 0.48;
 	cloud_color *= 0.90 + cloud_volume * 0.16;
 
 	float alpha = clamp(cloud_alpha * 1.22, 0.0, 0.34);
