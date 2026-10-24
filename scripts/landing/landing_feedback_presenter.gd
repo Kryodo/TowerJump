@@ -910,20 +910,20 @@ func _layout_status_row(caption: Label, counter: Label, caption_y: float, counte
 		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		if streak_row:
-			var counter_text_width: float = _get_indicator_text_width(counter)
-			var counter_x: float = (
+			var streak_counter_text_width: float = _get_indicator_text_width(counter)
+			var streak_counter_x: float = (
 				caption_slot_width + STATUS_ROW_GAP
-				+ counter_text_width - counter.size.x
+				+ streak_counter_text_width - counter.size.x
 			)
-			counter.position = Vector2(counter_x, counter_y)
+			counter.position = Vector2(streak_counter_x, counter_y)
 		else:
 			var old_row_gap: float = maxf(
 				0.0, STATUS_ROW_CAPTION_WIDTH - caption_text_width
 			)
-			var counter_text_width: float = _get_indicator_text_width(counter)
+			var combo_counter_text_width: float = _get_indicator_text_width(counter)
 			var counter_text_start: float = STATUS_ROW_CAPTION_WIDTH + old_row_gap
-			var counter_x: float = counter_text_start + counter_text_width - counter.size.x
-			counter.position = Vector2(counter_x, counter_y)
+			var combo_counter_x: float = counter_text_start + combo_counter_text_width - counter.size.x
+			counter.position = Vector2(combo_counter_x, counter_y)
 
 
 func _on_combo_state_changed(state: Dictionary) -> void:
