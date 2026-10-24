@@ -88,17 +88,18 @@ func _build_flash_shape(
 		points.append(Vector2(center.x - half_width * 0.68, center.y + half_height))
 		points.append(Vector2(center.x - half_width * 0.82, center.y + half_height * 0.44))
 	elif is_epic:
-		# Epic has a sharper shoulder cut than Good.
+		# Epic keeps Good's clean horizontal silhouette but adds balanced,
+		# clipped shoulders. Perfect remains the only tier with inward facets.
 		points.append(Vector2(center.x - half_width, center.y))
-		points.append(Vector2(center.x - half_width * 0.78, center.y - half_height * 0.54))
-		points.append(Vector2(center.x - half_width * 0.42, center.y - half_height))
-		points.append(Vector2(center.x + half_width * 0.68, center.y - half_height))
-		points.append(Vector2(center.x + half_width * 0.84, center.y - half_height * 0.42))
+		points.append(Vector2(center.x - half_width * 0.82, center.y - half_height * 0.42))
+		points.append(Vector2(center.x - half_width * 0.60, center.y - half_height))
+		points.append(Vector2(center.x + half_width * 0.60, center.y - half_height))
+		points.append(Vector2(center.x + half_width * 0.82, center.y - half_height * 0.42))
 		points.append(Vector2(center.x + half_width, center.y))
-		points.append(Vector2(center.x + half_width * 0.84, center.y + half_height * 0.42))
-		points.append(Vector2(center.x + half_width * 0.68, center.y + half_height))
-		points.append(Vector2(center.x - half_width * 0.42, center.y + half_height))
-		points.append(Vector2(center.x - half_width * 0.78, center.y + half_height * 0.54))
+		points.append(Vector2(center.x + half_width * 0.82, center.y + half_height * 0.42))
+		points.append(Vector2(center.x + half_width * 0.60, center.y + half_height))
+		points.append(Vector2(center.x - half_width * 0.60, center.y + half_height))
+		points.append(Vector2(center.x - half_width * 0.82, center.y + half_height * 0.42))
 	else:
 		# Good stays a simple, low-profile elongated hex.
 		points.append(Vector2(center.x - half_width, center.y))
