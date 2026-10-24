@@ -13,8 +13,8 @@ const CLOUD_SHADER := preload("res://scenes/platform_resonance_cloud.gdshader")
 const CLOUD_MARGIN_X: float = 70.0
 const CLOUD_MARGIN_Y: float = 68.0
 const LANDING_WAVE_DURATION: float = 0.58
-const FRAGMENT_COUNT: int = 8
-const FILAMENT_COUNT: int = 3
+const FRAGMENT_COUNT: int = 10
+const FILAMENT_COUNT: int = 4
 
 var _platform_type: int = PLATFORM_TYPE_NORMAL
 var _platform_width: float = 220.0
@@ -251,19 +251,19 @@ func _draw_tapered_filament(points: PackedVector2Array, energy: float, seed: flo
 		var strength: float = energy * taper * shimmer
 		draw_line(
 			points[index - 1], points[index],
-			Color(0.04, 0.20, 0.95, 0.12 * strength),
-			3.8 if index < 3 else 2.5, true
+			Color(0.025, 0.28, 1.25, 0.24 * strength),
+			5.0 if index < 3 else 3.2, true
 		)
 		draw_line(
 			points[index - 1], points[index],
-			Color(0.05, 0.56, 1.7, 0.24 * strength),
-			1.35 if index < 3 else 0.82, true
+			Color(0.045, 0.72, 2.05, 0.42 * strength),
+			1.65 if index < 3 else 1.0, true
 		)
 		if index == 2 and energy > 0.25:
 			draw_line(
 				points[index - 1], points[index],
-				Color(0.35, 0.92, 2.2, 0.26 * strength),
-				0.55, true
+				Color(0.62, 1.25, 2.7, 0.42 * strength),
+				0.70, true
 			)
 
 
@@ -312,10 +312,10 @@ func _draw_edge_fragments(half_width: float, half_height: float) -> void:
 			+ tangent * (phase * (_random01(local_seed + 5.1) - 0.5) * 22.0 + curl)
 		)
 		var radius: float = 0.65 + _random01(local_seed + 6.2) * 0.60
-		var alpha: float = alpha_envelope * (0.28 + _approach_charge * 0.14)
-		draw_circle(position_now, radius * 3.8, Color(0.03, 0.25, 1.1, alpha * 0.12))
-		draw_circle(position_now, radius * 1.9, Color(0.05, 0.75, 1.9, alpha * 0.30))
-		draw_circle(position_now, radius * 0.70, Color(0.55, 1.15, 2.35, alpha * 0.52))
+		var alpha: float = alpha_envelope * (0.38 + _approach_charge * 0.20)
+		draw_circle(position_now, radius * 4.2, Color(0.025, 0.24, 1.2, alpha * 0.28))
+		draw_circle(position_now, radius * 2.1, Color(0.045, 0.72, 2.0, alpha * 0.52))
+		draw_circle(position_now, radius * 0.78, Color(0.64, 1.28, 2.65, alpha * 0.72))
 
 
 func _random01(value: float) -> float:

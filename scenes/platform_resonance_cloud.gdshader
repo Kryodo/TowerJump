@@ -63,8 +63,8 @@ void fragment() {
 
 	// The falloff is the real silhouette of the field: broad, irregular and
 	// feathered into the world. Noise changes the density, never its boundary.
-	float spatial_falloff = exp(-distance_from_edge / 31.0)
-		* (1.0 - smoothstep(37.0, 70.0, distance_from_edge));
+	float spatial_falloff = exp(-distance_from_edge / 37.0)
+		* (1.0 - smoothstep(43.0, 74.0, distance_from_edge));
 
 	float time = TIME;
 	vec2 p = local_px / vec2(35.0, 27.0);
@@ -107,9 +107,9 @@ void fragment() {
 		* smoothstep(0.18, 0.76, cloud_volume);
 
 	float breathe = 0.91 + 0.09 * sin(time * 1.05 + phase_offset);
-	float base_density = (0.025 + cloud_volume * 0.16)
-		+ soft_wisps * 0.065
-		+ current_threads * 0.045;
+	float base_density = (0.055 + cloud_volume * 0.26)
+		+ soft_wisps * 0.10
+		+ current_threads * 0.075;
 	float cloud_alpha = base_density * spatial_falloff * outside_edge * breathe;
 
 	// Irregular edge light makes the energy feel attached to the neon hardware.
@@ -117,7 +117,7 @@ void fragment() {
 	float edge_light = exp(-distance_from_edge / 9.0)
 		* (0.35 + 0.65 * broad_volume)
 		* smoothstep(-5.0, 3.0, signed_edge_distance);
-	cloud_alpha += edge_light * 0.055 * (0.82 + breathe * 0.18);
+	cloud_alpha += edge_light * 0.095 * (0.82 + breathe * 0.18);
 
 	// During approach, the field gently gathers around the predicted contact
 	// area. The influence is broad and blended into the noise, never a badge.
@@ -128,7 +128,7 @@ void fragment() {
 		-pow(target_delta.y / 25.0, 2.0)
 	);
 	float focus_density = approach_focus * clamp(approach_charge, 0.0, 1.0);
-	cloud_alpha += focus_density * (0.016 + broad_volume * 0.024);
+	cloud_alpha += focus_density * (0.045 + broad_volume * 0.055);
 
 	// Landing diffuses a brief cloud-brightening impulse outward from the real
 	// contact position. The ring is soft and noisy, not a crisp shockwave.
@@ -142,16 +142,16 @@ void fragment() {
 	float diffuse_front = exp(-pow((radial_distance - expanding_radius) / 12.0, 2.0));
 	float impact_bloom = exp(-dot(impact_delta, impact_delta) / 420.0)
 		* exp(-landing_age * 12.0) * landing_gate;
-	cloud_alpha += (diffuse_front * 0.025 + impact_bloom * 0.055) * landing_fade;
+	cloud_alpha += (diffuse_front * 0.060 + impact_bloom * 0.12) * landing_fade;
 
 	// Idle field leans gently toward the platform's purple idle light; active
 	// charge blends toward the cyan energy already used by the platform edge.
-	vec3 idle_tint = vec3(0.38, 0.12, 1.18);
-	vec3 active_tint = vec3(0.10, 0.62, 1.95);
+	vec3 idle_tint = vec3(0.62, 0.20, 1.65);
+	vec3 active_tint = vec3(0.16, 1.05, 2.65);
 	vec3 cloud_color = mix(idle_tint, active_tint, clamp(approach_charge * 0.82 + impact_bloom * 0.42, 0.0, 1.0));
 	cloud_color += vec3(0.10, 0.22, 0.42) * (soft_wisps * 0.30 + current_threads * 0.22);
 	cloud_color *= 0.92 + cloud_volume * 0.12;
 
-	float alpha = clamp(cloud_alpha, 0.0, 0.17);
+	float alpha = clamp(cloud_alpha * 1.22, 0.0, 0.34);
 	COLOR = vec4(cloud_color, alpha);
 }
