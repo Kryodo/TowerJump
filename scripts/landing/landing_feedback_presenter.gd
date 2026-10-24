@@ -1428,10 +1428,11 @@ func _update_reward_animations(delta: float) -> void:
 			var part_drift: float = drift_x * float(part.get("drift_factor", 1.0))
 			var part_drop: float = 7.0 * float(part.get("drop_factor", 0.5))
 			var part_flutter: float = sin(local_age * 9.0 + phase) * 1.0 * (1.0 - part_progress)
-			label.position = base_position + Vector2(
+			var part_motion_position: Vector2 = base_position + Vector2(
 				part_drift * part_eased + part_flutter,
 				part_drop * part_eased
 			)
+			label.position = part_motion_position
 
 			var alpha: float = 1.0
 			if local_age < 0.07:
@@ -1538,11 +1539,11 @@ func _update_reward_animations(delta: float) -> void:
 				else:
 					label.scale = Vector2.ONE * (1.0 + sin(local_age * 7.0 + phase) * 0.004)
 
-			# The emblem tracks only the grade's translation and fade. Its own
-			# geometry stays fixed while the text scales and rotates over it.
+			# The backdrop follows the reward cluster's gentle drift, but not
+			# the grade's entrance slide, scale or rotation. The text moves onto it.
 			var background_emblem := part.get("background_emblem") as Control
 			if background_emblem != null and is_instance_valid(background_emblem):
-				background_emblem.position = label.position + Vector2(0.0, -4.0)
+				background_emblem.position = part_motion_position + Vector2(0.0, -4.0)
 				background_emblem.modulate.a = label.modulate.a
 
 		if age >= lifetime:
