@@ -115,7 +115,7 @@ func _create_state_indicators() -> void:
 	_status_root.add_child(_combo_label)
 
 	_combo_counter = _make_label(
-		"ComboMultiplierCounter", Vector2(100.0, 28.0), 20, EPIC_COLOR, 3
+		"ComboMultiplierCounter", Vector2(100.0, 28.0), 18, EPIC_COLOR, 3
 	)
 	_combo_counter.position = Vector2(84.0, 11.0)
 	_combo_counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -958,8 +958,9 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 		_last_ball_screen_position = _get_ball_screen_position()
 	_status_root.visible = true
 
-	# COMBO and STREAK share one fixed row. STREAK replaces the status text
-	# and folds its live count into that slot; the multiplier never moves.
+	# COMBO and STREAK share one fixed row. The multiplier is slightly smaller;
+	# STREAK's live chain count gets a little more size to balance its importance.
+	_combo_label.add_theme_font_size_override("font_size", 17 if streak_active else 15)
 	_layout_status_row(_combo_label, _combo_counter, 13.0, 11.0)
 	_streak_label.visible = false
 	_streak_label.modulate = Color.WHITE
@@ -994,7 +995,7 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 		# Take over the existing caption instead of creating a second important
 		# indicator. No separate STREAK row or count counter is shown.
 		var multiplier_intensity: float = combo_intensity if combo_active else streak_intensity
-		_apply_counter_intensity(_combo_counter, multiplier_intensity, 20, 9)
+		_apply_counter_intensity(_combo_counter, multiplier_intensity, 18, 7)
 		_set_indicator(
 			_combo_label, "STREAK %02d" % chain_count,
 			STREAK_COLOR, streak_just_activated
@@ -1015,7 +1016,7 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 			)
 	else:
 		if combo_active:
-			_apply_counter_intensity(_combo_counter, combo_intensity, 20, 9)
+			_apply_counter_intensity(_combo_counter, combo_intensity, 18, 7)
 			_set_indicator(_combo_label, "✦  COMBO", quality_color, combo_just_activated)
 			_set_counter_indicator(
 				_combo_counter, "×%.2f" % multiplier,
@@ -1029,6 +1030,8 @@ func _on_combo_state_changed(state: Dictionary) -> void:
 			_hide_indicator(_combo_label)
 			_hide_indicator(_combo_counter)
 
+	# Recalculate after the caption switches between COMBO and STREAK nn.
+	_layout_status_row(_combo_label, _combo_counter, 13.0, 11.0)
 	_combo_visual_tier = combo_tier if combo_active else -1
 	_streak_visual_tier = streak_tier if streak_active else -1
 
@@ -1268,7 +1271,7 @@ func _set_counter_indicator(label: Label, text_value: String, color: Color, anim
 	if not text_changed and was_visible and not was_hiding:
 		return
 
-	var target_font_size: int = int(label.get_meta("counter_target_font_size", 20))
+	var target_font_size: int = int(label.get_meta("counter_target_font_size", 18))
 	label.add_theme_font_size_override("font_size", target_font_size + 3)
 	label.modulate = Color(1.0, 1.0, 1.0, 0.0)
 	label.scale = Vector2.ONE * 0.70
