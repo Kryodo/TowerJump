@@ -10,10 +10,10 @@ extends Node2D
 const PLATFORM_TYPE_NORMAL: int = 0
 const CLOUD_SHADER := preload("res://scenes/platform_resonance_cloud.gdshader")
 
-const CLOUD_MARGIN_X: float = 70.0
-const CLOUD_MARGIN_Y: float = 68.0
+const CLOUD_MARGIN_X: float = 86.0
+const CLOUD_MARGIN_Y: float = 90.0
 const LANDING_WAVE_DURATION: float = 0.58
-const FRAGMENT_COUNT: int = 10
+const FRAGMENT_COUNT: int = 8
 const FILAMENT_COUNT: int = 5
 
 var _platform_type: int = PLATFORM_TYPE_NORMAL
@@ -77,8 +77,9 @@ func _update_cloud_geometry() -> void:
 
 	var half_width: float = _platform_width * 0.5 + CLOUD_MARGIN_X
 	var half_height: float = _platform_height * 0.5 + CLOUD_MARGIN_Y
-	# A generous canvas lets the noise fade away well before its actual edges.
-	# It surrounds the entire platform, not just the underside.
+	# The enlarged canvas gives the environmental haze room to feather outward.
+	# Shader falloff reaches zero before these actual edges, avoiding a cut-off
+	# rectangle and keeping neighboring platform fields from merging.
 	_cloud.polygon = PackedVector2Array([
 		Vector2(-half_width, -half_height),
 		Vector2(half_width, -half_height),
