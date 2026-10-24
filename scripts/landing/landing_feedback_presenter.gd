@@ -1,6 +1,7 @@
 extends CanvasLayer
 
 const STATE_INDICATOR_ENERGY_SHADER = preload("res://scenes/state_indicator_energy.gdshader")
+const LANDING_GRADE_FRAGMENTS_SCRIPT = preload("res://scripts/landing/landing_grade_fragments.gd")
 const STATE_INDICATOR_ENERGY_FIELD_SCRIPT = preload("res://scripts/landing/state_indicator_energy_field.gd")
 ## Presents landing rewards and persistent landing states in screen space.
 ## Scoring remains in LandingScoreController; this node only handles presentation.
@@ -357,6 +358,7 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 
 	var quality: String = str(result.get("quality", "GOOD"))
 	var quality_color: Color = _quality_color(quality)
+	var grade_profile: Dictionary = _get_grade_celebration_profile(quality)
 	var detail_text: String = _build_reward_detail(result)
 
 	var reward_root := Control.new()
@@ -375,6 +377,20 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 	grade_label.position = Vector2.ZERO
 	grade_label.text = quality
 	reward_root.add_child(grade_label)
+
+	# Epic and Perfect get short, grade-tinted electrical fragments around the
+	# word itself. Good keeps the cleaner baseline entrance without fragments.
+	if quality == "EPIC" or quality == "PERFECT":
+		var fragment_field := Control.new()
+		fragment_field.name = "LandingGradeFragments"
+		fragment_field.set_script(LANDING_GRADE_FRAGMENTS_SCRIPT)
+		fragment_field.position = Vector2(0.0, -5.0)
+		fragment_field.size = grade_label.size + Vector2(0.0, 10.0)
+		fragment_field.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		fragment_field.clip_contents = true
+		fragment_field.z_index = 2
+		grade_label.add_child(fragment_field)
+		fragment_field.call("configure", quality, quality_color)
 
 	var points_label := _make_label(
 		"LandingPoints", Vector2(REWARD_SIZE.x, 30.0), 29, SCORE_COLOR, 6
@@ -421,6 +437,13 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 			"drift_factor": 0.10,
 			"drop_factor": 0.18,
 			"spring": 0.84,
+			"grade_entrance": true,
+			"preload_scale": float(grade_profile["preload_scale"]),
+			"anticipation_duration": float(grade_profile["anticipation_duration"]),
+			"entry_duration": float(grade_profile["entry_duration"]),
+			"impact_scale": float(grade_profile["impact_scale"]),
+			"settle_duration": float(grade_profile["settle_duration"]),
+			"ambient_breath": float(grade_profile["ambient_breath"]),
 		},
 		{
 			"label": points_label,
@@ -457,6 +480,40 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 		"phase": randf_range(0.0, TAU),
 	})
 	return reward_side
+
+
+func _get_grade_celebration_profile(quality: String) -> Dictionary:
+	# All grades share the same reward treatment, but the entrance grows more
+	# deliberate and impactful with the grade. Values are starting points for
+	# in-game tuning, measured against the existing grade-label size.
+	match quality:
+		"PERFECT":
+			return {
+				"preload_scale": 0.62,
+				"anticipation_duration": 0.055,
+				"entry_duration": 0.17,
+				"impact_scale": 1.24,
+				"settle_duration": 0.155,
+				"ambient_breath": 0.005,
+			}
+		"EPIC":
+			return {
+				"preload_scale": 0.72,
+				"anticipation_duration": 0.035,
+				"entry_duration": 0.14,
+				"impact_scale": 1.14,
+				"settle_duration": 0.12,
+				"ambient_breath": 0.004,
+			}
+		_:
+			return {
+				"preload_scale": 0.82,
+				"anticipation_duration": 0.0,
+				"entry_duration": 0.105,
+				"impact_scale": 1.055,
+				"settle_duration": 0.105,
+				"ambient_breath": 0.003,
+			}
 
 
 func _build_reward_detail(result: Dictionary) -> String:
@@ -1312,13 +1369,45 @@ func _update_reward_animations(delta: float) -> void:
 				alpha *= 1.0 - clampf((local_age - fade_start) / fade_duration, 0.0, 1.0)
 			label.modulate.a = clampf(alpha, 0.0, 1.0)
 
-			var spring: float = float(part.get("spring", 0.85))
-			if local_age < 0.13:
-				label.scale = Vector2.ONE * lerpf(spring, 1.035, local_age / 0.13)
-			elif local_age < 0.21:
-				label.scale = Vector2.ONE * lerpf(1.035, 1.0, (local_age - 0.13) / 0.08)
+			if bool(part.get("grade_entrance", false)):
+				var preload_scale: float = float(part.get("preload_scale", 0.82))
+				var anticipation: float = float(part.get("anticipation_duration", 0.0))
+				var entry_duration: float = maxf(float(part.get("entry_duration", 0.105)), 0.01)
+				var impact_scale: float = float(part.get("impact_scale", 1.055))
+				var settle_duration: float = maxf(float(part.get("settle_duration", 0.105)), 0.01)
+				var entry_start_scale: float = preload_scale * (0.86 if anticipation > 0.0 else 1.0)
+				if anticipation > 0.0 and local_age < anticipation:
+					var anticipation_progress: float = local_age / anticipation
+					label.scale = Vector2.ONE * lerpf(
+						preload_scale, entry_start_scale, anticipation_progress
+					)
+			elif local_age < anticipation + entry_duration:
+					var entry_progress: float = clampf(
+						(local_age - anticipation) / entry_duration, 0.0, 1.0
+					)
+				var entry_eased: float = 1.0 - pow(1.0 - entry_progress, 3.0)
+				label.scale = Vector2.ONE * lerpf(
+						entry_start_scale, impact_scale, entry_eased
+					)
+			elif local_age < anticipation + entry_duration + settle_duration:
+				var settle_progress: float = (
+					local_age - anticipation - entry_duration
+				) / settle_duration
+				var settle_eased: float = 1.0 - pow(1.0 - settle_progress, 2.0)
+				label.scale = Vector2.ONE * lerpf(impact_scale, 1.0, settle_eased)
 			else:
-				label.scale = Vector2.ONE * (1.0 + sin(local_age * 7.0 + phase) * 0.004)
+				var ambient_breath: float = float(part.get("ambient_breath", 0.003))
+				label.scale = Vector2.ONE * (
+					1.0 + sin(local_age * 7.0 + phase) * ambient_breath
+				)
+			else:
+				var spring: float = float(part.get("spring", 0.85))
+				if local_age < 0.13:
+					label.scale = Vector2.ONE * lerpf(spring, 1.035, local_age / 0.13)
+				elif local_age < 0.21:
+					label.scale = Vector2.ONE * lerpf(1.035, 1.0, (local_age - 0.13) / 0.08)
+				else:
+					label.scale = Vector2.ONE * (1.0 + sin(local_age * 7.0 + phase) * 0.004)
 
 		if age >= lifetime:
 			root.queue_free()
