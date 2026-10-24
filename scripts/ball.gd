@@ -13,6 +13,11 @@ extends CharacterBody2D
 @export var horizontal_acceleration: float = 2200.0
 @export var horizontal_deceleration: float = 1700.0
 
+@export_category("State Activation Jump Boost")
+@export_range(1.0, 1.20, 0.01) var combo_activation_jump_multiplier: float = 1.04
+@export_range(1.0, 1.20, 0.01) var streak_activation_jump_multiplier: float = 1.06
+@export var landing_score_controller_path: NodePath = NodePath("../LandingScoreController")
+
 ## Aktuelle Steuerrichtung, binär: -1 = voll links, 0 = keine, 1 = voll rechts
 var input_direction: float = 0.0
 
@@ -20,6 +25,11 @@ var input_direction: float = 0.0
 ## Wird in _input() über ScreenTouch/ScreenDrag gepflegt, damit Mehrfach-Touch
 ## (z.B. beide Bildschirmhälften gleichzeitig) korrekt erkannt wird.
 var _touch_sides: Dictionary = {}
+
+var _combo_was_active: bool = false
+var _streak_was_active: bool = false
+var _pending_activation_jump_multiplier: float = 1.0
+var _pending_activation_boost_kind: int = 0
 
 @onready var _collision_shape: CollisionShape2D = $CollisionShape2D
 
@@ -46,6 +56,47 @@ func _ready() -> void:
 	shape.radius = radius
 	_collision_shape.shape = shape
 	add_to_group("player_ball") # Ermöglicht Coin.gd die Erkennung des Balls per Duck-Typing-Gruppe
+
+	var score_controller: Node = get_node_or_null(landing_score_controller_path)
+	if score_controller != null and score_controller.has_signal("combo_state_changed"):
+		var state_callback := Callable(self, "_on_combo_state_changed")
+		if not score_controller.is_connected("combo_state_changed", state_callback):
+			score_controller.connect("combo_state_changed", state_callback)
+		if score_controller.has_method("get_combo_state"):
+			var initial_state: Dictionary = score_controller.call("get_combo_state")
+			_on_combo_state_changed(initial_state)
+
+
+func _on_combo_state_changed(state: Dictionary) -> void:
+	var combo_active: bool = bool(state.get("combo_active", false))
+	var streak_active: bool = bool(state.get("streak_active", false))
+
+	# State activation happens synchronously inside the platform's landing
+	# callback, just before this frame assigns the bounce velocity. Queue one
+	# boost for that bounce only; Streak replaces Combo rather than stacking.
+	if streak_active and not _streak_was_active:
+		_pending_activation_jump_multiplier = streak_activation_jump_multiplier
+		_pending_activation_boost_kind = 2
+	elif combo_active and not _combo_was_active:
+		_pending_activation_jump_multiplier = combo_activation_jump_multiplier
+		_pending_activation_boost_kind = 1
+
+	_combo_was_active = combo_active
+	_streak_was_active = streak_active
+
+
+func _consume_activation_jump_boost() -> float:
+	var multiplier: float = _pending_activation_jump_multiplier
+	var boost_kind: int = _pending_activation_boost_kind
+	_pending_activation_jump_multiplier = 1.0
+	_pending_activation_boost_kind = 0
+
+	if boost_kind > 0:
+		var trail_visual: Node = get_node_or_null("TrailVisual")
+		if trail_visual != null and trail_visual.has_method("play_activation_jump_boost"):
+			trail_visual.call("play_activation_jump_boost", boost_kind == 2)
+
+	return multiplier
 
 
 func _physics_process(delta: float) -> void:
@@ -88,13 +139,17 @@ func _physics_process(delta: float) -> void:
 ## Plattform-Varianten wissen muss - Seiteneffekte wie das Wegbrechen einer
 ## brüchigen Plattform passieren dabei innerhalb von Platform.on_ball_landed().
 func _landed_jump_multiplier() -> float:
+	var platform_multiplier: float = 1.0
 	for i in get_slide_collision_count():
 		var collider: Object = get_slide_collision(i).get_collider()
 
 		if collider is Node and collider.has_method("on_ball_landed"):
-			return collider.on_ball_landed(global_position.x)
+			platform_multiplier = float(collider.call("on_ball_landed", global_position.x))
+			break
 
-	return 1.0
+	# Apply the milestone boost after platform-specific force (for example,
+	# spring platforms), then consume it so no later jump inherits the bonus.
+	return platform_multiplier * _consume_activation_jump_boost()
 
 ## Lässt den Ball auf der Gegenseite wieder auftauchen, wenn er den Bildschirm seitlich verlässt.
 func _screen_wrap() -> void:

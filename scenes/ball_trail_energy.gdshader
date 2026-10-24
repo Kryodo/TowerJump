@@ -8,6 +8,8 @@ uniform float trail_progress_start = 0.0;
 uniform float trail_progress_scale = 1.0;
 uniform float pulse_progress = -1.0;
 uniform float pulse_strength = 0.0;
+uniform float jump_boost_progress = -1.0;
+uniform float jump_boost_strength = 0.0;
 uniform float landing_kick_strength = 0.0;
 uniform float landing_kick_progress = 0.0;
 uniform float combo_energy = 0.0;
@@ -239,6 +241,13 @@ void fragment()
 		1.0 - smoothstep(0.022, 0.105, abs(uv.x - pulse_progress))
 	) * pulse_gate;
 	float travelling_pulse = pulse_band * pulse_strength * trail_fade;
+	// Activation boost is a separate fast front; it never interrupts the regular
+	// full-release pulse or the tail-to-orb landing kick.
+	float jump_boost_gate = step(0.0, jump_boost_progress);
+	float jump_boost_band = (
+		1.0 - smoothstep(0.014, 0.075, abs(uv.x - jump_boost_progress))
+	) * jump_boost_gate;
+	float jump_boost_front = jump_boost_band * jump_boost_strength * trail_fade;
 	// On landing, a quick energy front sweeps from the tail (uv.x = 1)
 	// back toward the orb (uv.x = 0). A slight cross-stream warp makes the
 	// flash wander through the turbulent plasma rather than scan like a ruler.
@@ -263,10 +272,15 @@ void fragment()
 		* landing_kick_gate
 		* trail_fade;
 	float pulse_edge = travelling_pulse * smoothstep(0.42, 0.82, edge_distance);
+	float boost_edge = jump_boost_front * smoothstep(0.36, 0.82, edge_distance);
 	// Landing flash stays in the head of the ribbon rather than moving across it.
-	edge_strength = max(edge_strength, pulse_edge * 0.95);
+	edge_strength = max(edge_strength, max(pulse_edge * 0.95, boost_edge * 0.80));
 	energy = max(energy, edge_strength * 0.42);
-	energy = min(energy + travelling_pulse * 0.46 + landing_head_kick * 0.23, 2.0);
+	energy = min(
+		energy + travelling_pulse * 0.46 + landing_head_kick * 0.23
+		+ jump_boost_front * 0.40,
+		2.0
+	);
 
 
 	// Palette-matched energy stream: saturated blue or rich violet.
@@ -302,6 +316,7 @@ void fragment()
 	final_color += edge_color * edge_strength * 0.43;
 	final_color += edge_color * travelling_pulse * 0.30;
 	final_color += landing_kick_color * landing_head_kick * 0.24;
+	final_color += landing_kick_color * jump_boost_front * 0.30;
 	final_color = mix(final_color, combo_tint, combo_current * 0.38);
 	final_color += combo_tint * combo_current * 0.16;
 	final_color = mix(final_color, combo_tint, combo_threads * 0.34);

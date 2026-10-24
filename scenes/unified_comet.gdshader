@@ -8,6 +8,8 @@ uniform float flow_speed = 0.9;
 uniform float surface_flow_strength : hint_range(0.0, 0.5) = 0.16;
 uniform float pulse_progress = -1.0;
 uniform float pulse_strength = 0.0;
+uniform float jump_boost_progress = -1.0;
+uniform float jump_boost_strength = 0.0;
 uniform float combo_energy = 0.0;
 uniform vec3 combo_tint = vec3(0.24, 1.02, 1.42);
 
@@ -61,6 +63,11 @@ void fragment() {
 		1.0 - smoothstep(0.025, 0.105, abs(along - pulse_progress))
 	) * pulse_gate;
 	float travelling_pulse = pulse_band * pulse_strength * tail_fade;
+	float jump_boost_gate = step(0.0, jump_boost_progress);
+	float jump_boost_band = (
+		1.0 - smoothstep(0.014, 0.078, abs(along - jump_boost_progress))
+	) * jump_boost_gate;
+	float jump_boost_front = jump_boost_band * jump_boost_strength * tail_fade;
 	float edge_mask = smoothstep(0.24, 0.82, abs(across * 2.0 - 1.0));
 
 	float time = TIME * flow_speed * (1.0 + combo_energy * 0.42);
@@ -112,6 +119,7 @@ void fragment() {
 	float core_influence = center_energy * (0.14 + 0.16 * head_energy);
 	core_influence += surface_presence * surface_flow_strength;
 	core_influence += travelling_pulse * 0.20;
+	core_influence += jump_boost_front * 0.24;
 	body_color = mix(body_color, inner_energy_color, clamp(core_influence, 0.0, 0.65));
 	body_color *= flow;
 
@@ -149,6 +157,7 @@ void fragment() {
 
 	// The travelling current briefly lights the membrane's outer edges as well as its core.
 	body_color += pulse_color * travelling_pulse * edge_mask * 0.52;
+	body_color += pulse_color * jump_boost_front * (0.22 + edge_mask * 0.35);
 
 	// Keep the skin continuous and translucent. Its visible silhouette is now
 	// carried by the live mesh edge geometry; pulses add light without reshaping it.
@@ -156,6 +165,7 @@ void fragment() {
 	float body_alpha = translucent_body_alpha * mix(0.93, 1.06, surface_presence);
 	float core_alpha = center_energy * (0.10 + surface_current * 0.02) * head_energy;
 	float pulse_alpha = travelling_pulse * (0.025 + edge_mask * 0.11);
+	pulse_alpha += jump_boost_front * (0.025 + edge_mask * 0.085);
 	float combo_alpha = combo_current * (0.018 + edge_mask * 0.020);
 	combo_alpha += combo_threads * (0.032 + edge_mask * 0.018);
 	float alpha = clamp((body_alpha + core_alpha + pulse_alpha + combo_alpha) * tail_fade, 0.0, 0.94);

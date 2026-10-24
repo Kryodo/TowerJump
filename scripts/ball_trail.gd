@@ -50,6 +50,10 @@ var _visual_rng := RandomNumberGenerator.new()
 var _energy_filaments: Array[Dictionary] = []
 var _pulse_active: bool = false
 var _pulse_progress: float = -1.0
+var _activation_boost_pulse_active: bool = false
+var _activation_boost_pulse_progress: float = -1.0
+var _activation_boost_pulse_strength: float = 0.0
+var _activation_boost_pulse_speed: float = 2.45
 var _pulse_filament_progress: float = 0.48
 var _pulse_filament_enabled: bool = false
 var _pulse_filament_spawned: bool = false
@@ -333,6 +337,7 @@ func _process(delta: float) -> void:
 
 	_update_trail_lines(delta)
 	_update_energy_pulse(delta)
+	_update_activation_boost_pulse(delta)
 	_update_landing_response(delta)
 	_update_detached_shed_fragments(delta)
 	_update_landing_surface_streaks(delta)
@@ -1544,6 +1549,47 @@ func _update_particle_emitters(
 				0.0
 			)
 
+
+
+func play_activation_jump_boost(is_streak: bool) -> void:
+	# This is separate from the scheduled full-release pulse and landing flash.
+	# It is a short, directional ribbon surge: Streak is brighter and a little faster.
+	_activation_boost_pulse_active = true
+	_activation_boost_pulse_progress = 0.0
+	_activation_boost_pulse_strength = 0.72 if is_streak else 0.54
+	_activation_boost_pulse_speed = 2.85 if is_streak else 2.45
+
+
+func _update_activation_boost_pulse(delta: float) -> void:
+	if _activation_boost_pulse_active:
+		_activation_boost_pulse_progress = minf(
+			_activation_boost_pulse_progress + delta * _activation_boost_pulse_speed,
+			1.0
+		)
+		if _activation_boost_pulse_progress >= 1.0:
+			_activation_boost_pulse_active = false
+			_activation_boost_pulse_progress = -1.0
+			_activation_boost_pulse_strength = 0.0
+
+	var progress_for_shader: float = (
+		_activation_boost_pulse_progress
+		if _activation_boost_pulse_active
+		else -1.0
+	)
+	var strength_for_shader: float = (
+		_activation_boost_pulse_strength
+		if _activation_boost_pulse_active
+		else 0.0
+	)
+	var materials: Array[ShaderMaterial] = [
+		_unified_shape.material as ShaderMaterial,
+		_energy_line.material as ShaderMaterial,
+		_trail_aura.material as ShaderMaterial
+	]
+	for shader_material in materials:
+		if shader_material != null:
+			shader_material.set_shader_parameter("jump_boost_progress", progress_for_shader)
+			shader_material.set_shader_parameter("jump_boost_strength", strength_for_shader)
 
 
 func _update_energy_pulse(delta: float) -> void:
