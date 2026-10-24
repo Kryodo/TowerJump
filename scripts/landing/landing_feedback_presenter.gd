@@ -23,6 +23,8 @@ const STATE_INDICATOR_ENERGY_FIELD_SCRIPT = preload("res://scripts/landing/state
 const REWARD_SIZE := Vector2(160.0, 66.0)
 const STATUS_SIZE := Vector2(184.0, 52.0)
 const STATUS_ORB_GAP := 15.0
+const STATUS_ROW_CAPTION_WIDTH := 84.0
+const STATUS_ROW_GAP := 8.0
 const CLUTCH_SIZE := Vector2(144.0, 30.0)
 
 const GOOD_COLOR := Color(0.40, 0.86, 1.0, 1.0)
@@ -769,11 +771,24 @@ func _get_status_content_width(side: int) -> float:
 	if not bool(_last_state.get("combo_active", false)) and not bool(_last_state.get("streak_active", false)):
 		return STATUS_SIZE.x
 
-	var caption_width: float = minf(
-		_get_indicator_text_width(_combo_label),
-		_combo_label.size.x
-	)
+	var caption_text_width: float = _get_indicator_text_width(_combo_label)
 	var counter_width: float = _get_indicator_text_width(_combo_counter)
+	var streak_row: bool = (
+		bool(_last_state.get("streak_active", false))
+		or _combo_label.text.begins_with("STREAK")
+	)
+	if streak_row:
+		# Measure the target text too: on activation, this can run before the
+		# caption has been changed from COMBO to STREAK nn.
+		var caption_font: Font = _combo_label.get_theme_font("font")
+		var target_caption: String = "STREAK %02d" % int(_last_state.get("chain_count", 0))
+		caption_text_width = caption_font.get_string_size(
+			target_caption, HORIZONTAL_ALIGNMENT_LEFT, -1,
+			_combo_label.get_theme_font_size("font_size")
+		).x
+		return maxf(STATUS_ROW_CAPTION_WIDTH, caption_text_width + 2.0) + STATUS_ROW_GAP + counter_width
+
+	var caption_width: float = minf(caption_text_width, _combo_label.size.x)
 	if side > 0:
 		return maxf(caption_width, _combo_label.size.x + counter_width)
 
@@ -873,37 +888,42 @@ func _update_status_follow(delta: float) -> void:
 	_status_root.modulate.a = _get_status_edge_visibility(ball_screen, viewport_size)
 
 func _layout_status_row(caption: Label, counter: Label, caption_y: float, counter_y: float) -> void:
-	# Keep caption then number in the same order. On the left side, measure both
-	# strings so right alignment preserves the same visible gap as left alignment.
+	# STREAK nn is longer than COMBO, so give it a measured slot and an explicit
+	# gap before the multiplier. Keep the existing COMBO layout unchanged.
+	var streak_row: bool = caption.text.begins_with("STREAK")
+	var caption_text_width: float = _get_indicator_text_width(caption)
+	var caption_slot_width: float = STATUS_ROW_CAPTION_WIDTH
+	if streak_row:
+		caption_slot_width = maxf(STATUS_ROW_CAPTION_WIDTH, caption_text_width + 2.0)
+	caption.size.x = caption_slot_width
+	caption.pivot_offset = Vector2(caption_slot_width * 0.5, caption.size.y * 0.5)
 	caption.position = Vector2(0.0, caption_y)
+
 	if _status_anchor_side > 0:
 		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		counter.position = Vector2(84.0, counter_y)
+		var multiplier_x: float = caption_slot_width
+		if streak_row:
+			multiplier_x += STATUS_ROW_GAP
+		counter.position = Vector2(multiplier_x, counter_y)
 	else:
 		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		var caption_font: Font = caption.get_theme_font("font")
-		var caption_text_width: float = caption_font.get_string_size(
-			caption.text,
-			HORIZONTAL_ALIGNMENT_LEFT,
-			-1.0,
-			caption.get_theme_font_size("font_size")
-		).x
-		var right_side_gap: float = maxf(0.0, 84.0 - caption_text_width)
-		var counter_font: Font = counter.get_theme_font("font")
-		var counter_font_size: int = int(
-			counter.get_meta("counter_target_font_size", counter.get_theme_font_size("font_size"))
-		)
-		var counter_text_width: float = counter_font.get_string_size(
-			counter.text,
-			HORIZONTAL_ALIGNMENT_LEFT,
-			-1.0,
-			counter_font_size
-		).x
-		var counter_text_start: float = 84.0 + right_side_gap
-		var counter_x: float = counter_text_start + counter_text_width - counter.size.x
-		counter.position = Vector2(counter_x, counter_y)
+		if streak_row:
+			var counter_text_width: float = _get_indicator_text_width(counter)
+			var counter_x: float = (
+				caption_slot_width + STATUS_ROW_GAP
+				+ counter_text_width - counter.size.x
+			)
+			counter.position = Vector2(counter_x, counter_y)
+		else:
+			var old_row_gap: float = maxf(
+				0.0, STATUS_ROW_CAPTION_WIDTH - caption_text_width
+			)
+			var counter_text_width: float = _get_indicator_text_width(counter)
+			var counter_text_start: float = STATUS_ROW_CAPTION_WIDTH + old_row_gap
+			var counter_x: float = counter_text_start + counter_text_width - counter.size.x
+			counter.position = Vector2(counter_x, counter_y)
 
 
 func _on_combo_state_changed(state: Dictionary) -> void:
