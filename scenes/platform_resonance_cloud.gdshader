@@ -75,7 +75,8 @@ void fragment() {
 	);
 	float fan_vertical_falloff = exp(-below_platform / 70.0)
 		* (1.0 - smoothstep(fan_depth * 0.84, fan_depth, below_platform));
-	float spatial_falloff = fan_side_falloff * fan_vertical_falloff;
+	float fan_profile = fan_side_falloff * fan_vertical_falloff
+	float spatial_falloff = fan_profile;
 
 	float time = TIME;
 	vec2 p = local_px / vec2(35.0, 27.0);
@@ -142,14 +143,14 @@ void fragment() {
 		+ current_threads * 0.075
 		+ cloud_pockets * 0.042;
 	float cloud_alpha = base_density * spatial_falloff * outside_edge * breathe;
-	cloud_alpha += haze_mass * haze_falloff * outside_edge * 0.018;
+	cloud_alpha += haze_mass * haze_falloff * outside_edge * 0.018 * fan_profile;
 
 	// Irregular edge light makes the energy feel attached to the neon hardware.
 	// Because its brightness is modulated by noise, it never becomes a halo ring.
 	float edge_light = exp(-distance_from_edge / 9.0)
 		* (0.35 + 0.65 * broad_volume)
 		* smoothstep(-5.0, 3.0, signed_edge_distance);
-	cloud_alpha += edge_light * 0.095 * (0.82 + breathe * 0.18);
+	cloud_alpha += edge_light * 0.095 * (0.82 + breathe * 0.18) * fan_profile;
 
 	// During approach, the field gently gathers around the predicted contact
 	// area. The influence is broad and blended into the noise, never a badge.
@@ -160,7 +161,7 @@ void fragment() {
 		-pow(target_delta.y / 25.0, 2.0)
 	);
 	float focus_density = approach_focus * clamp(approach_charge, 0.0, 1.0);
-	cloud_alpha += focus_density * (0.045 + broad_volume * 0.055);
+	cloud_alpha += focus_density * (0.045 + broad_volume * 0.055) * fan_profile;
 
 	// Landing diffuses a brief cloud-brightening impulse outward from the real
 	// contact position. The ring is soft and noisy, not a crisp shockwave.
@@ -174,7 +175,7 @@ void fragment() {
 	float diffuse_front = exp(-pow((radial_distance - expanding_radius) / 12.0, 2.0));
 	float impact_bloom = exp(-dot(impact_delta, impact_delta) / 420.0)
 		* exp(-landing_age * 12.0) * landing_gate;
-	cloud_alpha += (diffuse_front * 0.060 + impact_bloom * 0.12) * landing_fade;
+	cloud_alpha += (diffuse_front * 0.060 + impact_bloom * 0.12) * landing_fade * fan_profile;
 
 	// Idle field leans gently toward the platform's purple idle light; active
 	// charge blends toward the cyan energy already used by the platform edge.
