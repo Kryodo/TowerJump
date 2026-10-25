@@ -143,7 +143,7 @@ void fragment() {
 	// During approach, the field gently gathers around the predicted contact
 	// area. The influence is broad and blended into the noise, never a badge.
 	float target_x = (approach_target_x * 2.0 - 1.0) * platform_half_width;
-	vec2 target_delta = local_px - vec2(target_x, -platform_half_height - 1.0);
+	vec2 target_delta = local_px - vec2(target_x, platform_half_height + 1.0);
 	float approach_focus = exp(
 		-pow(target_delta.x / 47.0, 2.0)
 		-pow(target_delta.y / 25.0, 2.0)
@@ -156,7 +156,7 @@ void fragment() {
 	float landing_gate = 1.0 - step(landing_age, -0.001);
 	float landing_t = clamp(landing_age / 0.58, 0.0, 1.0);
 	float landing_fade = (1.0 - landing_t) * landing_gate * landing_strength;
-	vec2 impact_origin = vec2(landing_x, -platform_half_height - 1.5);
+	vec2 impact_origin = vec2(landing_x, platform_half_height + 1.5);
 	vec2 impact_delta = local_px - impact_origin;
 	float radial_distance = length(vec2(impact_delta.x, impact_delta.y * 1.12));
 	float expanding_radius = 4.0 + landing_t * 58.0;
@@ -175,6 +175,14 @@ void fragment() {
 	cloud_color += vec3(0.13, 0.035, 0.36) * cloud_pockets * 0.24;
 	cloud_color *= 0.90 + cloud_volume * 0.16;
 
+	// Keep this resonance volume localized beneath the platform. The direct-drawn
+	// flow threads provide structure; this shader supplies their soft, irregular body.
+	float underside_presence = smoothstep(
+		platform_half_height - 8.0,
+		platform_half_height + 10.0,
+		local_px.y
+	);
+	cloud_alpha *= underside_presence;
 	float alpha = clamp(cloud_alpha * 1.22, 0.0, 0.34);
 	COLOR = vec4(cloud_color, alpha);
 }
