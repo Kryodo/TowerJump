@@ -9,6 +9,7 @@ extends Node2D
 
 const PLATFORM_TYPE_NORMAL: int = 0
 const CLOUD_SHADER := preload("res://scenes/platform_resonance_cloud.gdshader")
+const UNDERCURRENT_SHADER := preload("res://scenes/platform_resonance_undercurrent.gdshader")
 
 const CLOUD_MARGIN_X: float = 86.0
 const CLOUD_MARGIN_Y: float = 90.0
@@ -30,12 +31,14 @@ var _landing_local_x: float = 0.0
 
 var _cloud: Polygon2D
 var _cloud_material: ShaderMaterial
+var _undercurrent: Polygon2D
+var _undercurrent_material: ShaderMaterial
 
 
 func _ready() -> void:
 	_phase_offset = randf_range(0.0, 997.0)
 	material = _make_additive_material()
-	_create_cloud_layer()
+	_create_resonance_layers()
 	set_process(true)
 
 
@@ -45,7 +48,18 @@ func _make_additive_material() -> CanvasItemMaterial:
 	return additive_material
 
 
-func _create_cloud_layer() -> void:
+func _create_resonance_layers() -> void:
+	# The undercurrent has its own material and shader so its shape, contrast,
+	# and motion can be tuned without increasing the diffuse cloud's density.
+	_undercurrent = Polygon2D.new()
+	_undercurrent.name = "LivingUndercurrent"
+	_undercurrent.z_index = 0
+	_undercurrent.material = ShaderMaterial.new()
+	_undercurrent_material = _undercurrent.material as ShaderMaterial
+	_undercurrent_material.shader = UNDERCURRENT_SHADER
+	_undercurrent_material.set_shader_parameter("phase_offset", _phase_offset)
+	add_child(_undercurrent)
+
 	_cloud = Polygon2D.new()
 	_cloud.name = "DiffuseResonanceCloud"
 	_cloud.z_index = 0
@@ -80,24 +94,30 @@ func _update_cloud_geometry() -> void:
 	# The enlarged canvas gives the environmental haze room to feather outward.
 	# Shader falloff reaches zero before these actual edges, avoiding a cut-off
 	# rectangle and keeping neighboring platform fields from merging.
-	_cloud.polygon = PackedVector2Array([
+	var field_polygon := PackedVector2Array([
 		Vector2(-half_width, -half_height),
 		Vector2(half_width, -half_height),
 		Vector2(half_width, half_height),
 		Vector2(-half_width, half_height)
 	])
-	_cloud.uv = PackedVector2Array([
+	var field_uv := PackedVector2Array([
 		Vector2(0.0, 0.0),
 		Vector2(1.0, 0.0),
 		Vector2(1.0, 1.0),
 		Vector2(0.0, 1.0)
 	])
-	_cloud_material.set_shader_parameter(
-		"field_size",
-		Vector2(half_width * 2.0, half_height * 2.0)
-	)
+	_cloud.polygon = field_polygon
+	_cloud.uv = field_uv
+	_undercurrent.polygon = field_polygon
+	_undercurrent.uv = field_uv
+
+	var field_size := Vector2(half_width * 2.0, half_height * 2.0)
+	_cloud_material.set_shader_parameter("field_size", field_size)
 	_cloud_material.set_shader_parameter("platform_half_width", _platform_width * 0.5)
 	_cloud_material.set_shader_parameter("platform_half_height", _platform_height * 0.5)
+	_undercurrent_material.set_shader_parameter("field_size", field_size)
+	_undercurrent_material.set_shader_parameter("platform_half_width", _platform_width * 0.5)
+	_undercurrent_material.set_shader_parameter("platform_half_height", _platform_height * 0.5)
 
 
 func set_approach_feedback(charge: float, target_x: float) -> void:
@@ -157,7 +177,7 @@ func _process(delta: float) -> void:
 
 
 func _sync_cloud_parameters() -> void:
-	if _cloud_material == null:
+	if _cloud_material == null or _undercurrent_material == null:
 		return
 	_cloud_material.set_shader_parameter("approach_charge", _approach_charge)
 	_cloud_material.set_shader_parameter("approach_target_x", _approach_target_x)
@@ -165,6 +185,10 @@ func _sync_cloud_parameters() -> void:
 	_cloud_material.set_shader_parameter("landing_strength", _landing_wave_strength)
 	_cloud_material.set_shader_parameter("landing_x", _landing_local_x)
 	_cloud_material.set_shader_parameter("phase_offset", _phase_offset)
+	_undercurrent_material.set_shader_parameter("approach_charge", _approach_charge)
+	_undercurrent_material.set_shader_parameter("landing_age", _landing_wave_age)
+	_undercurrent_material.set_shader_parameter("landing_strength", _landing_wave_strength)
+	_undercurrent_material.set_shader_parameter("phase_offset", _phase_offset)
 
 
 func _draw() -> void:
