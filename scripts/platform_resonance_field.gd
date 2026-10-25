@@ -9,14 +9,14 @@ extends Node2D
 
 const PLATFORM_TYPE_NORMAL: int = 0
 const CLOUD_SHADER := preload("res://scenes/platform_resonance_cloud.gdshader")
-const DIFFUSE_FLOW_COUNT: int = 13
+const VERTICAL_FRAGMENT_COUNT: int = 28
 const DIFFUSE_FLOW_SEGMENTS: int = 7
 
 const CLOUD_MARGIN_X: float = 86.0
 const CLOUD_MARGIN_Y: float = 90.0
 const LANDING_WAVE_DURATION: float = 0.58
-const FRAGMENT_COUNT: int = 8
-const FILAMENT_COUNT: int = 5
+const FRAGMENT_COUNT: int = 5
+const FILAMENT_COUNT: int = 3
 
 var _platform_type: int = PLATFORM_TYPE_NORMAL
 var _platform_width: float = 220.0
@@ -175,105 +175,143 @@ func _draw() -> void:
 
 	var half_width: float = _platform_width * 0.5
 	var half_height: float = _platform_height * 0.5
-	_draw_diffuse_undercurrent(half_width, half_height)
+	_draw_vertical_resonance_field(half_width, half_height)
 	_draw_edge_filaments(half_width, half_height)
 	_draw_edge_fragments(half_width, half_height)
 
 
-func _draw_diffuse_undercurrent(half_width: float, half_height: float) -> void:
-	# A small number of coherent, moving current packets run through the field
-	# immediately below the platform. Gaps, uneven brightness and shallow bends
-	# keep them organic without letting them read as continuous ribbons.
-	var available_width: float = half_width * 2.0 + 132.0
+func _draw_vertical_resonance_field(half_width: float, half_height: float) -> void:
+	# The field opens toward the underside of the platform and narrows to a
+	# concentrated source below it. Short horizontal fragments travel through
+	# this fan at different speeds and fade continuously into the haze.
+	var apex_y: float = half_height + CLOUD_MARGIN_Y - 7.0
+	var near_y: float = half_height + 8.0
+	var span: float = maxf(apex_y - near_y, 1.0)
 	var tint: Color = _resonance_tint()
+	var activation: float = _resonance_activation()
 
-	for strand in range(DIFFUSE_FLOW_COUNT):
+	for strand in range(VERTICAL_FRAGMENT_COUNT):
 		var seed: float = _phase_offset * 0.37 + float(strand) * 29.17
-		var speed: float = 0.052 + _random01(seed + 0.6) * 0.050
-		var length: float = lerpf(52.0, 132.0, _random01(seed + 2.4))
-		var direction: float = -1.0 if _random01(seed + 7.3) < 0.32 else 1.0
+		# Bias most streaks toward the platform; a sparse tail reaches the source.
+		var vertical_t: float = pow(_random01(seed + 2.4), 1.34)
+		var y_base: float = lerpf(near_y, apex_y, vertical_t)
+		var envelope_width: float = (half_width + 48.0) * pow(
+			maxf(1.0 - vertical_t, 0.0), 0.88
+		) + 2.8
+		var length_scale: float = pow(maxf(1.0 - vertical_t, 0.0), 0.72)
+		var streak_length: float = lerpf(
+			4.5,
+			46.0,
+			length_scale
+		) * lerpf(0.48, 1.0, _random01(seed + 3.8))
+
+		# Each streak moves sideways within its local slice of the expanding field.
+		var speed: float = 0.10 + _random01(seed + 4.6) * 0.13
 		var travel_phase: float = fposmod(
-			_time * speed * direction + _random01(seed + 1.2),
+			_time * speed + _random01(seed + 5.7),
 			1.0
 		)
-		var start_x: float = (
-			fposmod(
-				_random01(seed + 3.1) * available_width + travel_phase * available_width,
-				available_width
-			) - half_width - 66.0
-		)
-
-		# Most energy sits close to the underside; only a few threads trail deeper.
-		var lane: float = lerpf(11.0, 48.0, pow(_random01(seed + 4.3), 1.35))
+		var travel_limit: float = maxf(envelope_width - streak_length * 0.5 - 1.0, 1.0)
+		var center_x: float = lerpf(-travel_limit, travel_limit, travel_phase)
 		var phase: float = seed * 0.071
-		var life_pulse: float = 0.62 + 0.38 * absf(
-			sin(_time * (0.7 + _random01(seed + 5.1) * 0.55) + phase)
+		var sway: float = sin(_time * (0.55 + _random01(seed + 6.9) * 0.55) + phase)
+		var y: float = y_base + sway * lerpf(0.5, 1.8, length_scale)
+		var fade_cycle: float = fposmod(
+			_time * (0.16 + _random01(seed + 7.8) * 0.18)
+			+ _random01(seed + 8.9),
+			1.0
 		)
-		var strength: float = life_pulse * lerpf(0.52, 1.0, _random01(seed + 6.2))
-		var previous_point := Vector2.ZERO
-		var has_previous: bool = false
+		var fade_envelope: float = pow(maxf(sin(PI * fade_cycle), 0.0), 0.65)
+		var pulse: float = 0.20 + fade_envelope * 0.80
+		var randomness: float = lerpf(0.38, 1.0, _random01(seed + 9.1))
+		var near_platform_weight: float = lerpf(0.60, 1.0, length_scale)
+		var strength: float = pulse * randomness * near_platform_weight
+		if vertical_t > 0.76:
+			# The lower end has very little width, but occasionally glows a touch
+			# more brightly to imply a concentrated source rather than a hard tip.
+			strength *= 1.0 + activation * 0.16
 
-		for segment in range(DIFFUSE_FLOW_SEGMENTS + 1):
-			var t: float = float(segment) / float(DIFFUSE_FLOW_SEGMENTS)
-			var x: float = start_x + length * t * direction
-			var broad_curl: float = sin(
-				t * TAU * 0.72 + _time * 0.39 * direction + phase
-			) * 5.0
-			var crossing_curl: float = sin(
-				t * TAU * 1.52 - _time * 0.27 + phase * 1.6
-			) * 2.4
-			var fine_drift: float = sin(
-				t * TAU * 2.7 + _time * 0.43 + phase * 2.1
-			) * 0.9
-			var y: float = half_height + lane + broad_curl + crossing_curl + fine_drift
-			var current_point := Vector2(x, y)
+		# Broken horizontal segments and slightly varied heights prevent rows,
+		# equal-width bars, or a visible wireframe fan.
+		var piece_count: int = 2 if length_scale > 0.38 else 1
+		for piece in range(piece_count):
+			var piece_seed: float = seed + float(piece) * 17.31
+			if _random01(piece_seed + 1.2) < 0.22:
+				continue
+			var a: float = float(piece) / float(piece_count)
+			var b: float = float(piece + 1) / float(piece_count)
+			var pad_a: float = 0.06 + _random01(piece_seed + 2.3) * 0.10
+			var pad_b: float = 0.06 + _random01(piece_seed + 3.4) * 0.10
+			var x_a: float = center_x - streak_length * 0.5 + streak_length * (a + pad_a)
+			var x_b: float = center_x - streak_length * 0.5 + streak_length * (b - pad_b)
+			x_a = clampf(x_a, -envelope_width + 1.0, envelope_width - 1.0)
+			x_b = clampf(x_b, -envelope_width + 1.0, envelope_width - 1.0)
+			if x_b - x_a < 1.0:
+				continue
 
-			if has_previous:
-				var segment_seed: float = seed + float(segment) * 11.7
-				var gap_roll: float = _random01(segment_seed + 1.8)
-				# Deliberate breaks interrupt the strand, while the bright portions
-				# travel in packets instead of lighting every segment equally.
-				if gap_roll > 0.28:
-					var packet: float = 0.45 + 0.55 * absf(
-						sin(_time * 1.35 - t * TAU + phase)
-					)
-					var segment_strength: float = strength * packet * lerpf(
-						0.36, 1.0, _random01(segment_seed + 2.6)
-					)
-					var draw_start: float = 0.07 + _random01(segment_seed + 4.0) * 0.12
-					var draw_end: float = 0.77 + _random01(segment_seed + 5.0) * 0.18
-					var segment_a: Vector2 = previous_point.lerp(current_point, draw_start)
-					var segment_b: Vector2 = previous_point.lerp(current_point, draw_end)
+			var y_a: float = y + sin(a * TAU + phase + _time * 0.35) * 0.75
+			var y_b: float = y + sin(b * TAU + phase + _time * 0.35) * 0.75
+			var p_a := Vector2(x_a, y_a)
+			var p_b := Vector2(x_b, y_b)
+			var piece_strength: float = strength * lerpf(
+				0.58, 1.0, _random01(piece_seed + 4.5)
+			)
+			draw_line(
+				p_a, p_b,
+				Color(
+					tint.r * 0.50,
+					tint.g * 0.46 + 0.018,
+					tint.b * 0.82 + 0.08,
+					0.045 * piece_strength
+				),
+				6.5 if length_scale > 0.42 else 3.2,
+				true
+			)
+			draw_line(
+				p_a, p_b,
+				Color(
+					tint.r * 0.90 + 0.01,
+					tint.g * 0.86 + 0.04,
+					tint.b * 1.02 + 0.08,
+					0.15 * piece_strength
+				),
+				1.75 if length_scale > 0.42 else 1.05,
+				true
+			)
+			if _random01(piece_seed + 5.6) > 0.88:
+				draw_line(
+					p_a.lerp(p_b, 0.26),
+					p_a.lerp(p_b, 0.72),
+					Color(
+						tint.r * 0.36 + 0.30,
+						tint.g * 0.34 + 0.62,
+						tint.b * 0.42 + 1.18,
+						0.17 * piece_strength
+					),
+					0.8,
+					true
+				)
 
-					draw_line(
-						segment_a, segment_b,
-						Color(tint.r * 0.52, tint.g * 0.48 + 0.025, tint.b * 0.82 + 0.10, 0.048 * segment_strength),
-						7.0, true
-					)
-					draw_line(
-						segment_a, segment_b,
-						Color(tint.r * 0.92 + 0.015, tint.g * 0.88 + 0.06, tint.b * 1.02 + 0.08, 0.14 * segment_strength),
-						2.15, true
-					)
-
-					# Very rare inner glints hint at denser energy without outlining
-					# the stream or creating a row of uniform parallel lines.
-					if _random01(segment_seed + 3.5) > 0.83:
-						var accent_a: Vector2 = segment_a.lerp(segment_b, 0.22)
-						var accent_b: Vector2 = segment_a.lerp(segment_b, 0.76)
-						var accent_tint: Color = tint.lerp(
-							Color(0.82, 1.28, 2.35, 1.0),
-							_resonance_activation() * 0.38
-						)
-						draw_line(
-							accent_a, accent_b,
-							Color(accent_tint.r, accent_tint.g, accent_tint.b, 0.18 * segment_strength),
-							0.95, true
-						)
-
-			previous_point = current_point
-			has_previous = true
-
+	# A very soft, concentrated source anchors the fan without becoming a lamp
+	# or visible beam emitter. Its glow breathes and responds to landing/charge.
+	var source_pulse: float = 0.58 + 0.42 * absf(sin(_time * 1.35 + _phase_offset))
+	var source_y: float = apex_y - 1.0
+	var source_strength: float = source_pulse * (0.72 + activation * 0.24)
+	draw_circle(
+		Vector2(0.0, source_y),
+		6.8,
+		Color(tint.r * 0.24, tint.g * 0.32 + 0.01, tint.b * 0.55 + 0.06, 0.035 * source_strength)
+	)
+	draw_circle(
+		Vector2(0.0, source_y),
+		3.1,
+		Color(tint.r * 0.46 + 0.015, tint.g * 0.56 + 0.035, tint.b * 0.88 + 0.08, 0.075 * source_strength)
+	)
+	draw_circle(
+		Vector2(0.0, source_y),
+		1.15,
+		Color(tint.r * 0.32 + 0.18, tint.g * 0.30 + 0.36, tint.b * 0.42 + 0.86, 0.14 * source_strength)
+	)
 
 func _resonance_activation() -> float:
 	var activation: float = clampf(_approach_charge, 0.0, 1.0)
