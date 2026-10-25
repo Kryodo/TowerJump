@@ -10,8 +10,7 @@
 [ext_resource type="Shader" uid="uid://c7656tg1lral0" path="res://scenes/unified_comet.gdshader" id="7_unified_comet"]
 [ext_resource type="Shader" uid="uid://b6opk25aat210" path="res://scenes/ball_rim_halo.gdshader" id="9_rim_halo"]
 [ext_resource type="Shader" uid="uid://dk6rerpy7inja" path="res://scenes/trail_aura_pulse.gdshader" id="10_trail_aura_pulse"]
-
-[ext_resource type="Script" path="res://scripts/landing/quality_ring_indicator.gd" id="11_quality_ring"]
+[ext_resource type="Script" uid="uid://cqa0mgnogmlov" path="res://scripts/landing/quality_ring_indicator.gd" id="11_quality_ring"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_unified_comet"]
 shader = ExtResource("7_unified_comet")
@@ -21,6 +20,10 @@ shader_parameter/flow_speed = 0.9
 shader_parameter/surface_flow_strength = 0.16
 shader_parameter/pulse_progress = -1.0
 shader_parameter/pulse_strength = 0.0
+shader_parameter/jump_boost_progress = -1.0
+shader_parameter/jump_boost_strength = 0.0
+shader_parameter/combo_energy = 0.0
+shader_parameter/combo_tint = Vector3(0.24, 1.02, 1.42)
 
 [sub_resource type="Gradient" id="Gradient_unified_contour"]
 offsets = PackedFloat32Array(0, 0.04, 0.12, 0.44, 0.56, 0.88, 0.96, 1)
@@ -31,6 +34,10 @@ shader = ExtResource("10_trail_aura_pulse")
 shader_parameter/palette_mode = 0
 shader_parameter/pulse_progress = -1.0
 shader_parameter/pulse_strength = 0.0
+shader_parameter/jump_boost_progress = -1.0
+shader_parameter/jump_boost_strength = 0.0
+shader_parameter/combo_energy = 0.0
+shader_parameter/combo_tint = Vector3(0.24, 1.02, 1.42)
 
 [sub_resource type="Curve" id="Curve_iijjg"]
 _data = [Vector2(0, 0.015), 0.0, 4.2, 0, 1, Vector2(0.07, 0.7), 4.2, 1.2, 1, 1, Vector2(0.2, 1.15), 1.2, 0.0, 1, 1, Vector2(0.36, 0.94), 0.0, -0.9, 1, 1, Vector2(0.68, 0.42), -0.9, -1.0, 1, 1, Vector2(0.92, 0.04), -1.0, -0.5, 1, 1, Vector2(1, 0), -0.5, 0.0, 1, 0]
@@ -52,8 +59,12 @@ shader_parameter/trail_progress_start = 0.0
 shader_parameter/trail_progress_scale = 1.0
 shader_parameter/pulse_progress = -1.0
 shader_parameter/pulse_strength = 0.0
+shader_parameter/jump_boost_progress = -1.0
+shader_parameter/jump_boost_strength = 0.0
 shader_parameter/landing_kick_strength = 0.0
 shader_parameter/landing_kick_progress = 0.0
+shader_parameter/combo_energy = 0.0
+shader_parameter/combo_tint = Vector3(0.24, 1.02, 1.42)
 
 [sub_resource type="Curve" id="Curve_energy_taper"]
 _data = [Vector2(0, 0.58), 0.0, 1.7, 0, 1, Vector2(0.07, 0.7), 1.7, 2.0, 1, 1, Vector2(0.2, 0.98), 2.0, 0.0, 1, 1, Vector2(0.36, 0.84), 0.0, -0.9, 1, 1, Vector2(0.68, 0.46), -0.9, -0.8, 1, 1, Vector2(0.92, 0.12), -0.8, -0.35, 1, 1, Vector2(1, 0.07), -0.35, 0.0, 1, 0]
@@ -189,6 +200,8 @@ shader_parameter/palette_mode = 0
 shader_parameter/rim_breath = 1.0
 shader_parameter/landing_anticipation = 0.0
 shader_parameter/landing_confirmation = 0.0
+shader_parameter/combo_energy = 0.0
+shader_parameter/combo_tint = Vector3(0.24, 1.02, 1.42)
 shader_parameter/body_radius = 0.755
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_4dx81"]
@@ -197,6 +210,13 @@ shader_parameter/palette_mode = 0
 shader_parameter/rim_breath = 1.0
 shader_parameter/landing_anticipation = 0.0
 shader_parameter/landing_confirmation = 0.0
+shader_parameter/combo_energy = 0.0
+shader_parameter/combo_tint = Vector3(0.24, 1.02, 1.42)
+shader_parameter/combo_core_quality = 0
+shader_parameter/combo_core_blend = 0.0
+shader_parameter/combo_core_active = 0.0
+shader_parameter/combo_activation_flash = 0.0
+shader_parameter/streak_activation_flash = 0.0
 
 [node name="Ball" type="CharacterBody2D" unique_id=1745057106]
 script = ExtResource("1_ball")
@@ -287,6 +307,5 @@ material = SubResource("ShaderMaterial_4dx81")
 scale = Vector2(0.468, 0.468)
 texture = ExtResource("3_f7cbr")
 
-[node name="QualityRingIndicator" type="Node2D" parent="."]
-z_index = 0
+[node name="QualityRingIndicator" type="Node2D" parent="." unique_id=2012236888]
 script = ExtResource("11_quality_ring")
