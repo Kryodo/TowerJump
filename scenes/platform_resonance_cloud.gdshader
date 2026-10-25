@@ -14,6 +14,7 @@ uniform float landing_strength = 0.0;
 uniform float landing_x = 0.0;
 uniform float phase_offset = 0.0;
 uniform float resonance_time = 0.0;
+uniform float resonance_pulse_phase = 0.0;
 
 float hash21(vec2 p) {
 	p = fract(p * vec2(123.34, 456.21));
@@ -83,15 +84,15 @@ void fragment() {
 	// Its head and soft trailing body travel together; gameplay strengthens it
 	// without turning it into a crisp ring or a separate beam.
 	float time = resonance_time;
-	float wave_phase = fract(time * 0.46 + phase_offset * 0.013);
+	float wave_phase = fract(resonance_pulse_phase);
 	float wave_front_t = 1.0 - wave_phase;
-	float wave_gate = smoothstep(0.012, 0.075, wave_phase)
-		* (1.0 - smoothstep(0.95, 1.0, wave_phase));
+	float wave_gate = smoothstep(0.0, 0.065, wave_phase)
+		* (1.0 - smoothstep(0.94, 1.0, wave_phase));
 	float wave_delta = fan_t - wave_front_t;
 	float wave_core = exp(-pow(wave_delta / 0.105, 2.0));
-	float wave_tail = exp(-pow((wave_delta - 0.11) / 0.23, 2.0));
+	float wave_tail = exp(-pow((wave_delta - 0.14) / 0.26, 2.0));
 	float upward_wave = clamp(
-		(wave_core * 0.88 + wave_tail * 0.24) * wave_gate,
+		(wave_core + wave_tail * 0.36) * wave_gate,
 		0.0, 1.0
 	);
 	vec2 p = local_px / vec2(35.0, 27.0);
