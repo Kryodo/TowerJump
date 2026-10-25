@@ -125,37 +125,6 @@ void fragment() {
 	float haze_falloff = exp(-distance_from_edge / 46.0)
 		* (1.0 - smoothstep(58.0, 86.0, distance_from_edge));
 
-	// Underside currents are long, softly masked ridges in a warped flow field.
-	// Noise bends and breaks them so they read as irregular streams, not lines.
-	float flow_warp = fbm(
-		warped * vec2(0.82, 1.48)
-		+ vec2(-time * 0.13, time * 0.17)
-	);
-	float flow_phase = warped.x * 0.38
-		+ warped.y * 0.13
-		+ (flow_warp - 0.5) * 2.75
-		- time * 0.42;
-	float flow_ridge = 1.0 - abs(sin(
-		flow_phase * 4.65 + sin(warped.y * 0.52 - time * 0.16) * 0.56
-	));
-	// Broad stream bodies make the flow readable at gameplay scale; brighter
-	// inner ridges retain the impression of energy moving through the haze.
-	float flow_body = smoothstep(0.42, 0.90, flow_ridge)
-		* smoothstep(0.20, 0.60, broad_noise);
-	float flow_visibility = smoothstep(0.70, 0.96, flow_ridge)
-		* smoothstep(0.23, 0.62, broad_noise);
-	float underside_gate = smoothstep(
-		platform_half_height + 5.0,
-		platform_half_height + 15.0,
-		local_px.y
-	) * (1.0 - smoothstep(
-		platform_half_height + 58.0,
-		platform_half_height + 88.0,
-		local_px.y
-	));
-	float underside_stream_bodies = flow_body * underside_gate;
-	float underside_streams = flow_visibility * underside_gate;
-
 	float breathe = 0.91 + 0.09 * sin(time * 1.05 + phase_offset);
 	float base_density = (0.055 + cloud_volume * 0.26)
 		+ soft_wisps * 0.10
@@ -163,10 +132,6 @@ void fragment() {
 		+ cloud_pockets * 0.042;
 	float cloud_alpha = base_density * spatial_falloff * outside_edge * breathe;
 	cloud_alpha += haze_mass * haze_falloff * outside_edge * 0.018;
-	// A soft, visible flow body sits beneath the platform, with stronger
-	// irregular cores that animate through it instead of thin straight lines.
-	cloud_alpha += underside_stream_bodies * spatial_falloff * 0.050;
-	cloud_alpha += underside_streams * spatial_falloff * 0.125;
 
 	// Irregular edge light makes the energy feel attached to the neon hardware.
 	// Because its brightness is modulated by noise, it never becomes a halo ring.
@@ -208,8 +173,6 @@ void fragment() {
 	cloud_color += vec3(0.10, 0.22, 0.42) * (soft_wisps * 0.30 + current_threads * 0.22);
 	// Gentle violet depth in denser pockets; cool highlights in the currents.
 	cloud_color += vec3(0.13, 0.035, 0.36) * cloud_pockets * 0.24;
-	cloud_color += vec3(0.045, 0.12, 0.42) * underside_stream_bodies * 0.52;
-	cloud_color += vec3(0.08, 0.23, 0.66) * underside_streams * 0.72;
 	cloud_color *= 0.90 + cloud_volume * 0.16;
 
 	float alpha = clamp(cloud_alpha * 1.22, 0.0, 0.34);
