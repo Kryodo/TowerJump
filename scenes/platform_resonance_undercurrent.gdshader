@@ -1,9 +1,9 @@
 shader_type canvas_item;
 render_mode unshaded, blend_add;
 
-// One diffuse undercurrent with a readable low-frequency body, irregular
-// anisotropic filaments, and occasional traveling accents. Contrast is kept
-// strong enough for gameplay scale; noise only shapes the flow, not erases it.
+// Readable diffuse undercurrent: a broad atmospheric body with anisotropic,
+// moving noise streaks and sparse bright accents. Intensity is concentrated
+// beneath the platform, not spread across the whole resonance cloud.
 uniform vec2 field_size = vec2(392.0, 200.0);
 uniform float platform_half_width = 110.0;
 uniform float platform_half_height = 10.0;
@@ -50,116 +50,112 @@ void fragment() {
 	float time = TIME;
 	float below = local_px.y - platform_half_height;
 
-	// The undercurrent remains under the platform and fades smoothly at its
-	// lower and side edges. This gate is broad; it doesn't fragment the flow.
-	float vertical_gate = smoothstep(1.5, 10.0, below)
-		* (1.0 - smoothstep(64.0, 88.0, below));
+	// Keep the energy under the platform but let it spread broadly enough
+	// to read. Both ends of the field dissolve softly into the environment.
+	float vertical_gate = smoothstep(1.0, 9.0, below)
+		* (1.0 - smoothstep(66.0, 90.0, below));
 	float horizontal_gate = 1.0 - smoothstep(
-		platform_half_width + 16.0,
-		platform_half_width + 78.0,
+		platform_half_width + 18.0,
+		platform_half_width + 82.0,
 		abs(local_px.x)
 	);
 	float field_gate = vertical_gate * horizontal_gate;
 
-	// Slow domain warping bends the field over time without tracing explicit
-	// ribbons. Larger, anisotropic sampling makes streaks longer than they are
-	// tall; the deformation stops them reading as straight parallel lines.
-	vec2 p = local_px / vec2(54.0, 25.0);
-	float warp_x = fbm(
-		p * vec2(0.50, 0.72)
-		+ vec2(-time * 0.065 + phase_offset * 0.001, time * 0.035)
+	// A broad domain gives the flow volume; slow warping bends its contours
+	// organically so no stable path or geometric ribbon is ever drawn.
+	vec2 flow_uv = local_px / vec2(58.0, 23.0);
+	float warp_a = fbm(
+		flow_uv * vec2(0.42, 0.70)
+		+ vec2(-time * 0.055 + phase_offset * 0.001, time * 0.045)
 	);
-	float warp_y = fbm(
-		p * vec2(0.66, 0.58)
-		+ vec2(time * 0.048, -time * 0.070 + phase_offset * 0.002 + 3.7)
+	float warp_b = fbm(
+		flow_uv * vec2(0.58, 0.62)
+		+ vec2(time * 0.042, -time * 0.065 + 4.2 + phase_offset * 0.002)
 	);
-	vec2 warped = p + (vec2(warp_x, warp_y) - 0.5) * 1.15;
+	vec2 warped = flow_uv
+		+ (vec2(warp_a, warp_b) - 0.5) * vec2(1.20, 1.45);
 
-	// Broad volume: a low-frequency haze which stays present between streaks.
+	// Body is a continuous low-frequency field, not a thresholded collection
+	// of dots. It remains visible between the brighter flowing structures.
 	float body_noise = fbm(
-		warped * vec2(0.72, 0.88)
-		+ vec2(-time * 0.11, time * 0.035)
+		warped * vec2(0.66, 0.84)
+		+ vec2(-time * 0.11, time * 0.055)
 	);
 	float body_detail = noise(
-		warped * vec2(0.42, 0.70)
-		+ vec2(time * 0.06, -time * 0.045 + 6.3)
+		warped * vec2(0.38, 0.65)
+		+ vec2(time * 0.055, -time * 0.04 + 7.1)
 	);
-	float body_density = smoothstep(0.23, 0.54, body_noise)
-		* (0.62 + body_detail * 0.38);
+	float body_density = smoothstep(0.25, 0.57, body_noise)
+		* (0.64 + body_detail * 0.36);
 
-	// Directionally sampled noise forms broken, horizontally flowing ridges.
-	// We use one main ridge field and one softer offset field, not a stack of
-	// restrictive masks that would make almost every pixel vanish.
-	float flow_noise_a = noise(
-		warped * vec2(0.46, 3.00)
-		+ vec2(-time * 0.16, time * 0.23 + phase_offset * 0.002)
+	// Directionally stretched noise forms long, soft-edged currents. A light
+	// ridge extraction adds definition; modulation has a nonzero floor so it
+	// breaks and bends the streaks without wiping most of them out.
+	float flow_a = fbm(
+		warped * vec2(0.52, 2.55)
+		+ vec2(-time * 0.15, time * 0.20 + phase_offset * 0.002)
 	);
-	float flow_noise_b = noise(
-		warped * vec2(0.62, 4.15)
-		+ vec2(time * 0.13, -time * 0.19 + 5.4 + phase_offset * 0.003)
+	float flow_b = fbm(
+		warped * vec2(0.73, 3.45)
+		+ vec2(time * 0.12, -time * 0.17 + 5.8 + phase_offset * 0.003)
 	);
-	float ridge_a = 1.0 - abs(flow_noise_a * 2.0 - 1.0);
-	float ridge_b = 1.0 - abs(flow_noise_b * 2.0 - 1.0);
-	float main_streaks = smoothstep(0.62, 0.87, ridge_a);
-	float secondary_streaks = smoothstep(0.70, 0.92, ridge_b);
+	float ridge_a = 1.0 - abs(flow_a * 2.0 - 1.0);
+	float ridge_b = 1.0 - abs(flow_b * 2.0 - 1.0);
+	float ridges = smoothstep(0.56, 0.83, ridge_a) * 0.78
+		+ smoothstep(0.63, 0.88, ridge_b) * 0.36;
+	float breakup_noise = noise(
+		warped * vec2(0.46, 0.88)
+		+ vec2(-time * 0.12, time * 0.07 + 2.8)
+	);
+	float continuity = 0.62 + 0.38 * smoothstep(0.20, 0.62, breakup_noise);
+	float streak_density = clamp(ridges * continuity, 0.0, 1.0);
 
-	// Modulation creates natural gaps and changing density, but its floor keeps
-	// flow legible instead of multiplying the streaks into near-invisibility.
-	float continuity = 0.48 + 0.52 * smoothstep(
-		0.20, 0.62,
-		noise(warped * vec2(0.48, 0.82) + vec2(-time * 0.12, time * 0.06))
+	// Fine accents are occasional and travel through the streak field. They
+	// supply contrast and motion without becoming permanent dots or linework.
+	float fine_flow = noise(
+		warped * vec2(1.45, 4.0)
+		+ vec2(-time * 0.25, time * 0.29 + phase_offset * 0.005)
 	);
-	float streak_density = clamp(
-		(main_streaks * 0.78 + secondary_streaks * 0.34) * continuity,
-		0.0, 1.0
+	float fine_ridge = 1.0 - abs(fine_flow * 2.0 - 1.0);
+	float traveler = 0.5 + 0.5 * sin(
+		local_px.x * 0.032 - time * 1.05 + phase_offset * 0.014
+		+ (body_detail - 0.5) * 2.1
 	);
+	float accents = smoothstep(0.74, 0.93, fine_ridge)
+		* (0.35 + streak_density * 0.65)
+		* pow(traveler, 2.0);
 
-	// Short-lived highlights travel through the current field. They are a
-	// minority of the visible structure, not a row of permanent bright dots.
-	float fine_noise = noise(
-		warped * vec2(1.75, 3.9)
-		+ vec2(-time * 0.27, time * 0.31 + phase_offset * 0.006)
-	);
-	float fine_ridge = 1.0 - abs(fine_noise * 2.0 - 1.0);
-	float traveling_lobe = 0.5 + 0.5 * sin(
-		local_px.x * 0.035 - time * 1.15 + phase_offset * 0.013
-		+ (body_detail - 0.5) * 2.0
-	);
-	float accents = smoothstep(0.75, 0.94, fine_ridge)
-		* (0.42 + body_density * 0.58)
-		* pow(traveling_lobe, 2.2);
-
-	float living_pulse = 0.94 + 0.06 * sin(
-		time * 0.92 + phase_offset * 0.01 + local_px.x * 0.009
-	);
 	float landing_active = step(0.0, landing_age)
 		* (1.0 - smoothstep(0.0, 0.58, landing_age));
 	float landing_pulse = landing_active * clamp(landing_strength, 0.0, 1.45);
 	float energy_boost = 1.0
 		+ clamp(approach_charge, 0.0, 1.0) * 0.10
-		+ landing_pulse * 0.38;
+		+ landing_pulse * 0.32;
+	float living_pulse = 0.96 + 0.04 * sin(
+		time * 0.9 + phase_offset * 0.01 + local_px.x * 0.008
+	);
 
-	// Brighter than the previous diffuse pass, calibrated against the visible
-	// ribbon proof. Body stays soft; contrast lives in the irregular streaks.
-	float body_alpha = body_density * 0.14;
-	float streak_alpha = streak_density * 0.31;
-	float accent_alpha = accents * 0.22;
+	// Tuned for actual contrast against the purple cloud: visible diffuse body,
+	// prominent soft streaks, and a small number of brighter moving accents.
+	float body_alpha = body_density * 0.22;
+	float streak_alpha = streak_density * 0.36;
+	float accent_alpha = accents * 0.24;
 	float alpha = (body_alpha + streak_alpha + accent_alpha)
-		* field_gate * living_pulse * energy_boost;
-	alpha = clamp(alpha, 0.0, 0.50);
+		* field_gate * energy_boost * living_pulse;
+	alpha = clamp(alpha, 0.0, 0.58);
 
-	vec3 body_color = vec3(0.13, 0.045, 1.02);
-	vec3 streak_color = vec3(0.065, 0.34, 2.25);
-	vec3 accent_color = vec3(0.20, 0.78, 2.90);
+	vec3 body_color = vec3(0.18, 0.055, 1.30);
+	vec3 streak_color = vec3(0.075, 0.46, 2.65);
+	vec3 accent_color = vec3(0.22, 0.88, 3.20);
 	vec3 energy_color = mix(
 		body_color,
 		streak_color,
-		clamp(streak_density * 0.92 + accents * 0.18, 0.0, 1.0)
+		clamp(streak_density * 0.90 + accents * 0.18, 0.0, 1.0)
 	);
 	energy_color = mix(
 		energy_color,
 		accent_color,
-		clamp(accents * 0.76 + landing_pulse * 0.18, 0.0, 0.78)
+		clamp(accents * 0.72 + landing_pulse * 0.18, 0.0, 0.76)
 	);
 
 	COLOR = vec4(energy_color, alpha);
