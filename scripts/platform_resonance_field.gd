@@ -9,7 +9,7 @@ extends Node2D
 
 const PLATFORM_TYPE_NORMAL: int = 0
 const CLOUD_SHADER := preload("res://scenes/platform_resonance_cloud.gdshader")
-const VERTICAL_FILAMENT_COUNT: int = 18
+const VERTICAL_FILAMENT_COUNT: int = 12
 
 const CLOUD_MARGIN_X: float = 86.0
 const CLOUD_MARGIN_Y: float = 90.0
@@ -245,76 +245,89 @@ func _draw_vertical_resonance_field(half_width: float, half_height: float) -> vo
 		var lane_amount: float = lerpf(0.30, 0.88, _random01(cycle_seed + 6.3))
 		var center_x: float = lane * fan_width * lane_amount
 
-		# Pulse head travels from vertical_t=1 (tip) toward 0 (platform).
-		# The soft tail trails behind it and brings neighboring packets along.
-		var wave_delta: float = vertical_t - pulse_t
-		var wave_core: float = exp(-pow(wave_delta / 0.105, 2.0))
-		var wave_tail: float = exp(-pow((wave_delta - 0.14) / 0.26, 2.0))
-		var wave_signal: float = clampf(
-			(wave_core + wave_tail * 0.36) * pulse_gate,
-			0.0,
-			1.0
-		)
+
+		# The common wave controls the strand per segment below, so a pulse
+		# visibly travels along the filament instead of lighting a whole dash.
 		var irregularity: float = lerpf(0.42, 1.0, _random01(cycle_seed + 7.4))
 		var activation_gain: float = 0.62 + activation * 0.86
 		var packet_strength: float = life_envelope * irregularity * activation_gain
-		var visible_strength: float = packet_strength * (0.035 + wave_signal * 0.965)
 
-		# Streak length naturally grows higher in the fan. At the tip it is a
-		# compact spark; near the platform it becomes a longer curved filament.
+
+		# Filaments follow the vertical current rather than forming rows of
+		# horizontal dashes. The wider cloud supports longer, looser streaks;
+		# near the narrow source they resolve into short sparks.
 		var fan_opening: float = pow(maxf(1.0 - vertical_t, 0.0), 0.72)
 		var streak_length: float = lerpf(
-			3.0,
-			lerpf(20.0, 46.0, _random01(cycle_seed + 8.5)),
+			4.0,
+			lerpf(15.0, 35.0, _random01(cycle_seed + 8.5)),
 			fan_opening
 		)
-		streak_length *= lerpf(0.58, 1.0, _random01(cycle_seed + 9.2))
-		streak_length = maxf(streak_length, 2.6)
+		streak_length *= lerpf(0.62, 1.0, _random01(cycle_seed + 9.2))
+		streak_length = maxf(streak_length, 3.0)
 
-		# Each packet is a loose, mostly horizontal curved wisp. It is not a
-		# vertical stick: the upward motion comes from the shared wave activating
-		# successive heights in the fan.
-		var point_count: int = 3 + int(_random01(cycle_seed + 10.3) * 4.0)
-		var curve_amount: float = lerpf(0.5, 5.8, _random01(cycle_seed + 11.4))
+		var point_count: int = 4 + int(_random01(cycle_seed + 10.3) * 3.0)
+		var curve_amount: float = lerpf(0.8, 5.6, _random01(cycle_seed + 11.4))
 		var curve_phase: float = cycle_seed * 0.071
-		var curve_drift: float = sin(_time * 0.82 + curve_phase) * curve_amount
+		var curve_drift: float = sin(_time * 0.62 + curve_phase) * curve_amount
+		var slight_lean: float = (
+			_random01(cycle_seed + 12.5) - 0.5
+		) * lerpf(3.0, 9.0, fan_opening)
 		var end_fade: float = smoothstep(0.0, 0.035, vertical_t) * (
 			1.0 - smoothstep(0.965, 1.0, vertical_t)
 		)
 		var points := PackedVector2Array()
 		for point_index in range(point_count):
 			var along: float = float(point_index) / float(point_count - 1)
-			var horizontal_offset: float = (along - 0.5) * streak_length
+			var vertical_offset: float = (along - 0.5) * streak_length
 			var broad_curve: float = sin(along * PI + curve_phase) * curve_amount
 			var fine_curve: float = sin(
-				along * TAU + curve_phase * 1.7 + _time * 0.55
-			) * curve_amount * 0.25
-			var slight_slope: float = (along - 0.5) * (
-				_random01(cycle_seed + 12.5) - 0.5
-			) * lerpf(1.0, 5.0, fan_opening)
-			var point_y: float = y_center + broad_curve + fine_curve + slight_slope
-			points.append(Vector2(
-				center_x + horizontal_offset + curve_drift * (0.5 - along),
-				point_y
-			))
+				along * TAU + curve_phase * 1.7 - _time * 0.42
+			) * curve_amount * 0.24
+			var vertical_waver: float = sin(
+				along * TAU + curve_phase * 0.83 + _time * 0.31
+			) * curve_amount * 0.14
+			var point_x: float = (
+				center_x + broad_curve + fine_curve
+				+ curve_drift * (0.5 - along)
+				+ (along - 0.5) * slight_lean
+			)
+			var point_y: float = y_center + vertical_offset + vertical_waver
+			points.append(Vector2(point_x, point_y))
 
 		var stroke_width: float = lerpf(0.65, 1.85, _random01(cycle_seed + 13.6))
-		stroke_width *= lerpf(0.78, 1.62, wave_signal)
 		var warm_core: Color = Color(0.76, 1.10, 1.72, 1.0)
-		var pulse_tint: Color = tint.lerp(warm_core, wave_signal * 0.48)
 		for segment in range(1, points.size()):
 			var segment_seed: float = cycle_seed + float(segment) * 7.31
-			var local_gap: float = _random01(segment_seed + 0.4)
-			# Break some, not all, segments: this creates a filament packet with
-			# organic gaps rather than many unrelated strokes stacked together.
-			if local_gap < 0.14:
+			if _random01(segment_seed + 0.4) < 0.10:
 				continue
+
 			var along_segment: float = float(segment) / float(points.size() - 1)
+			var segment_y: float = (points[segment - 1].y + points[segment].y) * 0.5
+			var segment_vertical_t: float = clampf(
+				(segment_y - near_y) / maxf(tip_y - near_y, 1.0),
+				0.0,
+				1.0
+			)
+			var segment_wave_delta: float = segment_vertical_t - pulse_t
+			var segment_wave_core: float = exp(-pow(segment_wave_delta / 0.105, 2.0))
+			var segment_wave_tail: float = exp(-pow((segment_wave_delta - 0.14) / 0.26, 2.0))
+			var segment_wave_signal: float = clampf(
+				(segment_wave_core + segment_wave_tail * 0.36) * pulse_gate,
+				0.0,
+				1.0
+			)
 			var taper: float = sin((along_segment * 0.92 + 0.04) * PI) * 0.62 + 0.08
-			var segment_strength: float = visible_strength * end_fade * taper
+			var segment_strength: float = (
+				packet_strength * end_fade * taper
+				* (0.035 + segment_wave_signal * 0.965)
+			)
 			var width_scale: float = lerpf(0.68, 1.20, _random01(segment_seed + 1.5))
 			if segment == points.size() / 2:
 				width_scale *= 1.20
+			var segment_width: float = stroke_width * width_scale * lerpf(
+				0.82, 1.48, segment_wave_signal
+			)
+			var pulse_tint: Color = tint.lerp(warm_core, segment_wave_signal * 0.48)
 
 			draw_line(
 				points[segment - 1],
@@ -323,9 +336,9 @@ func _draw_vertical_resonance_field(half_width: float, half_height: float) -> vo
 					pulse_tint.r * 0.34 + 0.015,
 					pulse_tint.g * 0.38 + 0.02,
 					pulse_tint.b * 0.74 + 0.08,
-					(0.025 + wave_signal * 0.105) * segment_strength
+					(0.025 + segment_wave_signal * 0.105) * segment_strength
 				),
-				stroke_width * width_scale * 4.2,
+				segment_width * 4.2,
 				true
 			)
 			draw_line(
@@ -335,26 +348,40 @@ func _draw_vertical_resonance_field(half_width: float, half_height: float) -> vo
 					pulse_tint.r * 0.70 + 0.02,
 					pulse_tint.g * 0.74 + 0.08,
 					pulse_tint.b * 0.98 + 0.12,
-					(0.075 + wave_signal * 0.34) * segment_strength
+					(0.075 + segment_wave_signal * 0.34) * segment_strength
 				),
-				stroke_width * width_scale,
+				segment_width,
 				true
 			)
 
-		# The rising wave carries a few soft glints with it. Their size and
-		# brightness vary independently so the pulse feels alive, not uniform.
-		if wave_signal > 0.24 and _random01(cycle_seed + 14.7) > 0.30:
-			var glint_index: int = int(_random01(cycle_seed + 15.8) * points.size())
-			var glint_position: Vector2 = points[glint_index]
+
+		# Glints are sampled along the same filament and only flare when the
+		# traveling wave reaches their position.
+		var glint_index: int = int(_random01(cycle_seed + 15.8) * points.size())
+		var glint_position: Vector2 = points[glint_index]
+		var glint_vertical_t: float = clampf(
+			(glint_position.y - near_y) / maxf(tip_y - near_y, 1.0),
+			0.0,
+			1.0
+		)
+		var glint_wave_delta: float = glint_vertical_t - pulse_t
+		var glint_wave_core: float = exp(-pow(glint_wave_delta / 0.105, 2.0))
+		var glint_wave_tail: float = exp(-pow((glint_wave_delta - 0.14) / 0.26, 2.0))
+		var glint_wave_signal: float = clampf(
+			(glint_wave_core + glint_wave_tail * 0.36) * pulse_gate,
+			0.0,
+			1.0
+		)
+		if glint_wave_signal > 0.24 and _random01(cycle_seed + 14.7) > 0.30:
 			var glint_radius: float = lerpf(0.55, 1.35, _random01(cycle_seed + 16.9))
-			var glint_strength: float = packet_strength * wave_signal
+			var glint_strength: float = packet_strength * glint_wave_signal
 			draw_circle(
 				glint_position,
 				glint_radius * 2.5,
 				Color(
-					pulse_tint.r * 0.30 + 0.06,
-					pulse_tint.g * 0.32 + 0.08,
-					pulse_tint.b * 0.54 + 0.14,
+					tint.r * 0.30 + 0.06,
+					tint.g * 0.32 + 0.08,
+					tint.b * 0.54 + 0.14,
 					0.07 * glint_strength
 				)
 			)
