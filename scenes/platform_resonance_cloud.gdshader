@@ -196,7 +196,7 @@ void fragment() {
 	// approach and briefly gains energy after a real landing.
 	float wave_reaction = 0.62 + clamp(approach_charge, 0.0, 1.0) * 0.50
 		+ clamp(landing_fade, 0.0, 1.0) * 0.65;
-	cloud_alpha += upward_wave * (0.012 + cloud_volume * 0.035)
+	cloud_alpha += upward_wave * (0.022 + cloud_volume * 0.050)
 		* wave_reaction * fan_profile;
 
 	// Idle field leans gently toward the platform's purple idle light; active
@@ -208,9 +208,9 @@ void fragment() {
 	// Gentle violet depth in denser pockets; cool highlights in the currents.
 	cloud_color += vec3(0.13, 0.035, 0.36) * cloud_pockets * 0.24;
 	cloud_color *= 0.90 + cloud_volume * 0.16;
-	cloud_color += vec3(0.04, 0.15, 0.38) * upward_wave
-		* (0.18 + clamp(approach_charge, 0.0, 1.0) * 0.30
-		+ clamp(landing_fade, 0.0, 1.0) * 0.22);
+	cloud_color += vec3(0.06, 0.19, 0.52) * upward_wave
+		* (0.24 + clamp(approach_charge, 0.0, 1.0) * 0.36
+		+ clamp(landing_fade, 0.0, 1.0) * 0.28);
 
 	// Keep the tapered resonance volume below the platform; the direct-drawn
 	// curved vertical filament sparks move through this diffuse, irregular field.
