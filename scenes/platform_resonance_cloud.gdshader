@@ -137,9 +137,11 @@ void fragment() {
 	// wider than a line, with very low opacity and no closed geometric outline.
 	float ridge = 1.0 - abs(medium_noise * 2.0 - 1.0);
 	float soft_wisps = smoothstep(0.42, 0.89, ridge) * (0.25 + cloud_volume * 0.75);
+	// Current texture advection is predominantly upward (screen-space -Y),
+	// with just enough lateral drift and noise warping to avoid a rigid stream.
 	float current_noise = fbm(
 		warped * vec2(2.0, 1.15)
-		+ vec2(-time * 0.32 + broad_noise * 0.55, time * 0.08)
+		+ vec2(-time * 0.045 + broad_noise * 0.22, time * 0.28)
 	);
 	float current_threads = smoothstep(0.63, 0.82, current_noise)
 		* smoothstep(0.18, 0.76, cloud_volume);
