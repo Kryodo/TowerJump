@@ -9,7 +9,8 @@ extends Node2D
 
 const PLATFORM_TYPE_NORMAL: int = 0
 const CLOUD_SHADER := preload("res://scenes/platform_resonance_cloud.gdshader")
-const UNDERCURRENT_SHADER := preload("res://scenes/platform_resonance_undercurrent.gdshader")
+const DIFFUSE_FLOW_COUNT: int = 18
+const DIFFUSE_FLOW_SEGMENTS: int = 6
 
 const CLOUD_MARGIN_X: float = 86.0
 const CLOUD_MARGIN_Y: float = 90.0
@@ -31,8 +32,6 @@ var _landing_local_x: float = 0.0
 
 var _cloud: Polygon2D
 var _cloud_material: ShaderMaterial
-var _undercurrent: Polygon2D
-var _undercurrent_material: ShaderMaterial
 
 
 func _ready() -> void:
@@ -57,17 +56,6 @@ func _create_cloud_layer() -> void:
 	_cloud_material.shader = CLOUD_SHADER
 	_cloud_material.set_shader_parameter("phase_offset", _phase_offset)
 	add_child(_cloud)
-
-	# The diffuse-flow layer is a separate additive shader drawn over the cloud
-	# and below the actual platform body. It contains no mesh or ribbon geometry.
-	_undercurrent = Polygon2D.new()
-	_undercurrent.name = "DiffuseUndercurrent"
-	_undercurrent.z_index = 1
-	_undercurrent.material = ShaderMaterial.new()
-	_undercurrent_material = _undercurrent.material as ShaderMaterial
-	_undercurrent_material.shader = UNDERCURRENT_SHADER
-	_undercurrent_material.set_shader_parameter("phase_offset", _phase_offset)
-	add_child(_undercurrent)
 
 
 func configure(platform_type: int, platform_width: float, platform_height: float) -> void:
@@ -108,16 +96,10 @@ func _update_cloud_geometry() -> void:
 	])
 	_cloud.polygon = field_polygon
 	_cloud.uv = field_uv
-	_undercurrent.polygon = field_polygon
-	_undercurrent.uv = field_uv
 
-	var field_size := Vector2(half_width * 2.0, half_height * 2.0)
-	_cloud_material.set_shader_parameter("field_size", field_size)
+	_cloud_material.set_shader_parameter("field_size", Vector2(half_width * 2.0, half_height * 2.0))
 	_cloud_material.set_shader_parameter("platform_half_width", _platform_width * 0.5)
 	_cloud_material.set_shader_parameter("platform_half_height", _platform_height * 0.5)
-	_undercurrent_material.set_shader_parameter("field_size", field_size)
-	_undercurrent_material.set_shader_parameter("platform_half_width", _platform_width * 0.5)
-	_undercurrent_material.set_shader_parameter("platform_half_height", _platform_height * 0.5)
 
 
 func set_approach_feedback(charge: float, target_x: float) -> void:
@@ -177,7 +159,7 @@ func _process(delta: float) -> void:
 
 
 func _sync_cloud_parameters() -> void:
-	if _cloud_material == null or _undercurrent_material == null:
+	if _cloud_material == null:
 		return
 	_cloud_material.set_shader_parameter("approach_charge", _approach_charge)
 	_cloud_material.set_shader_parameter("approach_target_x", _approach_target_x)
@@ -185,10 +167,6 @@ func _sync_cloud_parameters() -> void:
 	_cloud_material.set_shader_parameter("landing_strength", _landing_wave_strength)
 	_cloud_material.set_shader_parameter("landing_x", _landing_local_x)
 	_cloud_material.set_shader_parameter("phase_offset", _phase_offset)
-	_undercurrent_material.set_shader_parameter("approach_charge", _approach_charge)
-	_undercurrent_material.set_shader_parameter("landing_age", _landing_wave_age)
-	_undercurrent_material.set_shader_parameter("landing_strength", _landing_wave_strength)
-	_undercurrent_material.set_shader_parameter("phase_offset", _phase_offset)
 
 
 func _draw() -> void:
@@ -197,8 +175,79 @@ func _draw() -> void:
 
 	var half_width: float = _platform_width * 0.5
 	var half_height: float = _platform_height * 0.5
+	_draw_diffuse_undercurrent(half_width, half_height)
 	_draw_edge_filaments(half_width, half_height)
 	_draw_edge_fragments(half_width, half_height)
+
+
+func _draw_diffuse_undercurrent(half_width: float, half_height: float) -> void:
+	# These are short, partially disconnected wisps drawn via the CanvasItem
+	# path already proven visible in-game. They are NOT continuous ribbons.
+	# Multiple glowing passes soften each irregular segment into the cloud.
+	var available_width: float = half_width * 2.0 + 110.0
+	for strand in range(DIFFUSE_FLOW_COUNT):
+		var seed: float = _phase_offset * 0.37 + float(strand) * 29.17
+		var speed: float = 0.055 + _random01(seed + 0.6) * 0.055
+		var travel_phase: float = fposmod(_time * speed + _random01(seed + 1.2), 1.0)
+		var length: float = lerpf(42.0, 112.0, _random01(seed + 2.4))
+		var start_x: float = (
+			fposmod(
+				_random01(seed + 3.1) * available_width + travel_phase * available_width,
+				available_width
+			) - half_width - 55.0
+		)
+		var lane: float = lerpf(18.0, 70.0, _random01(seed + 4.3))
+		var phase: float = seed * 0.071
+		var life_pulse: float = 0.56 + 0.44 * absf(
+			sin(_time * (0.55 + _random01(seed + 5.1) * 0.45) + phase)
+		)
+		var strength: float = life_pulse * lerpf(0.48, 1.0, _random01(seed + 6.2))
+		var direction: float = -1.0 if _random01(seed + 7.3) < 0.5 else 1.0
+		var previous_point := Vector2.ZERO
+		var has_previous: bool = false
+
+		for segment in range(DIFFUSE_FLOW_SEGMENTS + 1):
+			var t: float = float(segment) / float(DIFFUSE_FLOW_SEGMENTS)
+			var x: float = start_x + length * t * direction
+			var slow_bend: float = sin(
+				t * TAU * 0.72 + _time * 0.36 + phase
+			) * 5.4
+			var secondary_bend: float = sin(
+				t * TAU * 1.85 - _time * 0.28 + phase * 1.7
+			) * 2.5
+			var fine_bend: float = sin(
+				t * TAU * 3.1 + _time * 0.49 + phase * 2.3
+			) * 1.0
+			var y: float = half_height + lane + slow_bend + secondary_bend + fine_bend
+			var current_point := Vector2(x, y)
+
+			if has_previous:
+				var segment_seed: float = seed + float(segment) * 11.7
+				var gap_roll: float = _random01(segment_seed + 1.8)
+				# Leave occasional gaps and vary local strength so the path
+				# reads as a current breaking through haze, not a drawn line.
+				if gap_roll > 0.16:
+					var segment_strength: float = strength * lerpf(
+						0.38, 1.0, _random01(segment_seed + 2.6)
+					)
+					var glow_color := Color(0.035, 0.10, 1.15, 0.075 * segment_strength)
+					var flow_color := Color(0.045, 0.30, 1.90, 0.20 * segment_strength)
+					draw_line(previous_point, current_point, glow_color, 8.0, true)
+					draw_line(previous_point, current_point, flow_color, 3.0, true)
+
+					# Only occasional short core accents; they never span the full
+					# strand, avoiding the continuous-line look of the proof pass.
+					if _random01(segment_seed + 3.5) > 0.76:
+						draw_line(
+							previous_point.lerp(current_point, 0.15),
+							previous_point.lerp(current_point, 0.83),
+							Color(0.12, 0.62, 2.8, 0.23 * segment_strength),
+							1.15,
+							true
+						)
+
+			previous_point = current_point
+			has_previous = true
 
 
 func _draw_edge_filaments(half_width: float, half_height: float) -> void:
