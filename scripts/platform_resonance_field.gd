@@ -223,9 +223,14 @@ func _draw_vertical_resonance_field(half_width: float, half_height: float) -> vo
 		)
 		var fade_envelope: float = pow(maxf(sin(PI * fade_cycle), 0.0), 0.65)
 		var pulse: float = 0.20 + fade_envelope * 0.80
+		# Streaks dissolve at the edge of their travel, then quietly re-enter
+		# from the other side instead of visibly snapping across the fan.
+		var edge_fade: float = smoothstep(0.0, 0.15, travel_phase) * (
+			1.0 - smoothstep(0.85, 1.0, travel_phase)
+		)
 		var randomness: float = lerpf(0.38, 1.0, _random01(seed + 9.1))
 		var near_platform_weight: float = lerpf(0.60, 1.0, length_scale)
-		var strength: float = pulse * randomness * near_platform_weight
+		var strength: float = pulse * edge_fade * randomness * near_platform_weight
 		if vertical_t > 0.76:
 			# The lower end has very little width, but occasionally glows a touch
 			# more brightly to imply a concentrated source rather than a hard tip.
