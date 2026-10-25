@@ -21,6 +21,7 @@ var _platform_type: int = PLATFORM_TYPE_NORMAL
 var _platform_width: float = 220.0
 var _platform_height: float = 20.0
 var _time: float = 0.0
+var _pulse_phase: float = 0.0
 var _phase_offset: float = 0.0
 var _approach_charge: float = 0.0
 var _approach_charge_target: float = 0.0
@@ -35,6 +36,7 @@ var _cloud_material: ShaderMaterial
 
 func _ready() -> void:
 	_phase_offset = randf_range(0.0, 997.0)
+	_pulse_phase = fposmod(_phase_offset * 0.013, 1.0)
 	material = _make_additive_material()
 	_create_cloud_layer()
 	set_process(true)
@@ -55,6 +57,7 @@ func _create_cloud_layer() -> void:
 	_cloud_material.shader = CLOUD_SHADER
 	_cloud_material.set_shader_parameter("phase_offset", _phase_offset)
 	_cloud_material.set_shader_parameter("resonance_time", _time)
+	_cloud_material.set_shader_parameter("resonance_pulse_phase", _pulse_phase)
 	add_child(_cloud)
 
 
@@ -118,6 +121,9 @@ func play_landing_wave(landing_world_x: float, strength: float = 1.0) -> void:
 	_landing_wave_age = 0.0
 	_landing_wave_strength = clampf(strength, 0.65, 1.45)
 	_approach_charge_target = 0.0
+	# A real landing launches a fresh resonance pulse from the narrow lower
+	# source. The diffuse shader and drawn filaments share this phase exactly.
+	_pulse_phase = 0.0
 	_sync_cloud_parameters()
 	queue_redraw()
 
@@ -148,6 +154,7 @@ func _process(delta: float) -> void:
 		_approach_charge_target,
 		1.0 - exp(-7.5 * delta)
 	)
+	_pulse_phase = fposmod(_pulse_phase + delta * 0.46, 1.0)
 	if _landing_wave_age >= 0.0:
 		_landing_wave_age += delta
 		if _landing_wave_age >= LANDING_WAVE_DURATION:
@@ -168,6 +175,7 @@ func _sync_cloud_parameters() -> void:
 	_cloud_material.set_shader_parameter("landing_x", _landing_local_x)
 	_cloud_material.set_shader_parameter("phase_offset", _phase_offset)
 	_cloud_material.set_shader_parameter("resonance_time", _time)
+	_cloud_material.set_shader_parameter("resonance_pulse_phase", _pulse_phase)
 
 
 func _draw() -> void:
@@ -187,11 +195,10 @@ func _draw_vertical_resonance_field(half_width: float, half_height: float) -> vo
 	# lengths, widths and brightness, but the same wave briefly energizes them.
 	var near_y: float = half_height + 8.0
 	var tip_y: float = half_height + CLOUD_MARGIN_Y - 7.0
-	var field_height: float = maxf(tip_y - near_y, 1.0)
 	var tint: Color = _resonance_tint()
 	var activation: float = _resonance_activation()
 
-	var pulse_phase: float = fposmod(_time * 0.46 + _phase_offset * 0.013, 1.0)
+	var pulse_phase: float = _pulse_phase
 	var pulse_t: float = 1.0 - pulse_phase
 	var pulse_gate: float = smoothstep(0.012, 0.075, pulse_phase) * (
 		1.0 - smoothstep(0.95, 1.0, pulse_phase)
@@ -241,17 +248,17 @@ func _draw_vertical_resonance_field(half_width: float, half_height: float) -> vo
 		# Pulse head travels from vertical_t=1 (tip) toward 0 (platform).
 		# The soft tail trails behind it and brings neighboring packets along.
 		var wave_delta: float = vertical_t - pulse_t
-		var wave_core: float = exp(-pow(wave_delta / 0.095, 2.0))
-		var wave_tail: float = exp(-pow((wave_delta - 0.12) / 0.22, 2.0))
+		var wave_core: float = exp(-pow(wave_delta / 0.105, 2.0))
+		var wave_tail: float = exp(-pow((wave_delta - 0.14) / 0.26, 2.0))
 		var wave_signal: float = clampf(
-			(wave_core * 0.94 + wave_tail * 0.30) * pulse_gate,
+			(wave_core + wave_tail * 0.36) * pulse_gate,
 			0.0,
 			1.0
 		)
 		var irregularity: float = lerpf(0.42, 1.0, _random01(cycle_seed + 7.4))
 		var activation_gain: float = 0.62 + activation * 0.86
 		var packet_strength: float = life_envelope * irregularity * activation_gain
-		var visible_strength: float = packet_strength * (0.12 + wave_signal * 0.88)
+		var visible_strength: float = packet_strength * (0.035 + wave_signal * 0.965)
 
 		# Streak length naturally grows higher in the fan. At the tip it is a
 		# compact spark; near the platform it becomes a longer curved filament.
@@ -286,10 +293,13 @@ func _draw_vertical_resonance_field(half_width: float, half_height: float) -> vo
 				_random01(cycle_seed + 12.5) - 0.5
 			) * lerpf(1.0, 5.0, fan_opening)
 			var point_y: float = y_center + broad_curve + fine_curve + slight_slope
-			points.append(Vector2(center_x + horizontal_offset, point_y))
+			points.append(Vector2(
+				center_x + horizontal_offset + curve_drift * (0.5 - along),
+				point_y
+			))
 
 		var stroke_width: float = lerpf(0.65, 1.85, _random01(cycle_seed + 13.6))
-		stroke_width *= lerpf(0.86, 1.38, wave_signal)
+		stroke_width *= lerpf(0.78, 1.62, wave_signal)
 		var warm_core: Color = Color(0.76, 1.10, 1.72, 1.0)
 		var pulse_tint: Color = tint.lerp(warm_core, wave_signal * 0.48)
 		for segment in range(1, points.size()):
@@ -313,7 +323,7 @@ func _draw_vertical_resonance_field(half_width: float, half_height: float) -> vo
 					pulse_tint.r * 0.34 + 0.015,
 					pulse_tint.g * 0.38 + 0.02,
 					pulse_tint.b * 0.74 + 0.08,
-					(0.035 + wave_signal * 0.065) * segment_strength
+					(0.025 + wave_signal * 0.105) * segment_strength
 				),
 				stroke_width * width_scale * 4.2,
 				true
@@ -325,7 +335,7 @@ func _draw_vertical_resonance_field(half_width: float, half_height: float) -> vo
 					pulse_tint.r * 0.70 + 0.02,
 					pulse_tint.g * 0.74 + 0.08,
 					pulse_tint.b * 0.98 + 0.12,
-					(0.10 + wave_signal * 0.25) * segment_strength
+					(0.075 + wave_signal * 0.34) * segment_strength
 				),
 				stroke_width * width_scale,
 				true
