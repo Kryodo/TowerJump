@@ -61,10 +61,21 @@ void fragment() {
 	float outside_edge = smoothstep(-4.0, 4.5, signed_edge_distance);
 	float distance_from_edge = max(signed_edge_distance, 0.0);
 
-	// The falloff is the real silhouette of the field: broad, irregular and
-	// feathered into the world. Noise changes the density, never its boundary.
-	float spatial_falloff = exp(-distance_from_edge / 37.0)
-		* (1.0 - smoothstep(43.0, 74.0, distance_from_edge));
+	// The resonance field narrows toward a quiet source below the platform and
+	// opens into a broader cloud at the underside. Noise softens this silhouette.
+	float below_platform = max(local_px.y - platform_half_height, 0.0);
+	float fan_depth = max(field_size.y * 0.5 - platform_half_height - 7.0, 1.0);
+	float fan_t = clamp(below_platform / fan_depth, 0.0, 1.0);
+	float fan_half_width = (platform_half_width + 48.0)
+		* pow(max(1.0 - fan_t, 0.0), 0.88) + 3.0;
+	float fan_side_falloff = 1.0 - smoothstep(
+		fan_half_width * 0.56,
+		fan_half_width + 7.0,
+		abs(local_px.x)
+	);
+	float fan_vertical_falloff = exp(-below_platform / 70.0)
+		* (1.0 - smoothstep(fan_depth * 0.84, fan_depth, below_platform));
+	float spatial_falloff = fan_side_falloff * fan_vertical_falloff;
 
 	float time = TIME;
 	vec2 p = local_px / vec2(35.0, 27.0);
@@ -175,8 +186,8 @@ void fragment() {
 	cloud_color += vec3(0.13, 0.035, 0.36) * cloud_pockets * 0.24;
 	cloud_color *= 0.90 + cloud_volume * 0.16;
 
-	// Keep this resonance volume localized beneath the platform. The direct-drawn
-	// flow threads provide structure; this shader supplies their soft, irregular body.
+	// Keep the tapered resonance volume below the platform; the direct-drawn
+	// horizontal fragments move inside this diffuse, irregular field.
 	float underside_presence = smoothstep(
 		platform_half_height - 8.0,
 		platform_half_height + 10.0,
