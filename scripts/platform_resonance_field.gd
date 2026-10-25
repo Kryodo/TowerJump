@@ -9,7 +9,7 @@ extends Node2D
 
 const PLATFORM_TYPE_NORMAL: int = 0
 const CLOUD_SHADER := preload("res://scenes/platform_resonance_cloud.gdshader")
-const VERTICAL_FILAMENT_COUNT: int = 22
+const VERTICAL_FILAMENT_COUNT: int = 18
 
 const CLOUD_MARGIN_X: float = 86.0
 const CLOUD_MARGIN_Y: float = 90.0
@@ -182,9 +182,9 @@ func _draw() -> void:
 
 
 func _draw_vertical_resonance_field(half_width: float, half_height: float) -> void:
-	# A shared pulse travels from the narrow source upward through the widening
-	# field. Individual filaments shimmer, drift upward, and reform on irregular
-	# lifetimes, but the shared wave gives them one coherent resonance rhythm.
+	# A shared resonance pulse travels upward from the narrow source through
+	# the widening field. Individual filament packets have different durations,
+	# lengths, widths and brightness, but the same wave briefly energizes them.
 	var near_y: float = half_height + 8.0
 	var tip_y: float = half_height + CLOUD_MARGIN_Y - 7.0
 	var field_height: float = maxf(tip_y - near_y, 1.0)
@@ -193,156 +193,182 @@ func _draw_vertical_resonance_field(half_width: float, half_height: float) -> vo
 
 	var pulse_phase: float = fposmod(_time * 0.46 + _phase_offset * 0.013, 1.0)
 	var pulse_t: float = 1.0 - pulse_phase
-	var pulse_gate: float = smoothstep(0.015, 0.09, pulse_phase) * (
-		1.0 - smoothstep(0.86, 1.0, pulse_phase)
+	var pulse_gate: float = smoothstep(0.012, 0.075, pulse_phase) * (
+		1.0 - smoothstep(0.95, 1.0, pulse_phase)
 	)
 
 	for strand in range(VERTICAL_FILAMENT_COUNT):
 		var seed: float = _phase_offset * 0.37 + float(strand) * 29.17
 
-		# Each filament has its own lifetime, active window, brightness and
-		# width. At the end of a life it reappears elsewhere in the field.
-		var life_duration: float = lerpf(1.05, 2.55, _random01(seed + 0.3))
+		# Each packet has an irregular independent lifetime. Gaps between lives
+		# let the current breathe instead of displaying a permanent mesh.
+		var life_duration: float = lerpf(0.82, 2.65, _random01(seed + 0.3))
 		var life_clock: float = _time / life_duration + _random01(seed + 1.4)
 		var life_phase: float = fposmod(life_clock, 1.0)
 		var cycle_id: float = floor(life_clock)
 		var cycle_seed: float = seed + cycle_id * 23.17
-		var life_window: float = lerpf(0.29, 0.74, _random01(cycle_seed + 2.1))
+		var life_window: float = lerpf(0.30, 0.76, _random01(cycle_seed + 2.1))
 		if life_phase >= life_window:
 			continue
 
 		var life_t: float = life_phase / life_window
-		var life_envelope: float = pow(maxf(sin(PI * life_t), 0.0), 0.72)
+		var life_envelope: float = pow(maxf(sin(PI * life_t), 0.0), 0.68)
 		var vertical_t_base: float = lerpf(
-			0.06,
-			0.98,
-			pow(_random01(cycle_seed + 3.2), 1.18)
+			0.025,
+			0.985,
+			pow(_random01(cycle_seed + 3.2), 0.94)
 		)
-		# A spark drifts upward only a short distance before fading out. The
-		# wave itself, not the sparks, carries energy across the whole field.
-		var rise_amount: float = lerpf(0.045, 0.17, _random01(cycle_seed + 4.2))
-		var vertical_t: float = clampf(vertical_t_base - life_t * rise_amount, 0.025, 0.995)
+		# Individual packets drift upward a little; the common pulse carries
+		# the larger-scale motion from the tip to the widening upper region.
+		var rise_amount: float = lerpf(0.035, 0.145, _random01(cycle_seed + 4.2))
+		var vertical_t: float = clampf(
+			vertical_t_base - life_t * rise_amount,
+			0.015,
+			0.995
+		)
 		var y_center: float = lerpf(near_y, tip_y, vertical_t)
 
-		# Streamlines fan outward as they rise: at the source they converge,
-		# then occupy more space as the field opens beneath the platform.
-		var lane: float = _random01(cycle_seed + 5.3) * 2.0 - 1.0
-		var lane_amount: float = lerpf(0.38, 0.86, _random01(cycle_seed + 6.3))
-		var envelope_width: float = (half_width + 48.0) * pow(
-			maxf(1.0 - vertical_t, 0.0), 0.88
+		# Fan geometry narrows toward the lower source and opens toward the
+		# platform. Short streaks follow that distribution without outlining it.
+		var fan_width: float = (half_width + 48.0) * pow(
+			maxf(1.0 - vertical_t, 0.0),
+			0.88
 		) + 2.8
+		var lane: float = _random01(cycle_seed + 5.3) * 2.0 - 1.0
+		var lane_amount: float = lerpf(0.30, 0.88, _random01(cycle_seed + 6.3))
+		var center_x: float = lane * fan_width * lane_amount
+
+		# Pulse head travels from vertical_t=1 (tip) toward 0 (platform).
+		# The soft tail trails behind it and brings neighboring packets along.
 		var wave_delta: float = vertical_t - pulse_t
-		var wave_core: float = exp(-pow(wave_delta / 0.105, 2.0))
-		var wave_tail: float = exp(-pow((wave_delta - 0.11) / 0.23, 2.0))
+		var wave_core: float = exp(-pow(wave_delta / 0.095, 2.0))
+		var wave_tail: float = exp(-pow((wave_delta - 0.12) / 0.22, 2.0))
 		var wave_signal: float = clampf(
-			(wave_core * 0.88 + wave_tail * 0.24) * pulse_gate,
+			(wave_core * 0.94 + wave_tail * 0.30) * pulse_gate,
 			0.0,
 			1.0
 		)
-		var irregularity: float = lerpf(0.48, 1.0, _random01(cycle_seed + 7.4))
-		var strength: float = life_envelope * irregularity * (
-			0.16 + wave_signal * 0.84
-		) * (0.58 + activation * 0.78)
+		var irregularity: float = lerpf(0.42, 1.0, _random01(cycle_seed + 7.4))
+		var activation_gain: float = 0.62 + activation * 0.86
+		var packet_strength: float = life_envelope * irregularity * activation_gain
+		var visible_strength: float = packet_strength * (0.12 + wave_signal * 0.88)
 
-		var streak_height: float = lerpf(7.0, 25.0, _random01(cycle_seed + 8.5))
-		streak_height *= lerpf(0.76, 1.28, wave_signal)
-		streak_height = clampf(streak_height, 6.0, 31.0)
-		var top_y: float = maxf(near_y, y_center - streak_height * 0.5)
-		var bottom_y: float = minf(tip_y, y_center + streak_height * 0.5)
-		if bottom_y - top_y < 3.0:
-			continue
+		# Streak length naturally grows higher in the fan. At the tip it is a
+		# compact spark; near the platform it becomes a longer curved filament.
+		var fan_opening: float = pow(maxf(1.0 - vertical_t, 0.0), 0.72)
+		var streak_length: float = lerpf(
+			3.0,
+			lerpf(20.0, 46.0, _random01(cycle_seed + 8.5)),
+			fan_opening
+		)
+		streak_length *= lerpf(0.58, 1.0, _random01(cycle_seed + 9.2))
+		streak_length = maxf(streak_length, 2.6)
 
-		var curve_amount: float = lerpf(1.0, 5.2, _random01(cycle_seed + 9.4))
-		var curve_phase: float = seed * 0.071
-		var curve_drift: float = sin(_time * 1.05 + curve_phase) * curve_amount
+		# Each packet is a loose, mostly horizontal curved wisp. It is not a
+		# vertical stick: the upward motion comes from the shared wave activating
+		# successive heights in the fan.
+		var point_count: int = 3 + int(_random01(cycle_seed + 10.3) * 4.0)
+		var curve_amount: float = lerpf(0.5, 5.8, _random01(cycle_seed + 11.4))
+		var curve_phase: float = cycle_seed * 0.071
+		var curve_drift: float = sin(_time * 0.82 + curve_phase) * curve_amount
+		var end_fade: float = smoothstep(0.0, 0.035, vertical_t) * (
+			1.0 - smoothstep(0.965, 1.0, vertical_t)
+		)
 		var points := PackedVector2Array()
-		# The path is drawn from its lower tail to its upper head. Its x-position
-		# follows the widening fan, so it reads as an upward current, not a row
-		# of horizontal bars.
-		for point_index in range(5):
-			var along: float = float(point_index) / 4.0
-			var point_y: float = lerpf(bottom_y, top_y, along)
-			var point_t: float = clampf((point_y - near_y) / field_height, 0.0, 1.0)
-			var point_width: float = (half_width + 48.0) * pow(
-				maxf(1.0 - point_t, 0.0), 0.88
-			) + 2.8
-			var curve: float = sin(along * PI + curve_phase) * curve_amount
-			curve += sin(_time * 0.82 + curve_phase + along * TAU) * curve_amount * 0.22
-			points.append(Vector2(
-				clampf(lane * point_width * lane_amount + curve + curve_drift * (0.5 - along), -point_width, point_width),
-				point_y
-			))
+		for point_index in range(point_count):
+			var along: float = float(point_index) / float(point_count - 1)
+			var horizontal_offset: float = (along - 0.5) * streak_length
+			var broad_curve: float = sin(along * PI + curve_phase) * curve_amount
+			var fine_curve: float = sin(
+				along * TAU + curve_phase * 1.7 + _time * 0.55
+			) * curve_amount * 0.25
+			var slight_slope: float = (along - 0.5) * (
+				_random01(cycle_seed + 12.5) - 0.5
+			) * lerpf(1.0, 5.0, fan_opening)
+			var point_y: float = y_center + broad_curve + fine_curve + slight_slope
+			points.append(Vector2(center_x + horizontal_offset, point_y))
 
-		var stroke_width: float = lerpf(0.65, 1.75, _random01(cycle_seed + 10.5))
-		stroke_width *= lerpf(0.84, 1.22, wave_signal)
+		var stroke_width: float = lerpf(0.65, 1.85, _random01(cycle_seed + 13.6))
+		stroke_width *= lerpf(0.86, 1.38, wave_signal)
+		var warm_core: Color = Color(0.76, 1.10, 1.72, 1.0)
+		var pulse_tint: Color = tint.lerp(warm_core, wave_signal * 0.48)
 		for segment in range(1, points.size()):
-			var segment_t: float = float(segment) / float(points.size() - 1)
-			var taper: float = sin((segment_t * 0.88 + 0.06) * PI) * 0.58 + 0.12
-			var segment_strength: float = strength * taper
-			var width_scale: float = 0.82
-			if segment == 2:
-				width_scale = 1.16
+			var segment_seed: float = cycle_seed + float(segment) * 7.31
+			var local_gap: float = _random01(segment_seed + 0.4)
+			# Break some, not all, segments: this creates a filament packet with
+			# organic gaps rather than many unrelated strokes stacked together.
+			if local_gap < 0.14:
+				continue
+			var along_segment: float = float(segment) / float(points.size() - 1)
+			var taper: float = sin((along_segment * 0.92 + 0.04) * PI) * 0.62 + 0.08
+			var segment_strength: float = visible_strength * end_fade * taper
+			var width_scale: float = lerpf(0.68, 1.20, _random01(segment_seed + 1.5))
+			if segment == points.size() / 2:
+				width_scale *= 1.20
+
 			draw_line(
 				points[segment - 1],
 				points[segment],
 				Color(
-					tint.r * 0.38 + 0.015,
-					tint.g * 0.45 + 0.025,
-					tint.b * 0.82 + 0.10,
-					0.050 * segment_strength
+					pulse_tint.r * 0.34 + 0.015,
+					pulse_tint.g * 0.38 + 0.02,
+					pulse_tint.b * 0.74 + 0.08,
+					(0.035 + wave_signal * 0.065) * segment_strength
 				),
-				stroke_width * width_scale * 3.8,
+				stroke_width * width_scale * 4.2,
 				true
 			)
 			draw_line(
 				points[segment - 1],
 				points[segment],
 				Color(
-					tint.r * 0.72 + 0.02,
-					tint.g * 0.78 + 0.09,
-					tint.b * 1.02 + 0.12,
-					0.24 * segment_strength
+					pulse_tint.r * 0.70 + 0.02,
+					pulse_tint.g * 0.74 + 0.08,
+					pulse_tint.b * 0.98 + 0.12,
+					(0.10 + wave_signal * 0.25) * segment_strength
 				),
 				stroke_width * width_scale,
 				true
 			)
 
-		# A few traveling glints make the field sparkle without filling it with
-		# generic particles or turning it into a mesh of evenly spaced lines.
-		if wave_signal > 0.20 and _random01(cycle_seed + 11.6) > 0.38:
-			var glint_index: int = 2 + int(_random01(cycle_seed + 12.7) * 2.0)
+		# The rising wave carries a few soft glints with it. Their size and
+		# brightness vary independently so the pulse feels alive, not uniform.
+		if wave_signal > 0.24 and _random01(cycle_seed + 14.7) > 0.30:
+			var glint_index: int = int(_random01(cycle_seed + 15.8) * points.size())
 			var glint_position: Vector2 = points[glint_index]
-			var glint_strength: float = strength * (0.55 + wave_signal * 0.45)
+			var glint_radius: float = lerpf(0.55, 1.35, _random01(cycle_seed + 16.9))
+			var glint_strength: float = packet_strength * wave_signal
 			draw_circle(
 				glint_position,
-				lerpf(0.65, 1.25, _random01(cycle_seed + 13.8)),
+				glint_radius * 2.5,
 				Color(
-					tint.r * 0.55 + 0.24,
-					tint.g * 0.58 + 0.45,
-					tint.b * 0.66 + 0.82,
-					0.20 * glint_strength
+					pulse_tint.r * 0.30 + 0.06,
+					pulse_tint.g * 0.32 + 0.08,
+					pulse_tint.b * 0.54 + 0.14,
+					0.07 * glint_strength
 				)
 			)
 			draw_circle(
 				glint_position,
-				0.38,
-				Color(0.72, 1.04, 1.48, 0.28 * glint_strength)
+				glint_radius,
+				Color(0.72, 1.02, 1.42, 0.24 * glint_strength)
 			)
 
-	# The soft source brightens as a pulse is born, then dims while the wave
-	# travels upward. It remains atmosphere, not a visible lamp or hard emitter.
-	var source_pulse: float = 0.38 + 0.62 * (1.0 - smoothstep(0.0, 0.22, pulse_phase))
-	var source_strength: float = source_pulse * (0.72 + activation * 0.40)
+	# A small, soft source lights as the upward pulse is born at the tip.
+	var source_pulse: float = 0.34 + 0.66 * (
+		1.0 - smoothstep(0.0, 0.24, pulse_phase)
+	)
+	var source_strength: float = source_pulse * (0.70 + activation * 0.45)
 	var source_position := Vector2(0.0, tip_y - 1.0)
 	draw_circle(
 		source_position,
 		6.8,
-		Color(tint.r * 0.24, tint.g * 0.32 + 0.01, tint.b * 0.55 + 0.06, 0.035 * source_strength)
+		Color(tint.r * 0.24, tint.g * 0.32 + 0.01, tint.b * 0.55 + 0.06, 0.030 * source_strength)
 	)
 	draw_circle(
 		source_position,
 		3.1,
-		Color(tint.r * 0.46 + 0.015, tint.g * 0.56 + 0.035, tint.b * 0.88 + 0.08, 0.075 * source_strength)
+		Color(tint.r * 0.46 + 0.015, tint.g * 0.56 + 0.035, tint.b * 0.88 + 0.08, 0.070 * source_strength)
 	)
 	draw_circle(
 		source_position,
