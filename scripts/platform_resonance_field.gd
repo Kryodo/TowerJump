@@ -9,8 +9,8 @@ extends Node2D
 
 const PLATFORM_TYPE_NORMAL: int = 0
 const CLOUD_SHADER := preload("res://scenes/platform_resonance_cloud.gdshader")
-const DIFFUSE_FLOW_COUNT: int = 18
-const DIFFUSE_FLOW_SEGMENTS: int = 6
+const DIFFUSE_FLOW_COUNT: int = 13
+const DIFFUSE_FLOW_SEGMENTS: int = 7
 
 const CLOUD_MARGIN_X: float = 86.0
 const CLOUD_MARGIN_Y: float = 90.0
@@ -181,74 +181,128 @@ func _draw() -> void:
 
 
 func _draw_diffuse_undercurrent(half_width: float, half_height: float) -> void:
-	# These are short, partially disconnected wisps drawn via the CanvasItem
-	# path already proven visible in-game. They are NOT continuous ribbons.
-	# Multiple glowing passes soften each irregular segment into the cloud.
-	var available_width: float = half_width * 2.0 + 110.0
+	# A small number of coherent, moving current packets run through the field
+	# immediately below the platform. Gaps, uneven brightness and shallow bends
+	# keep them organic without letting them read as continuous ribbons.
+	var available_width: float = half_width * 2.0 + 132.0
+	var tint: Color = _resonance_tint()
+
 	for strand in range(DIFFUSE_FLOW_COUNT):
 		var seed: float = _phase_offset * 0.37 + float(strand) * 29.17
-		var speed: float = 0.055 + _random01(seed + 0.6) * 0.055
-		var travel_phase: float = fposmod(_time * speed + _random01(seed + 1.2), 1.0)
-		var length: float = lerpf(42.0, 112.0, _random01(seed + 2.4))
+		var speed: float = 0.052 + _random01(seed + 0.6) * 0.050
+		var length: float = lerpf(52.0, 132.0, _random01(seed + 2.4))
+		var direction: float = -1.0 if _random01(seed + 7.3) < 0.32 else 1.0
+		var travel_phase: float = fposmod(
+			_time * speed * direction + _random01(seed + 1.2),
+			1.0
+		)
 		var start_x: float = (
 			fposmod(
 				_random01(seed + 3.1) * available_width + travel_phase * available_width,
 				available_width
-			) - half_width - 55.0
+			) - half_width - 66.0
 		)
-		var lane: float = lerpf(18.0, 70.0, _random01(seed + 4.3))
+
+		# Most energy sits close to the underside; only a few threads trail deeper.
+		var lane: float = lerpf(11.0, 48.0, pow(_random01(seed + 4.3), 1.35))
 		var phase: float = seed * 0.071
-		var life_pulse: float = 0.56 + 0.44 * absf(
-			sin(_time * (0.55 + _random01(seed + 5.1) * 0.45) + phase)
+		var life_pulse: float = 0.62 + 0.38 * absf(
+			sin(_time * (0.7 + _random01(seed + 5.1) * 0.55) + phase)
 		)
-		var strength: float = life_pulse * lerpf(0.48, 1.0, _random01(seed + 6.2))
-		var direction: float = -1.0 if _random01(seed + 7.3) < 0.5 else 1.0
+		var strength: float = life_pulse * lerpf(0.52, 1.0, _random01(seed + 6.2))
 		var previous_point := Vector2.ZERO
 		var has_previous: bool = false
 
 		for segment in range(DIFFUSE_FLOW_SEGMENTS + 1):
 			var t: float = float(segment) / float(DIFFUSE_FLOW_SEGMENTS)
 			var x: float = start_x + length * t * direction
-			var slow_bend: float = sin(
-				t * TAU * 0.72 + _time * 0.36 + phase
-			) * 5.4
-			var secondary_bend: float = sin(
-				t * TAU * 1.85 - _time * 0.28 + phase * 1.7
-			) * 2.5
-			var fine_bend: float = sin(
-				t * TAU * 3.1 + _time * 0.49 + phase * 2.3
-			) * 1.0
-			var y: float = half_height + lane + slow_bend + secondary_bend + fine_bend
+			var broad_curl: float = sin(
+				t * TAU * 0.72 + _time * 0.39 * direction + phase
+			) * 5.0
+			var crossing_curl: float = sin(
+				t * TAU * 1.52 - _time * 0.27 + phase * 1.6
+			) * 2.4
+			var fine_drift: float = sin(
+				t * TAU * 2.7 + _time * 0.43 + phase * 2.1
+			) * 0.9
+			var y: float = half_height + lane + broad_curl + crossing_curl + fine_drift
 			var current_point := Vector2(x, y)
 
 			if has_previous:
 				var segment_seed: float = seed + float(segment) * 11.7
 				var gap_roll: float = _random01(segment_seed + 1.8)
-				# Leave occasional gaps and vary local strength so the path
-				# reads as a current breaking through haze, not a drawn line.
-				if gap_roll > 0.16:
-					var segment_strength: float = strength * lerpf(
-						0.38, 1.0, _random01(segment_seed + 2.6)
+				# Deliberate breaks interrupt the strand, while the bright portions
+				# travel in packets instead of lighting every segment equally.
+				if gap_roll > 0.28:
+					var packet: float = 0.45 + 0.55 * absf(
+						sin(_time * 1.35 - t * TAU + phase)
 					)
-					var glow_color := Color(0.035, 0.10, 1.15, 0.075 * segment_strength)
-					var flow_color := Color(0.045, 0.30, 1.90, 0.20 * segment_strength)
-					draw_line(previous_point, current_point, glow_color, 8.0, true)
-					draw_line(previous_point, current_point, flow_color, 3.0, true)
+					var segment_strength: float = strength * packet * lerpf(
+						0.36, 1.0, _random01(segment_seed + 2.6)
+					)
+					var draw_start: float = 0.07 + _random01(segment_seed + 4.0) * 0.12
+					var draw_end: float = 0.77 + _random01(segment_seed + 5.0) * 0.18
+					var segment_a: Vector2 = previous_point.lerp(current_point, draw_start)
+					var segment_b: Vector2 = previous_point.lerp(current_point, draw_end)
 
-					# Only occasional short core accents; they never span the full
-					# strand, avoiding the continuous-line look of the proof pass.
-					if _random01(segment_seed + 3.5) > 0.76:
+					draw_line(
+						segment_a, segment_b,
+						Color(tint.r * 0.52, tint.g * 0.48 + 0.025, tint.b * 0.82 + 0.10, 0.048 * segment_strength),
+						7.0, true
+					)
+					draw_line(
+						segment_a, segment_b,
+						Color(tint.r * 0.92 + 0.015, tint.g * 0.88 + 0.06, tint.b * 1.02 + 0.08, 0.14 * segment_strength),
+						2.15, true
+					)
+
+					# Very rare inner glints hint at denser energy without outlining
+					# the stream or creating a row of uniform parallel lines.
+					if _random01(segment_seed + 3.5) > 0.83:
+						var accent_a: Vector2 = segment_a.lerp(segment_b, 0.22)
+						var accent_b: Vector2 = segment_a.lerp(segment_b, 0.76)
+						var accent_tint: Color = tint.lerp(
+							Color(0.82, 1.28, 2.35, 1.0),
+							_resonance_activation() * 0.38
+						)
 						draw_line(
-							previous_point.lerp(current_point, 0.15),
-							previous_point.lerp(current_point, 0.83),
-							Color(0.12, 0.62, 2.8, 0.23 * segment_strength),
-							1.15,
-							true
+							accent_a, accent_b,
+							Color(accent_tint.r, accent_tint.g, accent_tint.b, 0.18 * segment_strength),
+							0.95, true
 						)
 
 			previous_point = current_point
 			has_previous = true
 
+
+func _resonance_activation() -> float:
+	var activation: float = clampf(_approach_charge, 0.0, 1.0)
+	if _landing_wave_age >= 0.0:
+		var landing_pulse: float = clampf(
+			1.0 - _landing_wave_age / LANDING_WAVE_DURATION,
+			0.0,
+			1.0
+		) * _landing_wave_strength
+		activation = maxf(activation, landing_pulse)
+	return clampf(activation, 0.0, 1.0)
+
+
+func _resonance_tint() -> Color:
+	# Match the platform's purple idle signature, then move toward its cyan
+	# charge/landing energy so the field feels powered by the platform itself.
+	var activation: float = _resonance_activation()
+	var tint: Color = Color(0.52, 0.18, 1.42, 1.0).lerp(
+		Color(0.08, 0.90, 2.42, 1.0),
+		activation
+	)
+	if _landing_wave_age >= 0.0:
+		var landing_pulse: float = clampf(
+			1.0 - _landing_wave_age / LANDING_WAVE_DURATION,
+			0.0,
+			1.0
+		) * _landing_wave_strength
+		tint = tint.lerp(Color(0.82, 1.24, 2.30, 1.0), landing_pulse * 0.24)
+	return tint
 
 func _draw_edge_filaments(half_width: float, half_height: float) -> void:
 	# Short-lived filaments emerge from scattered perimeter points. They never
@@ -278,17 +332,19 @@ func _draw_emergent_filament(
 	seed: float,
 	energy: float
 ) -> void:
-	var side_id: int = int(floor(_random01(seed + 1.1) * 4.0))
+	var side_roll: float = _random01(seed + 1.1)
+	var side_id: int = 1
+	if side_roll >= 0.70:
+		side_id = 2 if _random01(seed + 8.1) < 0.5 else 3
 	var along: float = _random01(seed + 2.3) * 2.0 - 1.0
+	if side_id >= 2:
+		# Side filaments only appear below the platform's midline.
+		along = lerpf(0.05, 1.0, _random01(seed + 2.7))
 	var origin := Vector2.ZERO
 	var normal := Vector2.ZERO
 	var tangent := Vector2.ZERO
 
 	match side_id:
-		0:
-			origin = Vector2(along * half_width, -half_height)
-			normal = Vector2(0.0, -1.0)
-			tangent = Vector2(1.0, 0.0)
 		1:
 			origin = Vector2(along * half_width, half_height)
 			normal = Vector2(0.0, 1.0)
@@ -323,6 +379,7 @@ func _draw_emergent_filament(
 func _draw_tapered_filament(points: PackedVector2Array, energy: float, seed: float) -> void:
 	if points.size() < 2 or energy <= 0.01:
 		return
+	var tint: Color = _resonance_tint()
 	for index in range(1, points.size()):
 		var t: float = float(index) / float(points.size() - 1)
 		var taper: float = sin((t * 0.90 + 0.06) * PI) * 0.58 + 0.12
@@ -330,25 +387,25 @@ func _draw_tapered_filament(points: PackedVector2Array, energy: float, seed: flo
 		var strength: float = energy * taper * shimmer
 		draw_line(
 			points[index - 1], points[index],
-			Color(0.025, 0.28, 1.25, 0.24 * strength),
+			Color(tint.r * 0.30, tint.g * 0.38 + 0.035, tint.b * 0.82 + 0.12, 0.24 * strength),
 			5.0 if index < 3 else 3.2, true
 		)
 		draw_line(
 			points[index - 1], points[index],
-			Color(0.045, 0.72, 2.05, 0.42 * strength),
+			Color(tint.r * 0.70 + 0.02, tint.g * 0.78 + 0.10, tint.b * 1.02 + 0.12, 0.42 * strength),
 			1.65 if index < 3 else 1.0, true
 		)
 		if index == 2 and energy > 0.25:
 			draw_line(
 				points[index - 1], points[index],
-				Color(0.62, 1.25, 2.7, 0.42 * strength),
+				Color(tint.r * 0.32 + 0.34, tint.g * 0.30 + 0.72, tint.b * 0.42 + 1.48, 0.42 * strength),
 				0.70, true
 			)
 
 
 func _draw_edge_fragments(half_width: float, half_height: float) -> void:
-	# Fragments originate from four perimeter zones and drift into surrounding
-	# space along curved, seeded paths before dissolving. Sparse by design.
+	# Sparse fragments drift from the underside/lower corners and dissolve.
+	var tint: Color = _resonance_tint()
 	for index in range(FRAGMENT_COUNT):
 		var seed: float = _phase_offset * 5.7 + float(index) * 19.31
 		var speed: float = 0.12 + _random01(seed + 0.6) * 0.085
@@ -361,16 +418,17 @@ func _draw_edge_fragments(half_width: float, half_height: float) -> void:
 		if alpha_envelope <= 0.015:
 			continue
 
-		var side_id: int = int(floor(_random01(local_seed + 1.7) * 4.0))
+		var side_roll: float = _random01(local_seed + 1.7)
+		var side_id: int = 1
+		if side_roll >= 0.70:
+			side_id = 2 if _random01(local_seed + 8.5) < 0.5 else 3
 		var along: float = _random01(local_seed + 2.9) * 2.0 - 1.0
+		if side_id >= 2:
+			along = lerpf(0.05, 1.0, _random01(local_seed + 3.4))
 		var origin := Vector2.ZERO
 		var outward := Vector2.ZERO
 		var tangent := Vector2.ZERO
 		match side_id:
-			0:
-				origin = Vector2(along * half_width, -half_height)
-				outward = Vector2(0.0, -1.0)
-				tangent = Vector2(1.0, 0.0)
 			1:
 				origin = Vector2(along * half_width, half_height)
 				outward = Vector2(0.0, 1.0)
@@ -400,11 +458,11 @@ func _draw_edge_fragments(half_width: float, half_height: float) -> void:
 		)
 		draw_line(
 			trail_start, position_now,
-			Color(0.035, 0.36, 1.35, alpha * 0.16), 0.85, true
+			Color(tint.r * 0.35, tint.g * 0.42 + 0.025, tint.b * 0.82 + 0.10, alpha * 0.16), 0.85, true
 		)
-		draw_circle(position_now, radius * 4.2, Color(0.025, 0.24, 1.2, alpha * 0.28))
-		draw_circle(position_now, radius * 2.1, Color(0.045, 0.72, 2.0, alpha * 0.52))
-		draw_circle(position_now, radius * 0.78, Color(0.64, 1.28, 2.65, alpha * 0.72))
+		draw_circle(position_now, radius * 4.2, Color(tint.r * 0.28, tint.g * 0.35 + 0.02, tint.b * 0.76 + 0.10, alpha * 0.28))
+		draw_circle(position_now, radius * 2.1, Color(tint.r * 0.58 + 0.01, tint.g * 0.72 + 0.08, tint.b * 0.98 + 0.12, alpha * 0.52))
+		draw_circle(position_now, radius * 0.78, Color(tint.r * 0.35 + 0.38, tint.g * 0.35 + 0.78, tint.b * 0.35 + 1.35, alpha * 0.72))
 
 
 func _random01(value: float) -> float:
