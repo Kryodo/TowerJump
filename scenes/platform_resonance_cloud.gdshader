@@ -75,7 +75,7 @@ void fragment() {
 	);
 	float fan_vertical_falloff = exp(-below_platform / 70.0)
 		* (1.0 - smoothstep(fan_depth * 0.84, fan_depth, below_platform));
-	float fan_profile = fan_side_falloff * fan_vertical_falloff
+	float fan_profile = fan_side_falloff * fan_vertical_falloff;
 	float spatial_falloff = fan_profile;
 
 	float time = TIME;
