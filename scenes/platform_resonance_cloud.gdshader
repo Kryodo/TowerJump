@@ -13,6 +13,7 @@ uniform float landing_age = -1.0;
 uniform float landing_strength = 0.0;
 uniform float landing_x = 0.0;
 uniform float phase_offset = 0.0;
+uniform float resonance_time = 0.0;
 
 float hash21(vec2 p) {
 	p = fract(p * vec2(123.34, 456.21));
@@ -78,7 +79,21 @@ void fragment() {
 	float fan_profile = fan_side_falloff * fan_vertical_falloff;
 	float spatial_falloff = fan_profile;
 
-	float time = TIME;
+	// One diffuse wave rises from the narrow source toward the platform.
+	// Its head and soft trailing body travel together; gameplay strengthens it
+	// without turning it into a crisp ring or a separate beam.
+	float time = resonance_time;
+	float wave_phase = fract(time * 0.46 + phase_offset * 0.013);
+	float wave_front_t = 1.0 - wave_phase;
+	float wave_gate = smoothstep(0.015, 0.09, wave_phase)
+		* (1.0 - smoothstep(0.86, 1.0, wave_phase));
+	float wave_delta = fan_t - wave_front_t;
+	float wave_core = exp(-pow(wave_delta / 0.105, 2.0));
+	float wave_tail = exp(-pow((wave_delta - 0.11) / 0.23, 2.0));
+	float upward_wave = clamp(
+		(wave_core * 0.88 + wave_tail * 0.24) * wave_gate,
+		0.0, 1.0
+	);
 	vec2 p = local_px / vec2(35.0, 27.0);
 	float warp_x = fbm(p * 0.68 + vec2(-time * 0.095 + phase_offset * 0.013, time * 0.035));
 	float warp_y = fbm(p * 0.72 + vec2(time * 0.043, -time * 0.071 + phase_offset * 0.009));
@@ -177,6 +192,13 @@ void fragment() {
 		* exp(-landing_age * 12.0) * landing_gate;
 	cloud_alpha += (diffuse_front * 0.060 + impact_bloom * 0.12) * landing_fade * fan_profile;
 
+	// The wave is always faintly present, but gathers more light during an
+	// approach and briefly gains energy after a real landing.
+	float wave_reaction = 0.62 + clamp(approach_charge, 0.0, 1.0) * 0.50
+		+ clamp(landing_fade, 0.0, 1.0) * 0.65;
+	cloud_alpha += upward_wave * (0.012 + cloud_volume * 0.035)
+		* wave_reaction * fan_profile;
+
 	// Idle field leans gently toward the platform's purple idle light; active
 	// charge blends toward the cyan energy already used by the platform edge.
 	vec3 idle_tint = vec3(0.62, 0.20, 1.65);
@@ -186,9 +208,12 @@ void fragment() {
 	// Gentle violet depth in denser pockets; cool highlights in the currents.
 	cloud_color += vec3(0.13, 0.035, 0.36) * cloud_pockets * 0.24;
 	cloud_color *= 0.90 + cloud_volume * 0.16;
+	cloud_color += vec3(0.04, 0.15, 0.38) * upward_wave
+		* (0.18 + clamp(approach_charge, 0.0, 1.0) * 0.30
+		+ clamp(landing_fade, 0.0, 1.0) * 0.22);
 
 	// Keep the tapered resonance volume below the platform; the direct-drawn
-	// horizontal fragments move inside this diffuse, irregular field.
+	// curved vertical filament sparks move through this diffuse, irregular field.
 	float underside_presence = smoothstep(
 		platform_half_height - 8.0,
 		platform_half_height + 10.0,
