@@ -1,9 +1,9 @@
 shader_type canvas_item;
 render_mode unshaded, blend_add;
 
-// Diffuse undercurrent: a noisy flowing field with broken filaments and brief
-// luminous accents. The intensity is deliberately strong enough to read during
-// normal play, while the noise field keeps it from resolving into hard ribbons.
+// One diffuse undercurrent with a readable low-frequency body, irregular
+// anisotropic filaments, and occasional traveling accents. Contrast is kept
+// strong enough for gameplay scale; noise only shapes the flow, not erases it.
 uniform vec2 field_size = vec2(392.0, 200.0);
 uniform float platform_half_width = 110.0;
 uniform float platform_half_height = 10.0;
@@ -50,85 +50,116 @@ void fragment() {
 	float time = TIME;
 	float below = local_px.y - platform_half_height;
 
-	// The field lives under the platform and fades on both axes. It is wider
-	// and softer than the filament accents, but doesn't fill all nearby space.
-	float vertical_gate = smoothstep(2.0, 12.0, below)
-		* (1.0 - smoothstep(66.0, 90.0, below));
+	// The undercurrent remains under the platform and fades smoothly at its
+	// lower and side edges. This gate is broad; it doesn't fragment the flow.
+	float vertical_gate = smoothstep(1.5, 10.0, below)
+		* (1.0 - smoothstep(64.0, 88.0, below));
 	float horizontal_gate = 1.0 - smoothstep(
-		platform_half_width + 18.0,
-		platform_half_width + 80.0,
+		platform_half_width + 16.0,
+		platform_half_width + 78.0,
 		abs(local_px.x)
 	);
 	float field_gate = vertical_gate * horizontal_gate;
 
-	vec2 p = local_px / vec2(34.0, 25.0);
+	// Slow domain warping bends the field over time without tracing explicit
+	// ribbons. Larger, anisotropic sampling makes streaks longer than they are
+	// tall; the deformation stops them reading as straight parallel lines.
+	vec2 p = local_px / vec2(54.0, 25.0);
 	float warp_x = fbm(
-		p * 0.48 + vec2(-time * 0.065 + phase_offset * 0.001, time * 0.025)
+		p * vec2(0.50, 0.72)
+		+ vec2(-time * 0.065 + phase_offset * 0.001, time * 0.035)
 	);
 	float warp_y = fbm(
-		p * 0.52 + vec2(time * 0.043, -time * 0.058 + phase_offset * 0.003 + 4.7)
+		p * vec2(0.66, 0.58)
+		+ vec2(time * 0.048, -time * 0.070 + phase_offset * 0.002 + 3.7)
 	);
-	vec2 warped = p + (vec2(warp_x, warp_y) - 0.5) * 1.30;
+	vec2 warped = p + (vec2(warp_x, warp_y) - 0.5) * 1.15;
 
-	// Three scales ebb through one continuous field, rather than tracing fixed
-	// paths. Differently advected noise makes the streaks bend, fragment and
-	// reconnect over time.
-	float broad_noise = fbm(
-		warped * vec2(0.70, 0.94) + vec2(-time * 0.12, time * 0.035)
+	// Broad volume: a low-frequency haze which stays present between streaks.
+	float body_noise = fbm(
+		warped * vec2(0.72, 0.88)
+		+ vec2(-time * 0.11, time * 0.035)
 	);
-	float medium_noise = fbm(
-		warped * vec2(1.22, 1.62) + vec2(time * 0.13, -time * 0.17)
+	float body_detail = noise(
+		warped * vec2(0.42, 0.70)
+		+ vec2(time * 0.06, -time * 0.045 + 6.3)
 	);
-	float fine_noise = fbm(
-		warped * vec2(2.10, 2.42) + vec2(-time * 0.22, time * 0.16)
+	float body_density = smoothstep(0.23, 0.54, body_noise)
+		* (0.62 + body_detail * 0.38);
+
+	// Directionally sampled noise forms broken, horizontally flowing ridges.
+	// We use one main ridge field and one softer offset field, not a stack of
+	// restrictive masks that would make almost every pixel vanish.
+	float flow_noise_a = noise(
+		warped * vec2(0.46, 3.00)
+		+ vec2(-time * 0.16, time * 0.23 + phase_offset * 0.002)
+	);
+	float flow_noise_b = noise(
+		warped * vec2(0.62, 4.15)
+		+ vec2(time * 0.13, -time * 0.19 + 5.4 + phase_offset * 0.003)
+	);
+	float ridge_a = 1.0 - abs(flow_noise_a * 2.0 - 1.0);
+	float ridge_b = 1.0 - abs(flow_noise_b * 2.0 - 1.0);
+	float main_streaks = smoothstep(0.62, 0.87, ridge_a);
+	float secondary_streaks = smoothstep(0.70, 0.92, ridge_b);
+
+	// Modulation creates natural gaps and changing density, but its floor keeps
+	// flow legible instead of multiplying the streaks into near-invisibility.
+	float continuity = 0.48 + 0.52 * smoothstep(
+		0.20, 0.62,
+		noise(warped * vec2(0.48, 0.82) + vec2(-time * 0.12, time * 0.06))
+	);
+	float streak_density = clamp(
+		(main_streaks * 0.78 + secondary_streaks * 0.34) * continuity,
+		0.0, 1.0
 	);
 
-	float body_density = smoothstep(0.31, 0.61, broad_noise)
-		* (0.48 + smoothstep(0.30, 0.68, medium_noise) * 0.52);
-
-	// Ridges from the warped noise create thin irregular filaments. A second
-	// mask breaks them into variable lengths, preventing continuous line shapes.
-	float ridge_field = 1.0 - abs(medium_noise * 2.0 - 1.0);
-	float filament_ridges = smoothstep(0.67, 0.91, ridge_field)
-		* smoothstep(0.30, 0.61, broad_noise)
-		* smoothstep(0.27, 0.62, fine_noise);
-
-	// Rare fine-scale glints are isolated accents within the diffuse stream.
+	// Short-lived highlights travel through the current field. They are a
+	// minority of the visible structure, not a row of permanent bright dots.
+	float fine_noise = noise(
+		warped * vec2(1.75, 3.9)
+		+ vec2(-time * 0.27, time * 0.31 + phase_offset * 0.006)
+	);
 	float fine_ridge = 1.0 - abs(fine_noise * 2.0 - 1.0);
-	float accents = smoothstep(0.83, 0.96, fine_ridge)
-		* smoothstep(0.42, 0.69, broad_noise)
-		* smoothstep(0.31, 0.70, medium_noise);
+	float traveling_lobe = 0.5 + 0.5 * sin(
+		local_px.x * 0.035 - time * 1.15 + phase_offset * 0.013
+		+ (body_detail - 0.5) * 2.0
+	);
+	float accents = smoothstep(0.75, 0.94, fine_ridge)
+		* (0.42 + body_density * 0.58)
+		* pow(traveling_lobe, 2.2);
 
-	float living_pulse = 0.90 + 0.10 * sin(
-		time * 1.1 + phase_offset * 0.01 + local_px.x * 0.012
+	float living_pulse = 0.94 + 0.06 * sin(
+		time * 0.92 + phase_offset * 0.01 + local_px.x * 0.009
 	);
 	float landing_active = step(0.0, landing_age)
 		* (1.0 - smoothstep(0.0, 0.58, landing_age));
 	float landing_pulse = landing_active * clamp(landing_strength, 0.0, 1.45);
-	float energy_boost = 1.0 + clamp(approach_charge, 0.0, 1.0) * 0.12
+	float energy_boost = 1.0
+		+ clamp(approach_charge, 0.0, 1.0) * 0.10
 		+ landing_pulse * 0.38;
 
-	// Body remains diffuse; only the filaments and occasional accents get the
-	// stronger emission needed to survive the normal gameplay camera distance.
-	float alpha = (
-		body_density * 0.18
-		+ filament_ridges * 0.28
-		+ accents * 0.20
-	) * field_gate * living_pulse * energy_boost;
-	alpha = clamp(alpha, 0.0, 0.44);
+	// Brighter than the previous diffuse pass, calibrated against the visible
+	// ribbon proof. Body stays soft; contrast lives in the irregular streaks.
+	float body_alpha = body_density * 0.14;
+	float streak_alpha = streak_density * 0.31;
+	float accent_alpha = accents * 0.22;
+	float alpha = (body_alpha + streak_alpha + accent_alpha)
+		* field_gate * living_pulse * energy_boost;
+	alpha = clamp(alpha, 0.0, 0.50);
 
-	vec3 body_color = vec3(0.12, 0.045, 1.05);
-	vec3 filament_color = vec3(0.055, 0.34, 2.25);
-	vec3 accent_color = vec3(0.20, 0.78, 2.85);
+	vec3 body_color = vec3(0.13, 0.045, 1.02);
+	vec3 streak_color = vec3(0.065, 0.34, 2.25);
+	vec3 accent_color = vec3(0.20, 0.78, 2.90);
 	vec3 energy_color = mix(
 		body_color,
-		filament_color,
-		clamp(filament_ridges * 0.82 + accents * 0.22, 0.0, 1.0)
+		streak_color,
+		clamp(streak_density * 0.92 + accents * 0.18, 0.0, 1.0)
 	);
 	energy_color = mix(
 		energy_color,
 		accent_color,
-		clamp(accents * 0.72 + landing_pulse * 0.20, 0.0, 0.72)
+		clamp(accents * 0.76 + landing_pulse * 0.18, 0.0, 0.78)
 	);
 
 	COLOR = vec4(energy_color, alpha);
