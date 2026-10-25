@@ -167,6 +167,7 @@ func _sync_cloud_parameters() -> void:
 	_cloud_material.set_shader_parameter("landing_strength", _landing_wave_strength)
 	_cloud_material.set_shader_parameter("landing_x", _landing_local_x)
 	_cloud_material.set_shader_parameter("phase_offset", _phase_offset)
+	_cloud_material.set_shader_parameter("resonance_time", _time)
 
 
 func _draw() -> void:
