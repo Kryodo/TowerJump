@@ -10,7 +10,6 @@ extends Node2D
 const PLATFORM_TYPE_NORMAL: int = 0
 const CLOUD_SHADER := preload("res://scenes/platform_resonance_cloud.gdshader")
 const VERTICAL_FRAGMENT_COUNT: int = 28
-const DIFFUSE_FLOW_SEGMENTS: int = 7
 
 const CLOUD_MARGIN_X: float = 86.0
 const CLOUD_MARGIN_Y: float = 90.0
@@ -186,7 +185,6 @@ func _draw_vertical_resonance_field(half_width: float, half_height: float) -> vo
 	# this fan at different speeds and fade continuously into the haze.
 	var apex_y: float = half_height + CLOUD_MARGIN_Y - 7.0
 	var near_y: float = half_height + 8.0
-	var span: float = maxf(apex_y - near_y, 1.0)
 	var tint: Color = _resonance_tint()
 	var activation: float = _resonance_activation()
 
