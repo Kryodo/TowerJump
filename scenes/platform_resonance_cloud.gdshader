@@ -85,8 +85,8 @@ void fragment() {
 	float time = resonance_time;
 	float wave_phase = fract(time * 0.46 + phase_offset * 0.013);
 	float wave_front_t = 1.0 - wave_phase;
-	float wave_gate = smoothstep(0.015, 0.09, wave_phase)
-		* (1.0 - smoothstep(0.92, 1.0, wave_phase));
+	float wave_gate = smoothstep(0.012, 0.075, wave_phase)
+		* (1.0 - smoothstep(0.95, 1.0, wave_phase));
 	float wave_delta = fan_t - wave_front_t;
 	float wave_core = exp(-pow(wave_delta / 0.105, 2.0));
 	float wave_tail = exp(-pow((wave_delta - 0.11) / 0.23, 2.0));
