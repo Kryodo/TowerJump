@@ -9,7 +9,6 @@ extends Node2D
 
 const PLATFORM_TYPE_NORMAL: int = 0
 const CLOUD_SHADER := preload("res://scenes/platform_resonance_cloud.gdshader")
-const UNDERCURRENT_SHADER := preload("res://scenes/platform_resonance_undercurrent.gdshader")
 
 const CLOUD_MARGIN_X: float = 86.0
 const CLOUD_MARGIN_Y: float = 90.0
@@ -31,14 +30,12 @@ var _landing_local_x: float = 0.0
 
 var _cloud: Polygon2D
 var _cloud_material: ShaderMaterial
-var _undercurrent: Polygon2D
-var _undercurrent_material: ShaderMaterial
 
 
 func _ready() -> void:
 	_phase_offset = randf_range(0.0, 997.0)
 	material = _make_additive_material()
-	_create_resonance_layers()
+	_create_cloud_layer()
 	set_process(true)
 
 
@@ -48,18 +45,7 @@ func _make_additive_material() -> CanvasItemMaterial:
 	return additive_material
 
 
-func _create_resonance_layers() -> void:
-	# The undercurrent has its own material and shader so its shape, contrast,
-	# and motion can be tuned without increasing the diffuse cloud's density.
-	_undercurrent = Polygon2D.new()
-	_undercurrent.name = "LivingUndercurrent"
-	_undercurrent.z_index = 0
-	_undercurrent.material = ShaderMaterial.new()
-	_undercurrent_material = _undercurrent.material as ShaderMaterial
-	_undercurrent_material.shader = UNDERCURRENT_SHADER
-	_undercurrent_material.set_shader_parameter("phase_offset", _phase_offset)
-	add_child(_undercurrent)
-
+func _create_cloud_layer() -> void:
 	_cloud = Polygon2D.new()
 	_cloud.name = "DiffuseResonanceCloud"
 	_cloud.z_index = 0
@@ -108,16 +94,13 @@ func _update_cloud_geometry() -> void:
 	])
 	_cloud.polygon = field_polygon
 	_cloud.uv = field_uv
-	_undercurrent.polygon = field_polygon
-	_undercurrent.uv = field_uv
 
-	var field_size := Vector2(half_width * 2.0, half_height * 2.0)
-	_cloud_material.set_shader_parameter("field_size", field_size)
+	_cloud_material.set_shader_parameter(
+		"field_size",
+		Vector2(half_width * 2.0, half_height * 2.0)
+	)
 	_cloud_material.set_shader_parameter("platform_half_width", _platform_width * 0.5)
 	_cloud_material.set_shader_parameter("platform_half_height", _platform_height * 0.5)
-	_undercurrent_material.set_shader_parameter("field_size", field_size)
-	_undercurrent_material.set_shader_parameter("platform_half_width", _platform_width * 0.5)
-	_undercurrent_material.set_shader_parameter("platform_half_height", _platform_height * 0.5)
 
 
 func set_approach_feedback(charge: float, target_x: float) -> void:
@@ -177,7 +160,7 @@ func _process(delta: float) -> void:
 
 
 func _sync_cloud_parameters() -> void:
-	if _cloud_material == null or _undercurrent_material == null:
+	if _cloud_material == null:
 		return
 	_cloud_material.set_shader_parameter("approach_charge", _approach_charge)
 	_cloud_material.set_shader_parameter("approach_target_x", _approach_target_x)
@@ -185,10 +168,6 @@ func _sync_cloud_parameters() -> void:
 	_cloud_material.set_shader_parameter("landing_strength", _landing_wave_strength)
 	_cloud_material.set_shader_parameter("landing_x", _landing_local_x)
 	_cloud_material.set_shader_parameter("phase_offset", _phase_offset)
-	_undercurrent_material.set_shader_parameter("approach_charge", _approach_charge)
-	_undercurrent_material.set_shader_parameter("landing_age", _landing_wave_age)
-	_undercurrent_material.set_shader_parameter("landing_strength", _landing_wave_strength)
-	_undercurrent_material.set_shader_parameter("phase_offset", _phase_offset)
 
 
 func _draw() -> void:
@@ -197,8 +176,89 @@ func _draw() -> void:
 
 	var half_width: float = _platform_width * 0.5
 	var half_height: float = _platform_height * 0.5
+	_draw_undercurrent_ribbons(half_width, half_height)
 	_draw_edge_filaments(half_width, half_height)
 	_draw_edge_fragments(half_width, half_height)
+
+
+func _draw_undercurrent_ribbons(half_width: float, half_height: float) -> void:
+	# Draw the main flow directly through this CanvasItem. These ribbons have
+	# real width and color contrast instead of depending on a subtle noise mask.
+	# Their curves drift slowly while brighter cores travel along each stream.
+	var segment_count: int = 28
+	var lane_offsets: Array[float] = [27.0, 46.0, 64.0]
+	var lane_strengths: Array[float] = [0.92, 0.78, 0.60]
+	var start_x: float = -half_width - 36.0
+	var end_x: float = half_width + 36.0
+
+	for stream_index in range(lane_offsets.size()):
+		var phase: float = _phase_offset * 0.013 + float(stream_index) * 2.17
+		var lane_offset: float = lane_offsets[stream_index]
+		var lane_strength: float = lane_strengths[stream_index]
+		var previous_point := Vector2.ZERO
+		var has_previous: bool = false
+
+		for segment_index in range(segment_count + 1):
+			var t: float = float(segment_index) / float(segment_count)
+			var x: float = lerpf(start_x, end_x, t)
+			var slow_wave: float = sin(
+				t * TAU * (1.05 + float(stream_index) * 0.12)
+				- _time * (0.31 + float(stream_index) * 0.035)
+				+ phase
+			) * (6.0 + float(stream_index) * 0.7)
+			var middle_wave: float = sin(
+				t * TAU * (2.15 + float(stream_index) * 0.18)
+				+ _time * (0.24 + float(stream_index) * 0.045)
+				+ phase * 1.73
+			) * 2.8
+			var fine_wave: float = sin(
+				t * TAU * (3.4 + float(stream_index) * 0.25)
+				- _time * 0.47 + phase * 2.1
+			) * 1.15
+			var y: float = half_height + lane_offset + slow_wave + middle_wave + fine_wave
+			var current_point := Vector2(x, y)
+
+			if has_previous:
+				# Ends soften beyond the platform footprint; flow stays strongest
+				# in the middle and remains visible in the ordinary idle state.
+				var end_fade: float = smoothstep(0.0, 0.10, t) * (
+					1.0 - smoothstep(0.90, 1.0, t)
+				)
+				var moving_light: float = 0.5 + 0.5 * sin(
+					t * TAU * (1.35 + float(stream_index) * 0.16)
+					- _time * (1.05 + float(stream_index) * 0.12)
+					+ phase * 1.4
+				)
+				var bright_core: float = pow(moving_light, 3.0)
+				var strength: float = lane_strength * end_fade * (
+					0.82 + moving_light * 0.18
+				)
+
+				# Broad aura, distinct stream body, traveling core.
+				draw_line(
+					previous_point,
+					current_point,
+					Color(0.015, 0.08, 0.72, 0.22 * strength),
+					16.0,
+					true
+				)
+				draw_line(
+					previous_point,
+					current_point,
+					Color(0.025, 0.19, 1.10, 0.30 * strength),
+					8.0 if stream_index < 2 else 6.5,
+					true
+				)
+				draw_line(
+					previous_point,
+					current_point,
+					Color(0.045, 0.46, 1.85, (0.30 + bright_core * 0.42) * strength),
+					2.0 if stream_index < 2 else 1.6,
+					true
+				)
+
+			previous_point = current_point
+			has_previous = true
 
 
 func _draw_edge_filaments(half_width: float, half_height: float) -> void:
