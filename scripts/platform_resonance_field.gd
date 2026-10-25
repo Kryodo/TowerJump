@@ -200,8 +200,8 @@ func _draw_vertical_resonance_field(half_width: float, half_height: float) -> vo
 
 	var pulse_phase: float = _pulse_phase
 	var pulse_t: float = 1.0 - pulse_phase
-	var pulse_gate: float = smoothstep(0.012, 0.075, pulse_phase) * (
-		1.0 - smoothstep(0.95, 1.0, pulse_phase)
+	var pulse_gate: float = smoothstep(0.0, 0.065, pulse_phase) * (
+		1.0 - smoothstep(0.94, 1.0, pulse_phase)
 	)
 
 	for strand in range(VERTICAL_FILAMENT_COUNT):
