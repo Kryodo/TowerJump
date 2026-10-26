@@ -44,8 +44,6 @@ script = ExtResource("3_plant_bank_ball")
 
 [node name="GameCamera" type="Camera2D" parent="."]
 position = Vector2(360, 640)
-position_smoothing_enabled = true
-position_smoothing_speed = 6.0
 
 [node name="Background" type="ColorRect" parent="GameCamera"]
 z_index = -60
@@ -146,4 +144,4 @@ text = "R  RESET TEST RUN"
 layout_mode = 2
 theme_override_colors/font_color = Color(0.56, 0.66, 0.76, 1.0)
 theme_override_font_sizes/font_size = 12
-text = "Steer with ←/→ or A/D. Switch modes before landing. Tags mark the same repeatable pattern; falling below the start resets the run."
+text = "Steer with ←/→ (or touch the left/right half below the HUD). Switch modes before landing. Tags mark the same repeatable pattern; falling below the start resets the run."
