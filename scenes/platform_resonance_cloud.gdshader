@@ -15,6 +15,7 @@ uniform float landing_x = 0.0;
 uniform float phase_offset = 0.0;
 uniform float resonance_time = 0.0;
 uniform float resonance_pulse_phase = 0.0;
+uniform float resonance_pulse_active_fraction = 0.62;
 
 float hash21(vec2 p) {
 	p = fract(p * vec2(123.34, 456.21));
@@ -84,10 +85,16 @@ void fragment() {
 	// Its head and soft trailing body travel together; gameplay strengthens it
 	// without turning it into a crisp ring or a separate beam.
 	float time = resonance_time;
-	float wave_phase = fract(resonance_pulse_phase);
+	// Match the GDScript's active/quiet timing: one coherent upward wave,
+	// followed by a visible pause before the next one begins.
+	float pulse_active_fraction = clamp(resonance_pulse_active_fraction, 0.2, 1.0);
+	float cycle_phase = fract(resonance_pulse_phase);
+	float wave_phase = clamp(cycle_phase / pulse_active_fraction, 0.0, 1.0);
 	float wave_front_t = 1.0 - wave_phase;
-	float wave_gate = smoothstep(0.0, 0.065, wave_phase)
-		* (1.0 - smoothstep(0.94, 1.0, wave_phase));
+	float pulse_is_active = 1.0 - step(pulse_active_fraction, cycle_phase);
+	float wave_gate = smoothstep(0.0, 0.055, wave_phase)
+		* (1.0 - smoothstep(0.90, 1.0, wave_phase))
+		* pulse_is_active;
 	float wave_delta = fan_t - wave_front_t;
 	float wave_core = exp(-pow(wave_delta / 0.105, 2.0));
 	float wave_tail = exp(-pow((wave_delta - 0.14) / 0.26, 2.0));
