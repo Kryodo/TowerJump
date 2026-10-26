@@ -25,8 +25,8 @@ enum ReboundMode {
 @export_range(0.0, 1.0, 0.05) var auto_plant_center_ratio: float = 0.45
 
 @export_category("Bank Rebound")
-@export_range(0.0, 1.5, 0.05) var bank_lateral_retention: float = 0.95
-@export_range(0.0, 500.0, 10.0) var bank_edge_impulse: float = 260.0
+@export_range(0.0, 1.5, 0.05) var bank_lateral_retention: float = 0.85
+@export_range(0.0, 500.0, 10.0) var bank_edge_impulse: float = 360.0
 @export_range(0.65, 1.0, 0.01) var bank_vertical_multiplier: float = 0.90
 @export_range(0.0, 0.5, 0.02) var bank_speed_boost_duration: float = 0.20
 @export_range(1.0, 1.4, 0.02) var bank_steering_cap_multiplier: float = 1.18
