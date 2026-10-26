@@ -22,16 +22,16 @@ extends Camera2D
 @export_range(0.80, 1.30, 0.01) var perfect_landing_impulse_multiplier: float = 1.16
 
 @export_category("Milestone Camera Response")
-@export_range(0.0, 0.30, 0.01) var combo_activation_impulse_bonus: float = 0.08
+@export_range(0.0, 0.30, 0.01) var combo_activation_impulse_bonus: float = 0.12
 @export_range(0.0, 0.40, 0.01) var streak_activation_impulse_bonus: float = 0.18
 @export_range(1.0, 1.50, 0.01) var milestone_impulse_scale_cap: float = 1.35
 
 @export_category("Streak Zoom Accent")
-@export_range(0.0, 1.5, 0.05) var streak_zoom_impulse_velocity: float = 0.72
-@export_range(12.0, 36.0, 1.0) var streak_zoom_response_frequency: float = 24.0
-@export_range(0.45, 0.98, 0.01) var streak_zoom_damping_ratio: float = 0.82
-@export_range(0.0, 0.06, 0.005) var streak_zoom_max_out: float = 0.035
-@export_range(0.0, 2.0, 0.1) var streak_zoom_max_velocity: float = 1.1
+@export_range(0.0, 1.8, 0.05) var streak_zoom_impulse_velocity: float = 1.35
+@export_range(8.0, 28.0, 1.0) var streak_zoom_response_frequency: float = 12.0
+@export_range(0.45, 0.98, 0.01) var streak_zoom_damping_ratio: float = 0.72
+@export_range(0.0, 0.08, 0.005) var streak_zoom_max_out: float = 0.055
+@export_range(0.0, 2.0, 0.1) var streak_zoom_max_velocity: float = 1.6
 
 var _base_offset: Vector2 = Vector2.ZERO
 var _base_zoom: Vector2 = Vector2.ONE
