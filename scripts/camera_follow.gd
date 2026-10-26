@@ -9,11 +9,17 @@ extends Camera2D
 
 @export_category("Landing Camera Response")
 @export var landing_feedback_controller_path: NodePath = NodePath("../LandingFeedbackController")
+@export var landing_score_controller_path: NodePath = NodePath("../LandingScoreController")
 @export_range(0.0, 240.0, 5.0) var landing_response_impulse: float = 110.0
 @export_range(14.0, 36.0, 1.0) var landing_response_frequency: float = 17.0
 @export_range(0.35, 0.90, 0.01) var landing_response_damping_ratio: float = 0.56
 @export_range(0.0, 8.0, 0.5) var landing_response_max_offset: float = 5.0
 @export_range(0.0, 320.0, 10.0) var landing_response_max_velocity: float = 180.0
+
+@export_category("Landing Quality Scaling")
+@export_range(0.80, 1.30, 0.01) var good_landing_impulse_multiplier: float = 1.00
+@export_range(0.80, 1.30, 0.01) var epic_landing_impulse_multiplier: float = 1.08
+@export_range(0.80, 1.30, 0.01) var perfect_landing_impulse_multiplier: float = 1.16
 
 var _base_offset: Vector2 = Vector2.ZERO
 var _landing_response_offset_y: float = 0.0
@@ -22,6 +28,19 @@ var _landing_response_velocity_y: float = 0.0
 
 func _ready() -> void:
 	_base_offset = offset
+
+	# Prefer the scored result so the response can distinguish Good, Epic and
+	# Perfect without delaying a frame. landing_scored is emitted synchronously
+	# during the same physical landing callback that triggers the haptic pulse.
+	var score_controller := get_node_or_null(landing_score_controller_path)
+	if score_controller != null and score_controller.has_signal("landing_scored"):
+		score_controller.connect(
+			"landing_scored",
+			Callable(self, "_on_landing_scored")
+		)
+		return
+
+	# Keep a safe baseline fallback if the scoring controller is absent.
 	var landing_controller := get_node_or_null(landing_feedback_controller_path)
 	if landing_controller != null and landing_controller.has_signal("landing_confirmed"):
 		landing_controller.connect(
@@ -30,7 +49,7 @@ func _ready() -> void:
 		)
 	else:
 		push_warning(
-			"CameraFollow: LandingFeedbackController was not found; landing camera response is disabled."
+			"CameraFollow: Neither LandingScoreController nor LandingFeedbackController was found; landing camera response is disabled."
 		)
 
 
@@ -46,23 +65,53 @@ func _process(delta: float) -> void:
 	_update_landing_response(delta)
 
 
-func _on_landing_confirmed(event: Variant) -> void:
-	# Transfer a little of the landing's downward momentum into the camera.
-	# No position snap: the existing spring turns this into a smooth, bounded
-	# dip, a small upward rebound, and a settle that stays connected to the jump.
-	# Contact speed only modulates the impulse gently; it does not change gameplay.
-	var impact_scale: float = 1.0
-	if event is LandingEvent:
-		var downward_speed: float = maxf(event.vertical_velocity, 0.0)
-		impact_scale = clampf(downward_speed / 900.0, 0.70, 1.15)
+func _on_landing_scored(result: Dictionary) -> void:
+	# The scoring result describes the same physical contact as the haptic pulse.
+	# Quality adds only a small impulse modifier; spring shape and impact-speed
+	# scaling stay shared so every grade still feels like the same camera.
+	var downward_speed: float = maxf(
+		float(result.get("vertical_velocity", 0.0)),
+		0.0
+	)
+	var quality: String = str(result.get("quality", "GOOD"))
+	_apply_landing_response(downward_speed, quality)
 
+
+func _on_landing_confirmed(event: Variant) -> void:
+	# Fallback path when scoring is unavailable: retain the proven baseline feel.
+	var downward_speed: float = 0.0
+	if event is LandingEvent:
+		downward_speed = maxf(event.vertical_velocity, 0.0)
+	elif _target != null and _target.has_method("get"):
+		downward_speed = maxf(
+			float(_target.get("landing_impact_velocity_y")),
+			0.0
+		)
+	_apply_landing_response(downward_speed, "GOOD")
+
+
+func _apply_landing_response(downward_speed: float, quality: String) -> void:
+	# Contact speed controls the physical impulse; landing quality adds a
+	# separate, modest multiplier. The actual spring dynamics stay unchanged.
+	var impact_scale: float = clampf(downward_speed / 900.0, 0.70, 1.15)
+	var grade_scale: float = _get_quality_impulse_multiplier(quality)
 	var max_velocity: float = maxf(landing_response_max_velocity, 0.0)
 	_landing_response_velocity_y = clampf(
 		_landing_response_velocity_y
-		+ maxf(landing_response_impulse, 0.0) * impact_scale,
+		+ maxf(landing_response_impulse, 0.0) * impact_scale * grade_scale,
 		-max_velocity,
 		max_velocity
 	)
+
+
+func _get_quality_impulse_multiplier(quality: String) -> float:
+	match quality.to_upper():
+		"PERFECT":
+			return maxf(perfect_landing_impulse_multiplier, 0.0)
+		"EPIC":
+			return maxf(epic_landing_impulse_multiplier, 0.0)
+		_:
+			return maxf(good_landing_impulse_multiplier, 0.0)
 
 
 func _update_landing_response(delta: float) -> void:
