@@ -82,7 +82,7 @@ func _update_landing_response(delta: float) -> void:
 		)
 		_landing_response_velocity_y += acceleration * step
 		_landing_response_offset_y += _landing_response_velocity_y * step
-			var max_offset: float = maxf(landing_response_max_offset, 0.0)
+		var max_offset: float = maxf(landing_response_max_offset, 0.0)
 		_landing_response_offset_y = clampf(
 			_landing_response_offset_y,
 			-max_offset,
