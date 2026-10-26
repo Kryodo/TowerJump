@@ -45,7 +45,7 @@ var _base_horizontal_speed_cap: float = 600.0
 var _bank_speed_boost_remaining: float = 0.0
 var _ui_touch_indices: Dictionary = {}
 
-const HUD_TOUCH_EXCLUSION_BOTTOM: float = 280.0
+const HUD_TOUCH_EXCLUSION_BOTTOM: float = 350.0
 
 
 func _ready() -> void:
