@@ -64,27 +64,29 @@ func _play_gamepad_pulse(strength: float) -> void:
 	if not enable_gamepad_haptics:
 		return
 
-	# Use the first connected controller that reports vibration support.
-	# A very short pulse with a restrained strong motor feels like a tick,
-	# rather than the longer, muddy rumble we want to avoid.
-	for device_id in Input.get_connected_joypads():
-		if not Input.has_joy_vibration(device_id):
-			continue
+	# Attempt the pulse on the first connected controller. Godot 4.6 does not
+	# expose a vibration-capability query; controllers without rumble support
+	# simply won't produce a vibration.
+	# A short pulse with a restrained strong motor feels like a tick, rather
+	# than the longer, muddy rumble we want to avoid.
+	var connected_joypads: Array[int] = Input.get_connected_joypads()
+	if connected_joypads.is_empty():
+		return
 
-		var weak_motor: float = clampf(
-			gamepad_weak_motor_max * strength,
-			0.0,
-			1.0
-		)
-		var strong_motor: float = clampf(
-			gamepad_strong_motor_max * strength,
-			0.0,
-			1.0
-		)
-		Input.start_joy_vibration(
-			device_id,
-			weak_motor,
-			strong_motor,
-			maxf(gamepad_pulse_duration, 0.02)
-		)
-		break
+	var device_id: int = connected_joypads[0]
+	var weak_motor: float = clampf(
+		gamepad_weak_motor_max * strength,
+		0.0,
+		1.0
+	)
+	var strong_motor: float = clampf(
+		gamepad_strong_motor_max * strength,
+		0.0,
+		1.0
+	)
+	Input.start_joy_vibration(
+		device_id,
+		weak_motor,
+		strong_motor,
+		maxf(gamepad_pulse_duration, 0.02)
+	)
