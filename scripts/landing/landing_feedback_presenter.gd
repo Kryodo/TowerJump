@@ -1,7 +1,6 @@
 extends CanvasLayer
 
 const STATE_INDICATOR_ENERGY_SHADER = preload("res://scenes/state_indicator_energy.gdshader")
-const LANDING_GRADE_EMBLEM_SCRIPT = preload("res://scripts/landing/landing_grade_emblem.gd")
 const STATE_INDICATOR_ENERGY_FIELD_SCRIPT = preload("res://scripts/landing/state_indicator_energy_field.gd")
 ## Presents landing rewards and persistent landing states in screen space.
 ## Scoring remains in LandingScoreController; this node only handles presentation.
@@ -371,23 +370,15 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 	reward_root.z_index = 30
 	add_child(reward_root)
 
-	# Treat the grade and its geometry as one composition. The composition
-	# slides into place; the text gets only a restrained scale impact within it.
+	# Keep the grade as a simple text-only composition. Its existing scale and
+	# entrance motion remain, without a celebratory emblem behind the word.
 	var grade_composition := Control.new()
 	grade_composition.name = "LandingGradeComposition"
 	grade_composition.size = REWARD_SIZE
-	# Scale and rotate the word and its background around the word's visual center.
+	# Keep its scale and entry motion centered on the text's visual center.
 	grade_composition.pivot_offset = Vector2(REWARD_SIZE.x * 0.5, 11.0)
 	grade_composition.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	reward_root.add_child(grade_composition)
-
-	var grade_emblem := Control.new()
-	grade_emblem.name = "LandingGradeEmblem"
-	grade_emblem.set_script(LANDING_GRADE_EMBLEM_SCRIPT)
-	grade_emblem.position = Vector2(0.0, -4.0)
-	grade_emblem.size = Vector2(REWARD_SIZE.x, 30.0)
-	grade_emblem.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	grade_composition.add_child(grade_emblem)
 
 	var grade_font_size: int = 19
 	var grade_label_height: float = 22.0
@@ -410,13 +401,14 @@ func _spawn_landing_reward(result: Dictionary, platform: Node2D) -> int:
 	# Explicitly center the text on the emblem's drawing center, both axes.
 	grade_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	grade_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	# Preserve the old text center (y=11 within the composition) without the
+	# emblem node, so Good/Epic/Perfect retain their exact previous alignment.
 	grade_label.position = Vector2(
 		0.0,
-		grade_emblem.position.y + (grade_emblem.size.y - grade_label.size.y) * 0.5
+		11.0 - grade_label.size.y * 0.5
 	)
 	grade_label.pivot_offset = grade_label.size * 0.5
 	grade_composition.add_child(grade_label)
-	grade_emblem.call("configure", quality, quality_color)
 
 	var points_label := _make_label(
 		"LandingPoints", Vector2(REWARD_SIZE.x, 30.0), 29, SCORE_COLOR, 6
