@@ -9,10 +9,10 @@ extends Camera2D
 
 @export_category("Landing Camera Response")
 @export var landing_feedback_controller_path: NodePath = NodePath("../LandingFeedbackController")
-@export_range(0.0, 220.0, 5.0) var landing_response_impulse: float = 125.0
-@export_range(10.0, 40.0, 1.0) var landing_response_frequency: float = 26.0
-@export_range(0.4, 1.2, 0.05) var landing_response_damping_ratio: float = 0.76
-@export_range(0.0, 5.0, 0.25) var landing_response_max_offset: float = 3.0
+@export_range(0.0, 14.0, 0.5) var landing_response_snap_distance: float = 8.0
+@export_range(14.0, 44.0, 1.0) var landing_response_frequency: float = 32.0
+@export_range(0.25, 0.85, 0.01) var landing_response_damping_ratio: float = 0.44
+@export_range(0.0, 12.0, 0.5) var landing_response_max_offset: float = 9.0
 
 var _base_offset: Vector2 = Vector2.ZERO
 var _landing_response_offset_y: float = 0.0
@@ -46,19 +46,25 @@ func _process(delta: float) -> void:
 
 
 func _on_landing_confirmed(_event: Variant) -> void:
-	# This signal fires only after real platform contact. Add a small impulse to
-	# one shared spring rather than starting a new animation that could stack.
-	_landing_response_velocity_y += landing_response_impulse
-	_landing_response_velocity_y = clampf(
-		_landing_response_velocity_y,
-		-landing_response_impulse * 1.5,
-		landing_response_impulse * 1.5
+	# Contact produces an immediate downward camera snap (positive Camera2D Y).
+	# The response then releases through an underdamped spring, moving slightly
+	# upward past rest before settling. Resetting the same spring prevents stacked
+	# tweens; repeated landings retrigger one bounded, coherent response.
+	var max_offset: float = maxf(landing_response_max_offset, 0.0)
+	_landing_response_offset_y = clampf(
+		maxf(_landing_response_offset_y, 0.0)
+		+ maxf(landing_response_snap_distance, 0.0),
+		0.0,
+		max_offset
 	)
+	_landing_response_velocity_y = 0.0
+	offset = _base_offset + Vector2(0.0, _landing_response_offset_y)
 
 
 func _update_landing_response(delta: float) -> void:
-	# Substeps keep the damped spring stable if a frame takes longer than usual.
-	var remaining: float = minf(delta, 0.05)
+	# Substeps keep the underdamped spring stable and make recovery consistent
+	# across ordinary frame rates and brief frame-time spikes.
+	var remaining: float = clampf(delta, 0.0, 0.1)
 	var angular_frequency: float = maxf(landing_response_frequency, 1.0)
 	var spring_strength: float = angular_frequency * angular_frequency
 	var damping: float = (
