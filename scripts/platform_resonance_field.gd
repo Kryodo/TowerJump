@@ -10,7 +10,7 @@ extends Node2D
 const PLATFORM_TYPE_NORMAL: int = 0
 const CLOUD_SHADER := preload("res://scenes/platform_resonance_cloud.gdshader")
 const VERTICAL_FILAMENT_COUNT: int = 10
-const TIP_SPARK_COUNT: int = 3
+const TIP_SPARK_COUNT: int = 4
 const PULSE_CYCLE_RATE: float = 0.37
 const PULSE_ACTIVE_FRACTION: float = 0.62
 const SPARK_CHAIN_CHANCE: float = 0.18
@@ -502,6 +502,10 @@ func _draw_tip_sparks(
 		var life_clock: float = _time / life_duration + _random01(seed + 1.5)
 		var life_phase: float = fposmod(life_clock, 1.0)
 		var cycle_seed: float = seed + floor(life_clock) * 19.17
+		# The fourth strand is a small, occasional accent rather than a constant
+		# increase in source density.
+		if index == 3 and _random01(cycle_seed + 12.7) > 0.42:
+			continue
 		var active_window: float = lerpf(0.28, 0.62, _random01(cycle_seed + 2.6))
 		if life_phase >= active_window:
 			continue
@@ -510,6 +514,11 @@ func _draw_tip_sparks(
 		var life_envelope: float = pow(maxf(sin(PI * life_t), 0.0), 0.72)
 		var vertical_t: float = lerpf(0.82, 0.99, _random01(cycle_seed + 3.7))
 		var drift: float = lerpf(4.0, 12.0, _random01(cycle_seed + 4.8))
+		if index == 3:
+			# This rare strand starts close to the lower source and wanders a
+			# little farther upward, giving the travelling wave an extra filament.
+			vertical_t = lerpf(0.87, 0.995, _random01(cycle_seed + 13.8))
+			drift = lerpf(7.0, 17.0, _random01(cycle_seed + 14.9))
 		var y: float = clampf(
 			lerpf(near_y, tip_y, vertical_t) - life_t * drift,
 			near_y + 2.0,
@@ -532,11 +541,17 @@ func _draw_tip_sparks(
 		var strength: float = life_envelope * (
 			0.012 + wave_signal * 0.988
 		) * (0.58 + activation * 0.42)
+		if index == 3:
+			strength *= 1.10
 		var spark_length: float = lerpf(2.8, 7.8, _random01(cycle_seed + 7.2))
+		if index == 3:
+			spark_length = lerpf(3.5, 9.2, _random01(cycle_seed + 15.7))
 		var lean: float = (_random01(cycle_seed + 8.3) - 0.5) * 3.0
 		var bottom := Vector2(x - lean * 0.5, y + spark_length * 0.5)
 		var top := Vector2(x + lean * 0.5, y - spark_length * 0.5)
 		var width: float = lerpf(0.62, 1.18, _random01(cycle_seed + 9.4))
+		if index == 3:
+			width *= 1.06
 
 		draw_line(
 			bottom,
