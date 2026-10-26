@@ -53,8 +53,8 @@ var _pattern_index: int = 0
 
 
 func _ready() -> void:
-    _ball.set_rebound_mode(MODE_NORMAL)
-    _ball.rebound_applied.connect(_on_rebound_applied)
+    _ball.call("set_rebound_mode", MODE_NORMAL)
+    _ball.connect("rebound_applied", Callable(self, "_on_rebound_applied"))
 
     _normal_button.pressed.connect(func() -> void: _set_mode(MODE_NORMAL))
     _plant_button.pressed.connect(func() -> void: _set_mode(MODE_PLANT))
@@ -106,19 +106,20 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 
 func _set_mode(mode: int) -> void:
-    _ball.set_rebound_mode(mode)
+    _ball.call("set_rebound_mode", mode)
     _update_mode_ui()
 
 
 func _update_mode_ui() -> void:
-    var mode_name: String = _ball.get_rebound_mode_name()
+    var selected_mode: int = int(_ball.get("rebound_mode"))
+    var mode_name: String = str(_ball.call("get_rebound_mode_name"))
     _mode_label.text = "ACTIVE MODE: " + mode_name
-    _normal_button.modulate = Color(0.40, 0.92, 1.0, 1.0) if _ball.rebound_mode == MODE_NORMAL else Color.WHITE
-    _plant_button.modulate = Color(0.40, 0.92, 1.0, 1.0) if _ball.rebound_mode == MODE_PLANT else Color.WHITE
-    _bank_button.modulate = Color(0.78, 0.58, 1.0, 1.0) if _ball.rebound_mode == MODE_BANK else Color.WHITE
-    _auto_button.modulate = Color(1.0, 0.78, 0.40, 1.0) if _ball.rebound_mode == MODE_AUTO else Color.WHITE
+    _normal_button.modulate = Color(0.40, 0.92, 1.0, 1.0) if selected_mode == MODE_NORMAL else Color.WHITE
+    _plant_button.modulate = Color(0.40, 0.92, 1.0, 1.0) if selected_mode == MODE_PLANT else Color.WHITE
+    _bank_button.modulate = Color(0.78, 0.58, 1.0, 1.0) if selected_mode == MODE_BANK else Color.WHITE
+    _auto_button.modulate = Color(1.0, 0.78, 0.40, 1.0) if selected_mode == MODE_AUTO else Color.WHITE
 
-    match _ball.rebound_mode:
+    match selected_mode:
         MODE_PLANT:
             _description_label.text = "PLANT  •  Landing damps lateral velocity to 10%. Use it to stop drift before a reversal or narrow route."
         MODE_BANK:
@@ -136,8 +137,8 @@ func _on_rebound_applied(
     landing_offset_ratio: float,
     vertical_scale: float
 ) -> void:
-    var actual_name: String = _ball.get_rebound_mode_name(effective_mode)
-    var selected_name: String = _ball.get_rebound_mode_name()
+    var actual_name: String = str(_ball.call("get_rebound_mode_name", effective_mode))
+    var selected_name: String = str(_ball.call("get_rebound_mode_name"))
     var auto_prefix: String = "AUTO → " if selected_name == "AUTO" else ""
     _last_landing_label.text = (
         "LAST LANDING  %s%s    offset %+0.2f    vx %+.0f → %+.0f    vertical ×%.2f"
