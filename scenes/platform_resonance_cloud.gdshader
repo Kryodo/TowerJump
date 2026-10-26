@@ -179,7 +179,7 @@ void fragment() {
 		-pow(target_delta.y / 25.0, 2.0)
 	);
 	float focus_density = approach_focus * clamp(approach_charge, 0.0, 1.0);
-	cloud_alpha += focus_density * (0.045 + broad_volume * 0.055) * fan_profile;
+	cloud_alpha += focus_density * (0.060 + broad_volume * 0.073) * fan_profile;
 
 	// Landing diffuses a brief cloud-brightening impulse outward from the real
 	// contact position. The ring is soft and noisy, not a crisp shockwave.
@@ -193,13 +193,13 @@ void fragment() {
 	float diffuse_front = exp(-pow((radial_distance - expanding_radius) / 12.0, 2.0));
 	float impact_bloom = exp(-dot(impact_delta, impact_delta) / 420.0)
 		* exp(-landing_age * 12.0) * landing_gate;
-	cloud_alpha += (diffuse_front * 0.060 + impact_bloom * 0.12) * landing_fade * fan_profile;
+	cloud_alpha += (diffuse_front * 0.072 + impact_bloom * 0.14) * landing_fade * fan_profile;
 
 	// The wave is always faintly present, but gathers more light during an
 	// approach and briefly gains energy after a real landing.
-	float wave_reaction = 0.62 + clamp(approach_charge, 0.0, 1.0) * 0.50
-		+ clamp(landing_fade, 0.0, 1.0) * 0.65;
-	cloud_alpha += upward_wave * (0.022 + cloud_volume * 0.050)
+	float wave_reaction = 0.64 + clamp(approach_charge, 0.0, 1.0) * 0.64
+		+ clamp(landing_fade, 0.0, 1.0) * 0.82;
+	cloud_alpha += upward_wave * (0.027 + cloud_volume * 0.060)
 		* wave_reaction * fan_profile;
 
 	// Idle field leans gently toward the platform's purple idle light; active
@@ -212,8 +212,8 @@ void fragment() {
 	cloud_color += vec3(0.13, 0.035, 0.36) * cloud_pockets * 0.24;
 	cloud_color *= 0.90 + cloud_volume * 0.16;
 	cloud_color += vec3(0.06, 0.19, 0.52) * upward_wave
-		* (0.24 + clamp(approach_charge, 0.0, 1.0) * 0.36
-		+ clamp(landing_fade, 0.0, 1.0) * 0.28);
+		* (0.28 + clamp(approach_charge, 0.0, 1.0) * 0.42
+		+ clamp(landing_fade, 0.0, 1.0) * 0.34);
 
 	// Keep the tapered resonance volume below the platform; the direct-drawn
 	// curved vertical filament sparks move through this diffuse, irregular field.
