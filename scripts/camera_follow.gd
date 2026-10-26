@@ -186,7 +186,7 @@ func _update_landing_response(delta: float) -> void:
 			-max_offset,
 			max_offset
 		)
-			# The zoom spring runs on the same substeps to remain frame-rate stable.
+		# The zoom spring runs on the same substeps to remain frame-rate stable.
 		var zoom_frequency: float = maxf(streak_zoom_response_frequency, 1.0)
 		var zoom_acceleration: float = (
 			-(zoom_frequency * zoom_frequency) * _streak_zoom_offset
