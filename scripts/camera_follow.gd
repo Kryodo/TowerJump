@@ -9,10 +9,11 @@ extends Camera2D
 
 @export_category("Landing Camera Response")
 @export var landing_feedback_controller_path: NodePath = NodePath("../LandingFeedbackController")
-@export_range(0.0, 14.0, 0.5) var landing_response_snap_distance: float = 8.0
-@export_range(14.0, 44.0, 1.0) var landing_response_frequency: float = 32.0
-@export_range(0.25, 0.85, 0.01) var landing_response_damping_ratio: float = 0.44
-@export_range(0.0, 12.0, 0.5) var landing_response_max_offset: float = 9.0
+@export_range(0.0, 240.0, 5.0) var landing_response_impulse: float = 155.0
+@export_range(14.0, 36.0, 1.0) var landing_response_frequency: float = 22.0
+@export_range(0.35, 0.90, 0.01) var landing_response_damping_ratio: float = 0.68
+@export_range(0.0, 8.0, 0.5) var landing_response_max_offset: float = 4.5
+@export_range(0.0, 320.0, 10.0) var landing_response_max_velocity: float = 220.0
 
 var _base_offset: Vector2 = Vector2.ZERO
 var _landing_response_offset_y: float = 0.0
@@ -45,20 +46,23 @@ func _process(delta: float) -> void:
 	_update_landing_response(delta)
 
 
-func _on_landing_confirmed(_event: Variant) -> void:
-	# Contact produces an immediate downward camera snap (positive Camera2D Y).
-	# The response then releases through an underdamped spring, moving slightly
-	# upward past rest before settling. Resetting the same spring prevents stacked
-	# tweens; repeated landings retrigger one bounded, coherent response.
-	var max_offset: float = maxf(landing_response_max_offset, 0.0)
-	_landing_response_offset_y = clampf(
-		maxf(_landing_response_offset_y, 0.0)
-		+ maxf(landing_response_snap_distance, 0.0),
-		0.0,
-		max_offset
+func _on_landing_confirmed(event: Variant) -> void:
+	# Transfer a little of the landing's downward momentum into the camera.
+	# No position snap: the existing spring turns this into a smooth, bounded
+	# dip, a small upward rebound, and a settle that stays connected to the jump.
+	# Contact speed only modulates the impulse gently; it does not change gameplay.
+	var impact_scale: float = 1.0
+	if event is LandingEvent:
+		var downward_speed: float = maxf(event.vertical_velocity, 0.0)
+		impact_scale = clampf(downward_speed / 900.0, 0.70, 1.15)
+
+	var max_velocity: float = maxf(landing_response_max_velocity, 0.0)
+	_landing_response_velocity_y = clampf(
+		_landing_response_velocity_y
+		+ maxf(landing_response_impulse, 0.0) * impact_scale,
+		-max_velocity,
+		max_velocity
 	)
-	_landing_response_velocity_y = 0.0
-	offset = _base_offset + Vector2(0.0, _landing_response_offset_y)
 
 
 func _update_landing_response(delta: float) -> void:
@@ -78,10 +82,11 @@ func _update_landing_response(delta: float) -> void:
 		)
 		_landing_response_velocity_y += acceleration * step
 		_landing_response_offset_y += _landing_response_velocity_y * step
+			var max_offset: float = maxf(landing_response_max_offset, 0.0)
 		_landing_response_offset_y = clampf(
 			_landing_response_offset_y,
-			-landing_response_max_offset,
-			landing_response_max_offset
+			-max_offset,
+			max_offset
 		)
 		remaining -= step
 
