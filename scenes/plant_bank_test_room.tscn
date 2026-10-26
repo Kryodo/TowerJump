@@ -65,7 +65,7 @@ environment = SubResource("Environment_test")
 offset_left = 12.0
 offset_top = 12.0
 offset_right = 708.0
-offset_bottom = 270.0
+offset_bottom = 340.0
 theme_override_styles/panel = SubResource("StyleBoxFlat_hud")
 
 [node name="Content" type="VBoxContainer" parent="HUD/Panel"]
