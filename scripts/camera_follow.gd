@@ -21,13 +21,29 @@ extends Camera2D
 @export_range(0.80, 1.30, 0.01) var epic_landing_impulse_multiplier: float = 1.08
 @export_range(0.80, 1.30, 0.01) var perfect_landing_impulse_multiplier: float = 1.16
 
+@export_category("Milestone Camera Response")
+@export_range(0.0, 0.30, 0.01) var combo_activation_impulse_bonus: float = 0.08
+@export_range(0.0, 0.40, 0.01) var streak_activation_impulse_bonus: float = 0.18
+@export_range(1.0, 1.50, 0.01) var milestone_impulse_scale_cap: float = 1.35
+
+@export_category("Streak Zoom Accent")
+@export_range(0.0, 1.5, 0.05) var streak_zoom_impulse_velocity: float = 0.72
+@export_range(12.0, 36.0, 1.0) var streak_zoom_response_frequency: float = 24.0
+@export_range(0.45, 0.98, 0.01) var streak_zoom_damping_ratio: float = 0.82
+@export_range(0.0, 0.06, 0.005) var streak_zoom_max_out: float = 0.035
+@export_range(0.0, 2.0, 0.1) var streak_zoom_max_velocity: float = 1.1
+
 var _base_offset: Vector2 = Vector2.ZERO
+var _base_zoom: Vector2 = Vector2.ONE
 var _landing_response_offset_y: float = 0.0
 var _landing_response_velocity_y: float = 0.0
+var _streak_zoom_offset: float = 0.0
+var _streak_zoom_velocity: float = 0.0
 
 
 func _ready() -> void:
 	_base_offset = offset
+	_base_zoom = zoom
 
 	# Prefer the scored result so the response can distinguish Good, Epic and
 	# Perfect without delaying a frame. landing_scored is emitted synchronously
@@ -66,15 +82,23 @@ func _process(delta: float) -> void:
 
 
 func _on_landing_scored(result: Dictionary) -> void:
-	# The scoring result describes the same physical contact as the haptic pulse.
-	# Quality adds only a small impulse modifier; spring shape and impact-speed
-	# scaling stay shared so every grade still feels like the same camera.
+	# All camera layers are resolved into one response for this physical landing.
+	# Milestone accents only fire on activation, not on every active combo landing.
 	var downward_speed: float = maxf(
 		float(result.get("vertical_velocity", 0.0)),
 		0.0
 	)
 	var quality: String = str(result.get("quality", "GOOD"))
-	_apply_landing_response(downward_speed, quality)
+	var combo_activated: bool = bool(result.get("combo_activated", false))
+	var streak_activated: bool = bool(result.get("streak_activated", false))
+	_apply_landing_response(
+		downward_speed,
+		quality,
+		combo_activated,
+		streak_activated
+	)
+	if streak_activated:
+		_trigger_streak_zoom()
 
 
 func _on_landing_confirmed(event: Variant) -> void:
@@ -90,15 +114,40 @@ func _on_landing_confirmed(event: Variant) -> void:
 	_apply_landing_response(downward_speed, "GOOD")
 
 
-func _apply_landing_response(downward_speed: float, quality: String) -> void:
-	# Contact speed controls the physical impulse; landing quality adds a
-	# separate, modest multiplier. The actual spring dynamics stay unchanged.
+func _apply_landing_response(
+	downward_speed: float,
+	quality: String,
+	combo_activated: bool = false,
+	streak_activated: bool = false
+) -> void:
+	# Impact speed and quality define the base impulse. A milestone contributes
+	# a small additive accent, combined into this same bounded spring response.
 	var impact_scale: float = clampf(downward_speed / 900.0, 0.70, 1.15)
-	var grade_scale: float = _get_quality_impulse_multiplier(quality)
+	var response_scale: float = _get_quality_impulse_multiplier(quality)
+	if combo_activated:
+		response_scale += maxf(combo_activation_impulse_bonus, 0.0)
+	if streak_activated:
+		response_scale += maxf(streak_activation_impulse_bonus, 0.0)
+	response_scale = minf(
+		response_scale,
+		maxf(milestone_impulse_scale_cap, 1.0)
+	)
+
 	var max_velocity: float = maxf(landing_response_max_velocity, 0.0)
 	_landing_response_velocity_y = clampf(
 		_landing_response_velocity_y
-		+ maxf(landing_response_impulse, 0.0) * impact_scale * grade_scale,
+		+ maxf(landing_response_impulse, 0.0) * impact_scale * response_scale,
+		-max_velocity,
+		max_velocity
+	)
+
+
+func _trigger_streak_zoom() -> void:
+	# Zoom is a small spring-driven outward pulse, not a step change. Negative
+	# zoom offset opens the view briefly; its damped rebound returns to baseline.
+	var max_velocity: float = maxf(streak_zoom_max_velocity, 0.0)
+	_streak_zoom_velocity = clampf(
+		_streak_zoom_velocity - maxf(streak_zoom_impulse_velocity, 0.0),
 		-max_velocity,
 		max_velocity
 	)
@@ -137,6 +186,20 @@ func _update_landing_response(delta: float) -> void:
 			-max_offset,
 			max_offset
 		)
+			# The zoom spring runs on the same substeps to remain frame-rate stable.
+		var zoom_frequency: float = maxf(streak_zoom_response_frequency, 1.0)
+		var zoom_acceleration: float = (
+			-(zoom_frequency * zoom_frequency) * _streak_zoom_offset
+			- 2.0 * streak_zoom_damping_ratio * zoom_frequency * _streak_zoom_velocity
+		)
+		_streak_zoom_velocity += zoom_acceleration * step
+		_streak_zoom_offset += _streak_zoom_velocity * step
+		var zoom_out_limit: float = maxf(streak_zoom_max_out, 0.0)
+		_streak_zoom_offset = clampf(
+			_streak_zoom_offset,
+			-zoom_out_limit,
+			zoom_out_limit * 0.25
+		)
 		remaining -= step
 
 	if (
@@ -146,4 +209,12 @@ func _update_landing_response(delta: float) -> void:
 		_landing_response_offset_y = 0.0
 		_landing_response_velocity_y = 0.0
 
+	if (
+		absf(_streak_zoom_offset) < 0.0001
+		and absf(_streak_zoom_velocity) < 0.001
+	):
+		_streak_zoom_offset = 0.0
+		_streak_zoom_velocity = 0.0
+
 	offset = _base_offset + Vector2(0.0, _landing_response_offset_y)
+	zoom = _base_zoom * maxf(1.0 + _streak_zoom_offset, 0.01)
