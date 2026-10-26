@@ -9,8 +9,10 @@ extends Node2D
 
 const PLATFORM_TYPE_NORMAL: int = 0
 const CLOUD_SHADER := preload("res://scenes/platform_resonance_cloud.gdshader")
-const VERTICAL_FILAMENT_COUNT: int = 12
-const TIP_SPARK_COUNT: int = 4
+const VERTICAL_FILAMENT_COUNT: int = 10
+const TIP_SPARK_COUNT: int = 3
+const PULSE_CYCLE_RATE: float = 0.37
+const PULSE_ACTIVE_FRACTION: float = 0.62
 const SPARK_CHAIN_CHANCE: float = 0.22
 const EDGE_FILAMENT_MIN_SPACING: float = 36.0
 const EDGE_FRAGMENT_MIN_SPACING: float = 28.0
@@ -63,6 +65,10 @@ func _create_cloud_layer() -> void:
 	_cloud_material.set_shader_parameter("phase_offset", _phase_offset)
 	_cloud_material.set_shader_parameter("resonance_time", _time)
 	_cloud_material.set_shader_parameter("resonance_pulse_phase", _pulse_phase)
+	_cloud_material.set_shader_parameter(
+		"resonance_pulse_active_fraction",
+		PULSE_ACTIVE_FRACTION
+	)
 	add_child(_cloud)
 
 
@@ -160,7 +166,7 @@ func _process(delta: float) -> void:
 		_approach_charge_target,
 		1.0 - exp(-7.5 * delta)
 	)
-	var phase_progress: float = _pulse_phase + delta * 0.46
+	var phase_progress: float = _pulse_phase + delta * PULSE_CYCLE_RATE
 	var completed_cycles: int = int(floor(phase_progress))
 	if completed_cycles > 0:
 		_pulse_cycle_index += completed_cycles
@@ -186,6 +192,10 @@ func _sync_cloud_parameters() -> void:
 	_cloud_material.set_shader_parameter("phase_offset", _phase_offset)
 	_cloud_material.set_shader_parameter("resonance_time", _time)
 	_cloud_material.set_shader_parameter("resonance_pulse_phase", _pulse_phase)
+	_cloud_material.set_shader_parameter(
+		"resonance_pulse_active_fraction",
+		PULSE_ACTIVE_FRACTION
+	)
 
 
 func _draw() -> void:
@@ -208,10 +218,16 @@ func _draw_vertical_resonance_field(half_width: float, half_height: float) -> vo
 	var tint: Color = _resonance_tint()
 	var activation: float = _resonance_activation()
 
-	var pulse_phase: float = _pulse_phase
+	# The pulse occupies only part of each cycle. The remainder is a genuine
+	# quiet interval, not another faint wave starting immediately behind it.
+	var pulse_phase: float = clampf(
+		_pulse_phase / PULSE_ACTIVE_FRACTION,
+		0.0,
+		1.0
+	)
 	var pulse_t: float = 1.0 - pulse_phase
-	var pulse_gate: float = smoothstep(0.0, 0.065, pulse_phase) * (
-		1.0 - smoothstep(0.94, 1.0, pulse_phase)
+	var pulse_gate: float = smoothstep(0.0, 0.055, pulse_phase) * (
+		1.0 - smoothstep(0.90, 1.0, pulse_phase)
 	)
 
 	for strand in range(VERTICAL_FILAMENT_COUNT):
@@ -336,7 +352,7 @@ func _draw_vertical_resonance_field(half_width: float, half_height: float) -> vo
 			var taper: float = sin((along_segment * 0.92 + 0.04) * PI) * 0.62 + 0.08
 			var segment_strength: float = (
 				packet_strength * end_fade * taper
-				* (0.035 + segment_wave_signal * 0.965)
+				* (0.006 + segment_wave_signal * 0.994)
 			)
 			var width_scale: float = lerpf(0.68, 1.20, _random01(segment_seed + 1.5))
 			if segment == points.size() / 2:
@@ -415,8 +431,8 @@ func _draw_vertical_resonance_field(half_width: float, half_height: float) -> vo
 	# Rarely, a few energized filaments connect into a short upward chain.
 	# The event shares the main pulse phase and is re-rolled once per cycle.
 	var chain_seed: float = _phase_offset * 0.73 + float(_pulse_cycle_index) * 37.13
-	var chain_window_start: float = 0.09
-	var chain_window_end: float = 0.24
+	var chain_window_start: float = 0.10
+	var chain_window_end: float = 0.25
 	if (
 		_random01(chain_seed + 2.7) < SPARK_CHAIN_CHANCE
 		and pulse_phase >= chain_window_start
@@ -436,11 +452,12 @@ func _draw_vertical_resonance_field(half_width: float, half_height: float) -> vo
 			tip_y,
 			tint,
 			chain_strength,
-			chain_seed
+			chain_seed,
+			pulse_phase
 		)
 
 	# A small, soft source lights as the upward pulse is born at the tip.
-	var source_pulse: float = 0.34 + 0.66 * (
+	var source_pulse: float = 0.20 + 0.80 * (
 		1.0 - smoothstep(0.0, 0.24, pulse_phase)
 	)
 	var source_strength: float = source_pulse * (0.70 + activation * 0.45)
@@ -470,8 +487,8 @@ func _draw_tip_sparks(
 ) -> void:
 	var field_height: float = maxf(tip_y - near_y, 1.0)
 	var pulse_t: float = 1.0 - pulse_phase
-	var pulse_gate: float = smoothstep(0.0, 0.065, pulse_phase) * (
-		1.0 - smoothstep(0.94, 1.0, pulse_phase)
+	var pulse_gate: float = smoothstep(0.0, 0.055, pulse_phase) * (
+		1.0 - smoothstep(0.90, 1.0, pulse_phase)
 	)
 
 	for index in range(TIP_SPARK_COUNT):
@@ -508,7 +525,7 @@ func _draw_tip_sparks(
 			1.0
 		)
 		var strength: float = life_envelope * (
-			0.10 + wave_signal * 0.90
+			0.012 + wave_signal * 0.988
 		) * (0.58 + activation * 0.42)
 		var spark_length: float = lerpf(2.8, 7.8, _random01(cycle_seed + 7.2))
 		var lean: float = (_random01(cycle_seed + 8.3) - 0.5) * 3.0
@@ -560,14 +577,15 @@ func _draw_spark_filament_chain(
 	tip_y: float,
 	tint: Color,
 	strength: float,
-	seed: float
+	seed: float,
+	pulse_phase: float
 ) -> void:
 	if strength <= 0.025:
 		return
 
 	# Start at the currently energized portion of the pulse, then link a few
 	# irregular sparks upward. This is a rare accent, not a second permanent mesh.
-	var chain_start_y: float = lerpf(tip_y, near_y, _pulse_phase) + 5.0
+	var chain_start_y: float = lerpf(tip_y, near_y, pulse_phase) + 5.0
 	var local_t: float = clampf(
 		(chain_start_y - near_y) / maxf(tip_y - near_y, 1.0),
 		0.0,
