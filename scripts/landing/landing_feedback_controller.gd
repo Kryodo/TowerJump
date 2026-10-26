@@ -688,7 +688,7 @@ func _on_platform_landed(
 		landing_ratio,
 		edge_factor,
 		float(_ball.velocity.x),
-		float(_ball.velocity.y),
+		float(_ball.get("landing_impact_velocity_y")),
 		approach_progress,
 		int(platform.get("platform_type")),
 		platform_generation,
