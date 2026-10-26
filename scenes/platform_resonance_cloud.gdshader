@@ -205,7 +205,7 @@ void fragment() {
 	// The wave is always faintly present, but gathers more light during an
 	// approach and briefly gains energy after a real landing.
 	float wave_reaction = 0.64 + clamp(approach_charge, 0.0, 1.0) * 0.64
-		+ clamp(landing_fade, 0.0, 1.0) * 0.82;
+		+ clamp(landing_fade, 0.0, 1.0) * 0.34;
 	cloud_alpha += upward_wave * (0.027 + cloud_volume * 0.060)
 		* wave_reaction * fan_profile;
 
@@ -220,7 +220,7 @@ void fragment() {
 	cloud_color *= 0.90 + cloud_volume * 0.16;
 	cloud_color += vec3(0.06, 0.19, 0.52) * upward_wave
 		* (0.28 + clamp(approach_charge, 0.0, 1.0) * 0.42
-		+ clamp(landing_fade, 0.0, 1.0) * 0.34);
+		+ clamp(landing_fade, 0.0, 1.0) * 0.16);
 
 	// Keep the tapered resonance volume below the platform; the direct-drawn
 	// curved vertical filament sparks move through this diffuse, irregular field.
