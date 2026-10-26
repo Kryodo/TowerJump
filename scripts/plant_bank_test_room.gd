@@ -86,10 +86,13 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
-    if not event is InputEventKey or not event.pressed or event.echo:
+    if event is not InputEventKey:
+        return
+    var key_event: InputEventKey = event as InputEventKey
+    if not key_event.pressed or key_event.echo:
         return
 
-    match event.keycode:
+    match key_event.keycode:
         KEY_1:
             _set_mode(MODE_NORMAL)
         KEY_2:
