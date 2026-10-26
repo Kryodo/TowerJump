@@ -13,13 +13,14 @@ const VERTICAL_FILAMENT_COUNT: int = 10
 const TIP_SPARK_COUNT: int = 3
 const PULSE_CYCLE_RATE: float = 0.37
 const PULSE_ACTIVE_FRACTION: float = 0.62
-const SPARK_CHAIN_CHANCE: float = 0.22
+const SPARK_CHAIN_CHANCE: float = 0.18
 const EDGE_FILAMENT_MIN_SPACING: float = 36.0
 const EDGE_FRAGMENT_MIN_SPACING: float = 28.0
 
 const CLOUD_MARGIN_X: float = 86.0
 const CLOUD_MARGIN_Y: float = 90.0
 const LANDING_WAVE_DURATION: float = 0.58
+const LANDING_FIELD_RESPONSE: float = 0.58
 const FRAGMENT_COUNT: int = 5
 const FILAMENT_COUNT: int = 3
 
@@ -132,10 +133,9 @@ func play_landing_wave(landing_world_x: float, strength: float = 1.0) -> void:
 	_landing_wave_age = 0.0
 	_landing_wave_strength = clampf(strength, 0.65, 1.45)
 	_approach_charge_target = 0.0
-	# A real landing launches a fresh resonance pulse from the narrow lower
-	# source. Advance the cycle id too, so any rare chain event is re-rolled.
-	_pulse_cycle_index += 1
-	_pulse_phase = 0.0
+	# Keep the ambient current on its own cadence. The localized landing bloom
+	# links the impact to this platform without restarting the lower source or
+	# re-rolling a fresh chain reaction on every landing.
 	_sync_cloud_parameters()
 	queue_redraw()
 
@@ -433,8 +433,13 @@ func _draw_vertical_resonance_field(half_width: float, half_height: float) -> vo
 	var chain_seed: float = _phase_offset * 0.73 + float(_pulse_cycle_index) * 37.13
 	var chain_window_start: float = 0.10
 	var chain_window_end: float = 0.25
+	var chain_chance: float = SPARK_CHAIN_CHANCE
+	if _landing_wave_age >= 0.0:
+		# Let the impact read through its local bloom, while keeping the rare
+		# connected-filament accent subdued during the landing response.
+		chain_chance *= 0.28
 	if (
-		_random01(chain_seed + 2.7) < SPARK_CHAIN_CHANCE
+		_random01(chain_seed + 2.7) < chain_chance
 		and pulse_phase >= chain_window_start
 		and pulse_phase <= chain_window_end
 	):
@@ -685,7 +690,7 @@ func _resonance_activation() -> float:
 			1.0 - _landing_wave_age / LANDING_WAVE_DURATION,
 			0.0,
 			1.0
-		) * _landing_wave_strength
+		) * _landing_wave_strength * LANDING_FIELD_RESPONSE
 		activation = maxf(activation, landing_pulse)
 	return clampf(activation, 0.0, 1.0)
 
@@ -703,7 +708,7 @@ func _resonance_tint() -> Color:
 			1.0 - _landing_wave_age / LANDING_WAVE_DURATION,
 			0.0,
 			1.0
-		) * _landing_wave_strength
+		) * _landing_wave_strength * LANDING_FIELD_RESPONSE
 		tint = tint.lerp(Color(0.82, 1.24, 2.30, 1.0), landing_pulse * 0.24)
 	return tint
 
