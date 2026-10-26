@@ -70,15 +70,44 @@ func _input(event: InputEvent) -> void:
     super._input(event)
 
 
-## The Bank window temporarily raises the steering cap. We still delegate all
-## ordinary input, gravity, wrapping, collision, and auto-bounce behavior to the
-## existing ball script; only this experiment's brief steering authority changes.
+## Same gravity/steering/collision/bounce sequence as the base script, with two
+## experiment-only adjustments: the member input value is used (so the inherited
+## touch helper actually drives motion), and Bank briefly raises steering authority.
 func _physics_process(delta: float) -> void:
-    var original_cap: float = max_horizontal_speed
+    _combo_jump_boost_cooldown_remaining = maxf(
+        _combo_jump_boost_cooldown_remaining - delta,
+        0.0
+    )
+    input_direction = _read_input_direction()
+
+    max_horizontal_speed = _base_horizontal_speed_cap
     if _bank_speed_boost_remaining > 0.0:
         max_horizontal_speed = _base_horizontal_speed_cap * bank_steering_cap_multiplier
-    super._physics_process(delta)
-    max_horizontal_speed = original_cap
+
+    velocity.y += gravity * delta
+
+    if absf(input_direction) > 0.01:
+        var target_speed: float = input_direction * max_horizontal_speed
+        velocity.x = move_toward(
+            velocity.x,
+            target_speed,
+            horizontal_acceleration * delta
+        )
+    else:
+        velocity.x = move_toward(
+            velocity.x,
+            0.0,
+            horizontal_deceleration * delta
+        )
+
+    landing_impact_velocity_y = velocity.y
+    move_and_slide()
+
+    if is_on_floor():
+        velocity.y = jump_velocity * _landed_jump_multiplier()
+
+    _screen_wrap()
+    max_horizontal_speed = _base_horizontal_speed_cap
     _bank_speed_boost_remaining = maxf(_bank_speed_boost_remaining - delta, 0.0)
 
 
