@@ -10,6 +10,10 @@ extends Node2D
 const PLATFORM_TYPE_NORMAL: int = 0
 const CLOUD_SHADER := preload("res://scenes/platform_resonance_cloud.gdshader")
 const VERTICAL_FILAMENT_COUNT: int = 12
+const TIP_SPARK_COUNT: int = 4
+const SPARK_CHAIN_CHANCE: float = 0.22
+const EDGE_FILAMENT_MIN_SPACING: float = 36.0
+const EDGE_FRAGMENT_MIN_SPACING: float = 28.0
 
 const CLOUD_MARGIN_X: float = 86.0
 const CLOUD_MARGIN_Y: float = 90.0
@@ -22,6 +26,7 @@ var _platform_width: float = 220.0
 var _platform_height: float = 20.0
 var _time: float = 0.0
 var _pulse_phase: float = 0.0
+var _pulse_cycle_index: int = 0
 var _phase_offset: float = 0.0
 var _approach_charge: float = 0.0
 var _approach_charge_target: float = 0.0
@@ -122,7 +127,8 @@ func play_landing_wave(landing_world_x: float, strength: float = 1.0) -> void:
 	_landing_wave_strength = clampf(strength, 0.65, 1.45)
 	_approach_charge_target = 0.0
 	# A real landing launches a fresh resonance pulse from the narrow lower
-	# source. The diffuse shader and drawn filaments share this phase exactly.
+	# source. Advance the cycle id too, so any rare chain event is re-rolled.
+	_pulse_cycle_index += 1
 	_pulse_phase = 0.0
 	_sync_cloud_parameters()
 	queue_redraw()
@@ -154,7 +160,11 @@ func _process(delta: float) -> void:
 		_approach_charge_target,
 		1.0 - exp(-7.5 * delta)
 	)
-	_pulse_phase = fposmod(_pulse_phase + delta * 0.46, 1.0)
+	var phase_progress: float = _pulse_phase + delta * 0.46
+	var completed_cycles: int = int(floor(phase_progress))
+	if completed_cycles > 0:
+		_pulse_cycle_index += completed_cycles
+	_pulse_phase = fposmod(phase_progress, 1.0)
 	if _landing_wave_age >= 0.0:
 		_landing_wave_age += delta
 		if _landing_wave_age >= LANDING_WAVE_DURATION:
@@ -223,7 +233,7 @@ func _draw_vertical_resonance_field(half_width: float, half_height: float) -> vo
 		var vertical_t_base: float = lerpf(
 			0.025,
 			0.985,
-			pow(_random01(cycle_seed + 3.2), 0.94)
+			pow(_random01(cycle_seed + 3.2), 0.76)
 		)
 		# Individual packets drift upward a little; the common pulse carries
 		# the larger-scale motion from the tip to the widening upper region.
@@ -249,8 +259,15 @@ func _draw_vertical_resonance_field(half_width: float, half_height: float) -> vo
 		# The common wave controls the strand per segment below, so a pulse
 		# visibly travels along the filament instead of lighting a whole dash.
 		var irregularity: float = lerpf(0.42, 1.0, _random01(cycle_seed + 7.4))
-		var activation_gain: float = 0.62 + activation * 0.86
-		var packet_strength: float = life_envelope * irregularity * activation_gain
+		var activation_gain: float = 0.62 + activation * 1.00
+		var tip_activity: float = lerpf(
+			1.0,
+			1.24,
+			smoothstep(0.72, 0.985, vertical_t)
+		)
+		var packet_strength: float = (
+			life_envelope * irregularity * activation_gain * tip_activity
+		)
 
 
 		# Filaments follow the vertical current rather than forming rows of
@@ -391,6 +408,37 @@ func _draw_vertical_resonance_field(half_width: float, half_height: float) -> vo
 				Color(0.72, 1.02, 1.42, 0.24 * glint_strength)
 			)
 
+	# A few tiny, irregular sparks make the concentrated source readable
+	# during a climb without turning the tip into a bright emitter.
+	_draw_tip_sparks(near_y, tip_y, tint, activation, pulse_phase)
+
+	# Rarely, a few energized filaments connect into a short upward chain.
+	# The event shares the main pulse phase and is re-rolled once per cycle.
+	var chain_seed: float = _phase_offset * 0.73 + float(_pulse_cycle_index) * 37.13
+	var chain_window_start: float = 0.09
+	var chain_window_end: float = 0.24
+	if (
+		_random01(chain_seed + 2.7) < SPARK_CHAIN_CHANCE
+		and pulse_phase >= chain_window_start
+		and pulse_phase <= chain_window_end
+	):
+		var chain_t: float = (
+			(pulse_phase - chain_window_start)
+			/ (chain_window_end - chain_window_start)
+		)
+		var chain_envelope: float = sin(chain_t * PI)
+		var chain_strength: float = chain_envelope * (
+			0.46 + activation * 0.48
+		)
+		_draw_spark_filament_chain(
+			half_width,
+			near_y,
+			tip_y,
+			tint,
+			chain_strength,
+			chain_seed
+		)
+
 	# A small, soft source lights as the upward pulse is born at the tip.
 	var source_pulse: float = 0.34 + 0.66 * (
 		1.0 - smoothstep(0.0, 0.24, pulse_phase)
@@ -412,6 +460,205 @@ func _draw_vertical_resonance_field(half_width: float, half_height: float) -> vo
 		1.15,
 		Color(tint.r * 0.32 + 0.18, tint.g * 0.30 + 0.36, tint.b * 0.42 + 0.86, 0.14 * source_strength)
 	)
+
+func _draw_tip_sparks(
+	near_y: float,
+	tip_y: float,
+	tint: Color,
+	activation: float,
+	pulse_phase: float
+) -> void:
+	var field_height: float = maxf(tip_y - near_y, 1.0)
+	var pulse_t: float = 1.0 - pulse_phase
+	var pulse_gate: float = smoothstep(0.0, 0.065, pulse_phase) * (
+		1.0 - smoothstep(0.94, 1.0, pulse_phase)
+	)
+
+	for index in range(TIP_SPARK_COUNT):
+		var seed: float = _phase_offset * 0.83 + float(index) * 31.73
+		var life_duration: float = lerpf(0.62, 1.42, _random01(seed + 0.4))
+		var life_clock: float = _time / life_duration + _random01(seed + 1.5)
+		var life_phase: float = fposmod(life_clock, 1.0)
+		var cycle_seed: float = seed + floor(life_clock) * 19.17
+		var active_window: float = lerpf(0.28, 0.62, _random01(cycle_seed + 2.6))
+		if life_phase >= active_window:
+			continue
+
+		var life_t: float = life_phase / active_window
+		var life_envelope: float = pow(maxf(sin(PI * life_t), 0.0), 0.72)
+		var vertical_t: float = lerpf(0.82, 0.99, _random01(cycle_seed + 3.7))
+		var drift: float = lerpf(4.0, 12.0, _random01(cycle_seed + 4.8))
+		var y: float = clampf(
+			lerpf(near_y, tip_y, vertical_t) - life_t * drift,
+			near_y + 2.0,
+			tip_y + 1.0
+		)
+		var x: float = (
+			_random01(cycle_seed + 5.9) * 2.0 - 1.0
+		) * lerpf(5.0, 11.0, _random01(cycle_seed + 6.1))
+		x += sin(_time * 1.1 + cycle_seed) * 1.2
+
+		var local_t: float = clampf((y - near_y) / field_height, 0.0, 1.0)
+		var wave_delta: float = local_t - pulse_t
+		var wave_core: float = exp(-pow(wave_delta / 0.105, 2.0))
+		var wave_tail: float = exp(-pow((wave_delta - 0.14) / 0.26, 2.0))
+		var wave_signal: float = clampf(
+			(wave_core + wave_tail * 0.36) * pulse_gate,
+			0.0,
+			1.0
+		)
+		var strength: float = life_envelope * (
+			0.10 + wave_signal * 0.90
+		) * (0.58 + activation * 0.42)
+		var spark_length: float = lerpf(2.8, 7.8, _random01(cycle_seed + 7.2))
+		var lean: float = (_random01(cycle_seed + 8.3) - 0.5) * 3.0
+		var bottom := Vector2(x - lean * 0.5, y + spark_length * 0.5)
+		var top := Vector2(x + lean * 0.5, y - spark_length * 0.5)
+		var width: float = lerpf(0.62, 1.18, _random01(cycle_seed + 9.4))
+
+		draw_line(
+			bottom,
+			top,
+			Color(
+				tint.r * 0.30 + 0.04,
+				tint.g * 0.36 + 0.05,
+				tint.b * 0.66 + 0.12,
+				0.065 * strength
+			),
+			width * 4.0,
+			true
+		)
+		draw_line(
+			bottom,
+			top,
+			Color(
+				tint.r * 0.64 + 0.04,
+				tint.g * 0.76 + 0.12,
+				tint.b * 0.98 + 0.16,
+				0.32 * strength
+			),
+			width,
+			true
+		)
+		if _random01(cycle_seed + 10.5) > 0.32:
+			var glint_pos: Vector2 = bottom.lerp(top, _random01(cycle_seed + 11.6))
+			draw_circle(
+				glint_pos,
+				1.9,
+				Color(0.44, 0.88, 1.28, 0.065 * strength)
+			)
+			draw_circle(
+				glint_pos,
+				0.65,
+				Color(0.82, 1.08, 1.42, 0.22 * strength)
+			)
+
+
+func _draw_spark_filament_chain(
+	half_width: float,
+	near_y: float,
+	tip_y: float,
+	tint: Color,
+	strength: float,
+	seed: float
+) -> void:
+	if strength <= 0.025:
+		return
+
+	# Start at the currently energized portion of the pulse, then link a few
+	# irregular sparks upward. This is a rare accent, not a second permanent mesh.
+	var chain_start_y: float = lerpf(tip_y, near_y, _pulse_phase) + 5.0
+	var local_t: float = clampf(
+		(chain_start_y - near_y) / maxf(tip_y - near_y, 1.0),
+		0.0,
+		1.0
+	)
+	var local_fan_width: float = (half_width + 48.0) * pow(
+		maxf(1.0 - local_t, 0.0),
+		0.88
+	) + 2.8
+	var center_x: float = (
+		_random01(seed + 3.8) * 2.0 - 1.0
+	) * local_fan_width * 0.24
+
+	var points := PackedVector2Array()
+	points.append(Vector2(center_x, chain_start_y))
+	var point_y: float = chain_start_y
+	var point_x: float = center_x
+	for index in range(1, 5):
+		point_y -= lerpf(
+			7.5,
+			12.0,
+			_random01(seed + float(index) * 5.17)
+		)
+		point_x += (
+			_random01(seed + float(index) * 7.31) - 0.5
+		) * 9.0
+		point_x = clampf(
+			point_x,
+			-local_fan_width * 0.42,
+			local_fan_width * 0.42
+		)
+		points.append(Vector2(point_x, point_y))
+
+	for segment in range(1, points.size()):
+		var segment_seed: float = seed + float(segment) * 13.71
+		var segment_strength: float = strength * lerpf(
+			0.68,
+			1.0,
+			_random01(segment_seed + 1.2)
+		)
+		var segment_width: float = lerpf(
+			0.82,
+			1.34,
+			_random01(segment_seed + 2.3)
+		)
+		draw_line(
+			points[segment - 1],
+			points[segment],
+			Color(
+				tint.r * 0.30 + 0.04,
+				tint.g * 0.40 + 0.06,
+				tint.b * 0.72 + 0.13,
+				0.12 * segment_strength
+			),
+			segment_width * 4.4,
+			true
+		)
+		draw_line(
+			points[segment - 1],
+			points[segment],
+			Color(
+				tint.r * 0.72 + 0.04,
+				tint.g * 0.82 + 0.13,
+				tint.b * 1.02 + 0.17,
+				0.48 * segment_strength
+			),
+			segment_width,
+			true
+		)
+
+	for index in range(points.size()):
+		var point_seed: float = seed + float(index) * 17.19
+		if index > 0 and _random01(point_seed + 4.1) < 0.22:
+			continue
+		var radius: float = lerpf(0.62, 1.08, _random01(point_seed + 5.2))
+		var point_strength: float = strength * lerpf(
+			0.62,
+			1.0,
+			_random01(point_seed + 6.3)
+		)
+		draw_circle(
+			points[index],
+			radius * 3.0,
+			Color(0.34, 0.78, 1.12, 0.075 * point_strength)
+		)
+		draw_circle(
+			points[index],
+			radius,
+			Color(0.82, 1.08, 1.42, 0.36 * point_strength)
+		)
+
 
 func _resonance_activation() -> float:
 	var activation: float = clampf(_approach_charge, 0.0, 1.0)
@@ -443,8 +690,9 @@ func _resonance_tint() -> Color:
 	return tint
 
 func _draw_edge_filaments(half_width: float, half_height: float) -> void:
-	# Short-lived filaments emerge from scattered perimeter points. They never
-	# join into a full outline, and their low-contrast tails disappear into cloud.
+	# Short-lived filaments emerge from scattered perimeter points. A spatial
+	# gate keeps nearby candidates from bunching into a fringe along the edge.
+	var accepted_origins: Array[Vector2] = []
 	for strand in range(FILAMENT_COUNT):
 		var seed: float = _phase_offset * 0.19 + float(strand) * 13.71
 		var life_clock: float = _time * (0.19 + float(strand) * 0.023) + seed
@@ -460,7 +708,8 @@ func _draw_edge_filaments(half_width: float, half_height: float) -> void:
 			half_width,
 			half_height,
 			random_seed,
-			envelope * (0.42 + _approach_charge * 0.26)
+			envelope * (0.46 + _resonance_activation() * 0.34),
+			accepted_origins
 		)
 
 
@@ -468,8 +717,11 @@ func _draw_emergent_filament(
 	half_width: float,
 	half_height: float,
 	seed: float,
-	energy: float
+	energy: float,
+	accepted_origins: Array[Vector2]
 ) -> void:
+	if energy <= 0.025:
+		return
 	var side_roll: float = _random01(seed + 1.1)
 	var side_id: int = 1
 	if side_roll >= 0.70:
@@ -495,6 +747,11 @@ func _draw_emergent_filament(
 			origin = Vector2(half_width, along * half_height)
 			normal = Vector2(1.0, 0.0)
 			tangent = Vector2(0.0, 1.0)
+
+	for accepted_origin in accepted_origins:
+		if origin.distance_to(accepted_origin) < EDGE_FILAMENT_MIN_SPACING:
+			return
+	accepted_origins.append(origin)
 
 	var direction: float = -1.0 if _random01(seed + 3.7) < 0.5 else 1.0
 	var bend: float = (_random01(seed + 4.9) - 0.5) * 13.0
@@ -543,7 +800,9 @@ func _draw_tapered_filament(points: PackedVector2Array, energy: float, seed: flo
 
 func _draw_edge_fragments(half_width: float, half_height: float) -> void:
 	# Sparse fragments drift from the underside/lower corners and dissolve.
+	# Reject motes that crowd another currently visible point.
 	var tint: Color = _resonance_tint()
+	var accepted_positions: Array[Vector2] = []
 	for index in range(FRAGMENT_COUNT):
 		var seed: float = _phase_offset * 5.7 + float(index) * 19.31
 		var speed: float = 0.12 + _random01(seed + 0.6) * 0.085
@@ -586,8 +845,17 @@ func _draw_edge_fragments(half_width: float, half_height: float) -> void:
 			origin + outward * travel
 			+ tangent * (phase * (_random01(local_seed + 5.1) - 0.5) * 22.0 + curl)
 		)
+		var too_close: bool = false
+		for accepted_position in accepted_positions:
+			if position_now.distance_to(accepted_position) < EDGE_FRAGMENT_MIN_SPACING:
+				too_close = true
+				break
+		if too_close:
+			continue
+		accepted_positions.append(position_now)
+
 		var radius: float = 0.65 + _random01(local_seed + 6.2) * 0.60
-		var alpha: float = alpha_envelope * (0.38 + _approach_charge * 0.20)
+		var alpha: float = alpha_envelope * (0.42 + _resonance_activation() * 0.24)
 		# A barely visible curved trace gives a few drifting fragments direction
 		# and a sense of motion without turning them into particle streaks.
 		var trail_start: Vector2 = (
