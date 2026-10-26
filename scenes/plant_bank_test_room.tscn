@@ -1,0 +1,149 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/ball.tscn" id="1_ball"]
+[ext_resource type="PackedScene" path="res://scenes/platform.tscn" id="2_platform"]
+[ext_resource type="Script" path="res://scripts/plant_bank_ball.gd" id="3_plant_bank_ball"]
+[ext_resource type="Script" path="res://scripts/plant_bank_test_room.gd" id="4_test_room"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hud"]
+bg_color = Color(0.025, 0.043, 0.073, 0.96)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.10, 0.55, 0.68, 0.72)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+content_margin_left = 12.0
+content_margin_top = 10.0
+content_margin_right = 12.0
+content_margin_bottom = 10.0
+
+[sub_resource type="Environment" id="Environment_test"]
+background_mode = 3
+glow_enabled = true
+glow_levels/1 = 0.8
+glow_levels/2 = 0.7
+glow_levels/3 = 1.0
+glow_levels/4 = 0.2
+glow_intensity = 0.8
+glow_bloom = 0.3
+glow_hdr_threshold = 0.5
+
+[node name="PlantBankTestRoom" type="Node2D"]
+script = ExtResource("4_test_room")
+platform_scene = ExtResource("2_platform")
+ball_path = NodePath("Ball")
+camera_path = NodePath("GameCamera")
+
+[node name="Ball" parent="." instance=ExtResource("1_ball")]
+position = Vector2(360, 600)
+script = ExtResource("3_plant_bank_ball")
+
+[node name="GameCamera" type="Camera2D" parent="."]
+position = Vector2(360, 640)
+position_smoothing_enabled = true
+position_smoothing_speed = 6.0
+
+[node name="Background" type="ColorRect" parent="GameCamera"]
+z_index = -60
+offset_left = -360.0
+offset_top = -640.0
+offset_right = 360.0
+offset_bottom = 640.0
+color = Color(0.008, 0.020, 0.045, 1.0)
+mouse_filter = 2
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_test")
+
+[node name="HUD" type="CanvasLayer" parent="."]
+
+[node name="Panel" type="PanelContainer" parent="HUD"]
+offset_left = 12.0
+offset_top = 12.0
+offset_right = 708.0
+offset_bottom = 270.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_hud")
+
+[node name="Content" type="VBoxContainer" parent="HUD/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Title" type="Label" parent="HUD/Panel/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.96, 1.0, 1.0)
+theme_override_font_sizes/font_size = 22
+text = "PLANT / BANK JUMPING LAB"
+
+[node name="Subtitle" type="Label" parent="HUD/Panel/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.82, 0.92, 1.0)
+theme_override_font_sizes/font_size = 13
+text = "Same movement + same route pattern. Compare what each landing does to the next jump."
+
+[node name="ModeButtons" type="HBoxContainer" parent="HUD/Panel/Content"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="NormalButton" type="Button" parent="HUD/Panel/Content/ModeButtons"]
+custom_minimum_size = Vector2(118, 38)
+layout_mode = 2
+focus_mode = 0
+text = "1  NORMAL"
+
+[node name="PlantButton" type="Button" parent="HUD/Panel/Content/ModeButtons"]
+custom_minimum_size = Vector2(118, 38)
+layout_mode = 2
+focus_mode = 0
+text = "2  PLANT"
+
+[node name="BankButton" type="Button" parent="HUD/Panel/Content/ModeButtons"]
+custom_minimum_size = Vector2(118, 38)
+layout_mode = 2
+focus_mode = 0
+text = "3  BANK"
+
+[node name="AutoButton" type="Button" parent="HUD/Panel/Content/ModeButtons"]
+custom_minimum_size = Vector2(118, 38)
+layout_mode = 2
+focus_mode = 0
+text = "4  AUTO"
+
+[node name="ModeLabel" type="Label" parent="HUD/Panel/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.98, 1.0, 1.0)
+theme_override_font_sizes/font_size = 16
+text = "ACTIVE MODE: NORMAL"
+
+[node name="DescriptionLabel" type="Label" parent="HUD/Panel/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.82, 0.92, 1.0)
+theme_override_font_sizes/font_size = 13
+text = "NORMAL  •  Existing bounce behavior."
+
+[node name="LiveVelocityLabel" type="Label" parent="HUD/Panel/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.92, 1.0, 1.0)
+theme_override_font_sizes/font_size = 13
+text = "Live velocity"
+
+[node name="LastLandingLabel" type="Label" parent="HUD/Panel/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.82, 0.74, 1.0, 1.0)
+theme_override_font_sizes/font_size = 13
+text = "LAST LANDING —"
+
+[node name="ResetButton" type="Button" parent="HUD/Panel/Content"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+focus_mode = 0
+text = "R  RESET TEST RUN"
+
+[node name="Instructions" type="Label" parent="HUD/Panel/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.56, 0.66, 0.76, 1.0)
+theme_override_font_sizes/font_size = 12
+text = "Steer with ←/→ or A/D. Switch modes before landing. Tags mark the same repeatable pattern; falling below the start resets the run."
