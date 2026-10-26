@@ -9,11 +9,11 @@ extends Camera2D
 
 @export_category("Landing Camera Response")
 @export var landing_feedback_controller_path: NodePath = NodePath("../LandingFeedbackController")
-@export_range(0.0, 240.0, 5.0) var landing_response_impulse: float = 155.0
-@export_range(14.0, 36.0, 1.0) var landing_response_frequency: float = 22.0
-@export_range(0.35, 0.90, 0.01) var landing_response_damping_ratio: float = 0.68
-@export_range(0.0, 8.0, 0.5) var landing_response_max_offset: float = 4.5
-@export_range(0.0, 320.0, 10.0) var landing_response_max_velocity: float = 220.0
+@export_range(0.0, 240.0, 5.0) var landing_response_impulse: float = 110.0
+@export_range(14.0, 36.0, 1.0) var landing_response_frequency: float = 17.0
+@export_range(0.35, 0.90, 0.01) var landing_response_damping_ratio: float = 0.56
+@export_range(0.0, 8.0, 0.5) var landing_response_max_offset: float = 5.0
+@export_range(0.0, 320.0, 10.0) var landing_response_max_velocity: float = 180.0
 
 var _base_offset: Vector2 = Vector2.ZERO
 var _landing_response_offset_y: float = 0.0

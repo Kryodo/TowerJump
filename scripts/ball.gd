@@ -22,6 +22,9 @@ extends CharacterBody2D
 ## Aktuelle Steuerrichtung, binär: -1 = voll links, 0 = keine, 1 = voll rechts
 var input_direction: float = 0.0
 
+## Downward speed captured immediately before move_and_slide resolves contact.
+var landing_impact_velocity_y: float = 0.0
+
 ## Aktive Touches während des Haltens: Touch-Index -> Seite (-1 links, 1 rechts).
 ## Wird in _input() über ScreenTouch/ScreenDrag gepflegt, damit Mehrfach-Touch
 ## (z.B. beide Bildschirmhälften gleichzeitig) korrekt erkannt wird.
@@ -139,6 +142,7 @@ func _physics_process(delta: float) -> void:
 			horizontal_deceleration * delta
 		)
 
+	landing_impact_velocity_y = velocity.y
 	move_and_slide()
 
 	# --- Auto-Bounce: beim Aufkommen automatisch abspringen ---

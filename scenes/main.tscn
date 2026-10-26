@@ -11,6 +11,9 @@
 [ext_resource type="Script" uid="uid://ck0ynampffokl" path="res://scripts/coin_spawner.gd" id="9_coinspawner"]
 [ext_resource type="Script" uid="uid://w2ijwcyipbda" path="res://scripts/landing/landing_feedback_controller.gd" id="10_landing_feedback"]
 [ext_resource type="Script" uid="uid://cg3nexhcchxia" path="res://scripts/landing/landing_platform_reaction.gd" id="11_landing_platform_reaction"]
+[ext_resource type="Script" path="res://scripts/landing/landing_score_controller.gd" id="13_landing_score"]
+[ext_resource type="Script" path="res://scripts/landing/landing_feedback_presenter.gd" id="14_landing_presenter"]
+[ext_resource type="Script" path="res://scripts/landing/landing_haptic_feedback.gd" id="15_landing_haptics"]
 [ext_resource type="Texture2D" uid="uid://bfduv7ff6742p" path="res://scenes/ambient_mote.svg" id="12_ambient_mote"]
 [ext_resource type="Script" uid="uid://b2obtnvyy6qaf" path="res://scripts/landing/landing_score_controller.gd" id="13_landing_score"]
 [ext_resource type="Script" uid="uid://n73f8sgf1mun" path="res://scripts/landing/landing_feedback_presenter.gd" id="14_landing_presenter"]
@@ -166,6 +169,11 @@ script = ExtResource("10_landing_feedback")
 ball_path = NodePath("../Ball")
 
 [node name="LandingScoreController" type="Node2D" parent="." unique_id=871906497]
+[node name="LandingHapticFeedback" type="Node" parent="."]
+script = ExtResource("15_landing_haptics")
+landing_feedback_controller_path = NodePath("../LandingFeedbackController")
+
+[node name="LandingScoreController" type="Node2D" parent="."]
 script = ExtResource("13_landing_score")
 
 [node name="LandingPlatformReaction" type="Node" parent="." unique_id=764254584]
