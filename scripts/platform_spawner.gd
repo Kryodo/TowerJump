@@ -30,9 +30,12 @@ signal platform_placed(position: Vector2, half_width: float, guarantee_coin: boo
 @export var camera_path: NodePath
 
 @export_group("Forward Assembly Prototype")
-@export var landing_feedback_controller_path: NodePath = NodePath("../LandingFeedbackController")
-@export_range(1, 8, 1) var assembly_batch_size: int = 4
-@export_range(0.0, 0.20, 0.01) var assembly_stagger: float = 0.065
+## Maximum vertical distance ahead of the ball that may enter construction.
+## Keep this smaller than the combined distance to the second future platform row.
+@export_range(120.0, 300.0, 10.0) var assembly_lookahead_distance: float = 190.0
+## Platforms sharing a height (route branches) are assembled as one frontier group.
+@export_range(0.0, 20.0, 1.0) var assembly_frontier_height_tolerance: float = 8.0
+@export_range(0.0, 0.20, 0.01) var assembly_stagger: float = 0.055
 
 @export var min_gap: float = 130.0        ## Minimaler vertikaler Abstand zwischen Plattformen
 @export var gap_safety_factor: float = 0.85 ## Anteil der maximalen Sprunghöhe, der als Obergrenze genutzt wird
@@ -81,6 +84,7 @@ const PLATFORM_WIDTHS := {
 }
 
 var _platforms: Array[Node2D] = []
+var _ball: CharacterBody2D
 var _camera: Camera2D
 var _viewport_size: Vector2
 var _highest_y: float = 0.0 ## y-Position der bisher höchsten (kleinster y-Wert) generierten Plattform
@@ -90,7 +94,6 @@ var _cursor_x: float = 0.0 ## x-Position der zuletzt platzierten Plattform (Bezu
 var _pending_slots: Array[Dictionary] = [] ## Noch nicht materialisierte Slots des aktuellen Patterns
 var _previous_x_fraction: float = 0.5 ## This stores the normalized horizontal position of the last actually placed platform
 var _generator_brain: PlatformGeneratorBrain
-var _landing_feedback_controller: Node = null
 
 func _ready() -> void:
 	_generator_brain = PlatformGeneratorBrain.new(
@@ -108,32 +111,19 @@ func _ready() -> void:
 	)
 	
 	_viewport_size = get_viewport_rect().size
-	var ball := get_node(ball_path) as CharacterBody2D
+	_ball = get_node(ball_path) as CharacterBody2D
 	_camera = get_node(camera_path) as Camera2D
-
-	_landing_feedback_controller = get_node_or_null(landing_feedback_controller_path)
-	if (
-		_landing_feedback_controller != null
-		and _landing_feedback_controller.has_signal("landing_confirmed")
-	):
-		var landing_callback := Callable(self, "_on_landing_confirmed")
-		if not _landing_feedback_controller.is_connected("landing_confirmed", landing_callback):
-			_landing_feedback_controller.connect("landing_confirmed", landing_callback)
-	else:
-		push_warning(
-			"PlatformSpawner: LandingFeedbackController was not found; forward assembly is disabled."
-		)
 	
 	# Erreichbarkeits-Berechnung: aus der Wurfparabel des Balls (v0 = jump_velocity,
 	# a = gravity) folgt die maximal erreichbare Sprunghöhe h = v0^2 / (2 * g).
 	# gap_safety_factor lässt etwas Puffer, damit Lücken bei ungünstigem Timing
 	# trotzdem sicher schaffbar bleiben. Gilt für JEDE Plattform-zu-Plattform-Distanz,
 	# unabhängig davon, welches Pattern sie erzeugt hat (siehe _next_platform_spec()).
-	var max_jump_height: float = (ball.jump_velocity ** 2) / (2.0 * ball.gravity)
+	var max_jump_height: float = (_ball.jump_velocity ** 2) / (2.0 * _ball.gravity)
 	_max_gap = maxf(max_jump_height * gap_safety_factor, min_gap + 40.0)
 
-	_highest_y = ball.global_position.y + 120.0
-	_cursor_x = ball.global_position.x
+	_highest_y = _ball.global_position.y + 120.0
+	_cursor_x = _ball.global_position.x
 
 	for i in pool_size:
 		var p := platform_scene.instantiate() as Node2D
@@ -152,7 +142,7 @@ func _ready() -> void:
 			# abweichen, wodurch die Plattform sonst seitlich am Ball vorbei landen kann.
 			# Außerdem immer NORMAL und extra breit, damit der Spielstart garantiert fair
 			# ist. Verbraucht keinen Pattern-Slot.
-			pos = Vector2(ball.global_position.x, _highest_y)
+			pos = Vector2(_ball.global_position.x, _highest_y)
 			type = Platform.PlatformType.NORMAL
 			width_scale = max_width_scale
 			guarantee_coin = false
@@ -168,7 +158,7 @@ func _ready() -> void:
 		p.call("spawn_as", type, pos, width_scale, start_assembled)
 		platform_placed.emit(pos, p.call("half_width"), guarantee_coin)
 
-## Updates generator context and recycles platforms during gameplay.
+## Updates generator context, recycles platforms, and advances the visual construction frontier.
 func _process(delta: float) -> void:
 	if _camera == null:
 		return
@@ -189,43 +179,76 @@ func _process(delta: float) -> void:
 			p.call("spawn_as", spec.type, spec.position, spec.width_scale)
 			platform_placed.emit(spec.position, p.call("half_width"), spec.guarantee_coin)
 
-## A real landing starts a construction wave on the next few unassembled
-## platforms at or above that height. Gameplay coordinates and collision bodies
-## never move; only each platform's child visuals assemble.
-func _on_landing_confirmed(event: Variant) -> void:
-	if not event is LandingEvent:
-		return
-	if event.platform == null or not is_instance_valid(event.platform):
-		return
-	_begin_forward_assembly_wave(
-		event.platform.global_position.y,
-		event.platform
-	)
+	# Assembly is updated after recycling so newly reused platforms participate
+	# in the same frame's distance check, but remain hidden if they are far ahead.
+	_update_forward_assembly()
 
 
-func _begin_forward_assembly_wave(origin_y: float, landed_platform: Node2D) -> void:
-	var candidates: Array[Node2D] = []
+## Continuously move the construction frontier with the ball.
+##
+## Only the nearest future platform height is eligible at any moment. The height
+## scan intentionally includes already-assembled platforms: otherwise the next
+## row would become eligible while the nearer row is still directly ahead, and a
+## second/third row could appear immediately after the first starts assembling.
+## Same-height branches are allowed to assemble together. Physics bodies and
+## their world positions are never animated.
+func _update_forward_assembly() -> void:
+	if _ball == null or not is_instance_valid(_ball):
+		return
+
+	# The player starts by falling onto the starter platform. Construction begins
+	# only once the automatic jump has actually started moving upward.
+	if _ball.velocity.y >= -1.0:
+		return
+
+	var frontier_platform: Node2D = null
+	var frontier_distance: float = INF
+
 	for platform in _platforms:
-		if platform == landed_platform:
+		if (
+			platform == null
+			or not is_instance_valid(platform)
+			or not platform.visible
+			or not platform.has_method("is_assembly_pending")
+		):
 			continue
-		# Include same-height branch platforms, but never build behind the ascent.
-		if platform.global_position.y > origin_y + 1.0:
+
+		# Screen Y decreases during ascent. Only platforms above the ball are
+		# ahead; platforms below/behind it never enter this forward frontier.
+		var distance_ahead: float = _ball.global_position.y - platform.global_position.y
+		if distance_ahead < 0.0 or distance_ahead > assembly_lookahead_distance:
 			continue
-		if not platform.has_method("is_assembly_pending"):
+
+		if distance_ahead < frontier_distance:
+			frontier_distance = distance_ahead
+			frontier_platform = platform
+
+	if frontier_platform == null:
+		return
+
+	var frontier_y: float = frontier_platform.global_position.y
+	var frontier_group: Array[Node2D] = []
+	for platform in _platforms:
+		if (
+			platform == null
+			or not is_instance_valid(platform)
+			or not platform.visible
+			or not platform.has_method("is_assembly_pending")
+		):
+			continue
+		if absf(platform.global_position.y - frontier_y) > assembly_frontier_height_tolerance:
 			continue
 		if bool(platform.call("is_assembly_pending")):
-			candidates.append(platform)
+			frontier_group.append(platform)
 
-	# Smaller world Y means farther upward. Sort by the closest future height
-	# first so the most relevant route assembles before more distant platforms.
-	candidates.sort_custom(
+	# Deterministic left-to-right ordering makes branch assembly feel like a
+	# single spatial wave instead of an arbitrary pool-order reveal.
+	frontier_group.sort_custom(
 		func(a: Node2D, b: Node2D) -> bool:
-			return a.global_position.y > b.global_position.y
+			return a.global_position.x < b.global_position.x
 	)
-
-	var count: int = mini(maxi(assembly_batch_size, 1), candidates.size())
-	for index in range(count):
-		candidates[index].call(
+	for index in range(frontier_group.size()):
+		frontier_group[index].call(
 			"begin_assembly",
 			maxf(assembly_stagger, 0.0) * float(index)
 		)
