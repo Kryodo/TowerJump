@@ -29,6 +29,11 @@ signal platform_placed(position: Vector2, half_width: float, guarantee_coin: boo
 @export var ball_path: NodePath
 @export var camera_path: NodePath
 
+@export_group("Forward Assembly Prototype")
+@export var landing_feedback_controller_path: NodePath = NodePath("../LandingFeedbackController")
+@export_range(1, 8, 1) var assembly_batch_size: int = 4
+@export_range(0.0, 0.20, 0.01) var assembly_stagger: float = 0.065
+
 @export var min_gap: float = 130.0        ## Minimaler vertikaler Abstand zwischen Plattformen
 @export var gap_safety_factor: float = 0.85 ## Anteil der maximalen Sprunghöhe, der als Obergrenze genutzt wird
 @export var horizontal_margin: float = 40.0 ## Abstand der Plattformmitte zum Bildschirmrand
@@ -85,6 +90,7 @@ var _cursor_x: float = 0.0 ## x-Position der zuletzt platzierten Plattform (Bezu
 var _pending_slots: Array[Dictionary] = [] ## Noch nicht materialisierte Slots des aktuellen Patterns
 var _previous_x_fraction: float = 0.5 ## This stores the normalized horizontal position of the last actually placed platform
 var _generator_brain: PlatformGeneratorBrain
+var _landing_feedback_controller: Node = null
 
 func _ready() -> void:
 	_generator_brain = PlatformGeneratorBrain.new(
@@ -104,6 +110,19 @@ func _ready() -> void:
 	_viewport_size = get_viewport_rect().size
 	var ball := get_node(ball_path) as CharacterBody2D
 	_camera = get_node(camera_path) as Camera2D
+
+	_landing_feedback_controller = get_node_or_null(landing_feedback_controller_path)
+	if (
+		_landing_feedback_controller != null
+		and _landing_feedback_controller.has_signal("landing_confirmed")
+	):
+		var landing_callback := Callable(self, "_on_landing_confirmed")
+		if not _landing_feedback_controller.is_connected("landing_confirmed", landing_callback):
+			_landing_feedback_controller.connect("landing_confirmed", landing_callback)
+	else:
+		push_warning(
+			"PlatformSpawner: LandingFeedbackController was not found; forward assembly is disabled."
+		)
 	
 	# Erreichbarkeits-Berechnung: aus der Wurfparabel des Balls (v0 = jump_velocity,
 	# a = gravity) folgt die maximal erreichbare Sprunghöhe h = v0^2 / (2 * g).
@@ -125,6 +144,7 @@ func _ready() -> void:
 		var type: int
 		var width_scale: float
 		var guarantee_coin: bool
+		var start_assembled: bool = false
 		if i == 0:
 			# Erste Plattform direkt unter dem Ball-Start (nicht Viewport-Mitte!): Bei
 			# stretch/mode="canvas_items" + aspect="expand" kann die tatsächliche
@@ -136,6 +156,7 @@ func _ready() -> void:
 			type = Platform.PlatformType.NORMAL
 			width_scale = max_width_scale
 			guarantee_coin = false
+			start_assembled = true
 		else:
 			var spec := _next_platform_spec(p)
 			pos = spec.position
@@ -144,7 +165,7 @@ func _ready() -> void:
 			guarantee_coin = spec.guarantee_coin
 		_last_type = type
 		_cursor_x = pos.x
-		p.call("spawn_as", type, pos, width_scale)
+		p.call("spawn_as", type, pos, width_scale, start_assembled)
 		platform_placed.emit(pos, p.call("half_width"), guarantee_coin)
 
 ## Updates generator context and recycles platforms during gameplay.
@@ -167,6 +188,48 @@ func _process(delta: float) -> void:
 			_cursor_x = spec.position.x
 			p.call("spawn_as", spec.type, spec.position, spec.width_scale)
 			platform_placed.emit(spec.position, p.call("half_width"), spec.guarantee_coin)
+
+## A real landing starts a construction wave on the next few unassembled
+## platforms at or above that height. Gameplay coordinates and collision bodies
+## never move; only each platform's child visuals assemble.
+func _on_landing_confirmed(event: Variant) -> void:
+	if not event is LandingEvent:
+		return
+	if event.platform == null or not is_instance_valid(event.platform):
+		return
+	_begin_forward_assembly_wave(
+		event.platform.global_position.y,
+		event.platform
+	)
+
+
+func _begin_forward_assembly_wave(origin_y: float, landed_platform: Node2D) -> void:
+	var candidates: Array[Node2D] = []
+	for platform in _platforms:
+		if platform == landed_platform:
+			continue
+		# Include same-height branch platforms, but never build behind the ascent.
+		if platform.global_position.y > origin_y + 1.0:
+			continue
+		if not platform.has_method("is_assembly_pending"):
+			continue
+		if bool(platform.call("is_assembly_pending")):
+			candidates.append(platform)
+
+	# Smaller world Y means farther upward. Sort by the closest future height
+	# first so the most relevant route assembles before more distant platforms.
+	candidates.sort_custom(
+		func(a: Node2D, b: Node2D) -> bool:
+			return a.global_position.y > b.global_position.y
+	)
+
+	var count: int = mini(maxi(assembly_batch_size, 1), candidates.size())
+	for index in range(count):
+		candidates[index].call(
+			"begin_assembly",
+			maxf(assembly_stagger, 0.0) * float(index)
+		)
+
 
 ## Returns the biome section currently used by the Generator Brain.
 func get_current_section() -> PlatformGeneratorBrain.BiomeSection:
