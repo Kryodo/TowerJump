@@ -2,7 +2,7 @@ extends Node2D
 ## Lightweight additive-looking visual for the shared forward-construction pulse.
 ## This node only draws; scheduling and gameplay ownership remain in PlatformSpawner.
 
-const TRAIL_LIFETIME: float = 0.24
+const TRAIL_LIFETIME: float = 0.14
 const MAX_TRAIL_POINTS: int = 28
 
 var _pulse_position: Vector2 = Vector2.ZERO
@@ -49,15 +49,15 @@ func _draw() -> void:
 		draw_line(
 			previous_position,
 			point_position,
-			Color(0.02, 0.58, 1.25, alpha * 0.055),
-			18.0,
+			Color(0.02, 0.58, 1.25, alpha * 0.045),
+			12.0,
 			true
 		)
 		draw_line(
 			previous_position,
 			point_position,
-			Color(0.0, 0.82, 1.45, alpha * 0.18),
-			5.0,
+			Color(0.0, 0.82, 1.45, alpha * 0.15),
+			4.0,
 			true
 		)
 		previous_position = point_position
@@ -69,15 +69,15 @@ func _draw() -> void:
 		draw_line(
 			last_point["position"],
 			_pulse_position,
-			Color(0.02, 0.58, 1.25, trail_alpha * 0.055),
-			18.0,
+			Color(0.02, 0.58, 1.25, trail_alpha * 0.045),
+			12.0,
 			true
 		)
 		draw_line(
 			last_point["position"],
 			_pulse_position,
-			Color(0.0, 0.82, 1.45, trail_alpha * 0.18),
-			5.0,
+			Color(0.0, 0.82, 1.45, trail_alpha * 0.15),
+			4.0,
 			true
 		)
 
