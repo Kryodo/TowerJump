@@ -430,13 +430,45 @@ func _begin_frontier_row(frontier_platform: Node2D) -> void:
 		func(a: Node2D, b: Node2D) -> bool:
 			return a.global_position.x < b.global_position.x
 	)
+	var source_platform: Node2D = _find_nearest_source_platform()
 	for index in range(frontier_group.size()):
 		var platform: Node2D = frontier_group[index]
+		var direction_override: int = _choose_assembly_direction(
+			source_platform,
+			platform,
+			index
+		)
 		platform.call(
 			"begin_assembly",
-			maxf(assembly_stagger, 0.0) * float(index)
+			maxf(assembly_stagger, 0.0) * float(index),
+			direction_override
 		)
 		assembly_frontier_reached.emit(platform)
+
+
+func _choose_assembly_direction(
+	source_platform: Node2D,
+	target_platform: Node2D,
+	branch_index: int
+) -> int:
+	if (
+		source_platform == null
+		or not is_instance_valid(source_platform)
+		or target_platform == null
+		or not is_instance_valid(target_platform)
+	):
+		return -1
+
+	var horizontal_delta: float = (
+		target_platform.global_position.x - source_platform.global_position.x
+	)
+	var lateral_threshold: float = maxf(_viewport_size.x * 0.08, 24.0)
+	if absf(horizontal_delta) >= lateral_threshold:
+		return 0 if horizontal_delta > 0.0 else 1
+
+	# Near-vertical progressions need a different construction gesture; alternate
+	# upward surface growth and center-out condensation instead of repeating a wipe.
+	return 2 if branch_index % 2 == 0 else 3
 
 
 ## Returns the biome section currently used by the Generator Brain.
