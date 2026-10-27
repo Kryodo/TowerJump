@@ -15,6 +15,9 @@ extends Node2D
 ## neues Pattern gewürfelt (_choose_pattern_type(), an den Score gekoppelt).
 
 const Platform := preload("res://scripts/platform.gd")
+const ForwardAssemblyPulseVisualScript := preload(
+	"res://scripts/forward_assembly_pulse_visual.gd"
+)
 ## PlatformPatterns ist über class_name (platform_patterns.gd) bereits global verfügbar.
 
 ## Feuert bei jeder (Neu-)Platzierung einer Plattform - sowohl beim initialen
@@ -22,7 +25,15 @@ const Platform := preload("res://scripts/platform.gd")
 ## um Coins in der Nähe neu generierter Plattformen zu platzieren. guarantee_coin
 ## kommt aus dem Pattern (z.B. Risk-Pattern-Bonus) und umgeht dort die normale
 ## Zufalls-Chance des CoinSpawners.
-signal platform_placed(position: Vector2, half_width: float, guarantee_coin: bool)
+signal platform_placed(position: Vector2, half_width: float, guarantee_coin: bool, platform: Node2D)
+## Reusable event stream for future traps, collectibles, and environment structures.
+signal construction_pulse_advanced(
+	position: Vector2,
+	direction: Vector2,
+	speed: float,
+	frontier_platform: Node2D
+)
+signal assembly_frontier_reached(platform: Node2D)
 
 @export var platform_scene: PackedScene
 @export var pool_size: int = 14
@@ -30,10 +41,15 @@ signal platform_placed(position: Vector2, half_width: float, guarantee_coin: boo
 @export var camera_path: NodePath
 
 @export_group("Forward Assembly Prototype")
-## Maximum vertical distance ahead of the ball that may enter construction.
-## Keep this smaller than the combined distance to the second future platform row.
-@export_range(120.0, 300.0, 10.0) var assembly_lookahead_distance: float = 190.0
-## Platforms sharing a height (route branches) are assembled as one frontier group.
+## The smallest lead distance at low vertical speed.
+@export_range(120.0, 320.0, 10.0) var assembly_min_lookahead_distance: float = 190.0
+## Adaptive cap for spring-assisted and future high-speed movement.
+@export_range(400.0, 1200.0, 25.0) var assembly_max_lookahead_distance: float = 900.0
+## Includes surface materialization time plus a small steering/decision buffer.
+@export_range(0.30, 1.20, 0.05) var assembly_required_lead_time_seconds: float = 0.66
+## Pulse moves slightly faster than the ball so the reveal gets a readable lead.
+@export_range(200.0, 1200.0, 50.0) var assembly_pulse_speed_bonus: float = 800.0
+## Platforms sharing a height (route branches) assemble as one wave.
 @export_range(0.0, 20.0, 1.0) var assembly_frontier_height_tolerance: float = 8.0
 @export_range(0.0, 0.20, 0.01) var assembly_stagger: float = 0.055
 
@@ -94,6 +110,12 @@ var _cursor_x: float = 0.0 ## x-Position der zuletzt platzierten Plattform (Bezu
 var _pending_slots: Array[Dictionary] = [] ## Noch nicht materialisierte Slots des aktuellen Patterns
 var _previous_x_fraction: float = 0.5 ## This stores the normalized horizontal position of the last actually placed platform
 var _generator_brain: PlatformGeneratorBrain
+var _pulse_visual: Node2D = null
+var _pulse_world_position: Vector2 = Vector2.ZERO
+var _pulse_has_world_position: bool = false
+var _current_lookahead_distance: float = 190.0
+var _last_pulse_direction: Vector2 = Vector2.UP
+var _last_pulse_speed: float = 0.0
 
 func _ready() -> void:
 	_generator_brain = PlatformGeneratorBrain.new(
@@ -156,7 +178,16 @@ func _ready() -> void:
 		_last_type = type
 		_cursor_x = pos.x
 		p.call("spawn_as", type, pos, width_scale, start_assembled)
-		platform_placed.emit(pos, p.call("half_width"), guarantee_coin)
+		platform_placed.emit(pos, p.call("half_width"), guarantee_coin, p)
+
+	_current_lookahead_distance = assembly_min_lookahead_distance
+	_pulse_visual = Node2D.new()
+	_pulse_visual.name = "ForwardAssemblyPulseVisual"
+	_pulse_visual.set_script(ForwardAssemblyPulseVisualScript)
+	_pulse_visual.position = Vector2.ZERO
+	_pulse_visual.z_as_relative = false
+	_pulse_visual.z_index = 5
+	add_child(_pulse_visual)
 
 ## Updates generator context, recycles platforms, and advances the visual construction frontier.
 func _process(delta: float) -> void:
@@ -177,33 +208,125 @@ func _process(delta: float) -> void:
 			_last_type = spec.type
 			_cursor_x = spec.position.x
 			p.call("spawn_as", spec.type, spec.position, spec.width_scale)
-			platform_placed.emit(spec.position, p.call("half_width"), spec.guarantee_coin)
+			platform_placed.emit(spec.position, p.call("half_width"), spec.guarantee_coin, p)
 
 	# Assembly is updated after recycling so newly reused platforms participate
 	# in the same frame's distance check, but remain hidden if they are far ahead.
-	_update_forward_assembly()
+	_update_forward_assembly(delta)
 
 
-## Continuously move the construction frontier with the ball.
-##
-## Only the nearest future platform height is eligible at any moment. The height
-## scan intentionally includes already-assembled platforms: otherwise the next
-## row would become eligible while the nearer row is still directly ahead, and a
-## second/third row could appear immediately after the first starts assembling.
-## Same-height branches are allowed to assemble together. Physics bodies and
-## their world positions are never animated.
-func _update_forward_assembly() -> void:
+## The pulse is a real moving frontier, not a landing-triggered reveal batch.
+## It traces a route between the nearest previous and next platform rows. A row
+## begins materializing only when the pulse reaches it; later rows remain blocked
+## by the nearest row, whether that row is already assembled or not.
+func _update_forward_assembly(delta: float) -> void:
 	if _ball == null or not is_instance_valid(_ball):
 		return
-
-	# The player starts by falling onto the starter platform. Construction begins
-	# only once the automatic jump has actually started moving upward.
-	if _ball.velocity.y >= -1.0:
+	if _pulse_visual == null or not is_instance_valid(_pulse_visual):
 		return
 
-	var frontier_platform: Node2D = null
-	var frontier_distance: float = INF
+	if not _pulse_has_world_position:
+		_pulse_world_position = _ball.global_position
+		_pulse_has_world_position = true
 
+	# The pulse pauses during descent and resumes with the next upward movement.
+	# This avoids building more of the future while the player is falling.
+	if _ball.velocity.y >= -1.0:
+		_pulse_visual.call(
+			"set_pulse_state",
+			to_local(_pulse_world_position),
+			0.22,
+			false
+		)
+		return
+
+	var vertical_speed: float = absf(_ball.velocity.y)
+	var frontier_platform: Node2D = _find_nearest_future_platform()
+	if frontier_platform == null:
+		_pulse_visual.call(
+			"set_pulse_state",
+			to_local(_pulse_world_position),
+			0.18,
+			false
+		)
+		return
+
+	# Adapt the visible lead to actual vertical speed and the target's animation
+	# duration. The cap is spatially bounded, and the nearest row remains the only
+	# eligible reveal target, so increased speed does not expose the whole tower.
+	var target_animation_time: float = maxf(
+		float(frontier_platform.get("assembly_duration")),
+		0.05
+	)
+	var required_lead_time: float = maxf(
+		assembly_required_lead_time_seconds,
+		target_animation_time
+	)
+	var desired_lookahead: float = clampf(
+		vertical_speed * required_lead_time,
+		assembly_min_lookahead_distance,
+		assembly_max_lookahead_distance
+	)
+	_current_lookahead_distance = move_toward(
+		_current_lookahead_distance,
+		desired_lookahead,
+		1800.0 * delta
+	)
+
+	var distance_ahead: float = (
+		_ball.global_position.y - frontier_platform.global_position.y
+	)
+	var desired_pulse_y: float = maxf(
+		frontier_platform.global_position.y,
+		_ball.global_position.y - _current_lookahead_distance
+	)
+	var source_platform: Node2D = _find_nearest_source_platform()
+	var desired_pulse_x: float = _get_route_pulse_x(
+		source_platform,
+		frontier_platform,
+		desired_pulse_y
+	)
+	var desired_pulse_position := Vector2(desired_pulse_x, desired_pulse_y)
+
+	var previous_pulse_position: Vector2 = _pulse_world_position
+	var pulse_speed: float = vertical_speed + assembly_pulse_speed_bonus
+	_pulse_world_position = _pulse_world_position.move_toward(
+		desired_pulse_position,
+		maxf(pulse_speed, 400.0) * delta
+	)
+
+	var pulse_delta: Vector2 = _pulse_world_position - previous_pulse_position
+	if pulse_delta.length_squared() > 0.001:
+		_last_pulse_direction = pulse_delta.normalized()
+		_last_pulse_speed = pulse_delta.length() / maxf(delta, 0.0001)
+	else:
+		_last_pulse_speed = 0.0
+
+	_pulse_visual.call(
+		"set_pulse_state",
+		to_local(_pulse_world_position),
+		1.0,
+		_last_pulse_speed > 1.0
+	)
+	construction_pulse_advanced.emit(
+		_pulse_world_position,
+		_last_pulse_direction,
+		_last_pulse_speed,
+		frontier_platform
+	)
+
+	# The pulse is the reveal trigger. Do not start the animation just because a
+	# distance threshold was crossed; it must actually reach the frontier row.
+	if (
+		distance_ahead <= _current_lookahead_distance
+		and _pulse_world_position.distance_to(frontier_platform.global_position) <= 24.0
+	):
+		_begin_frontier_row(frontier_platform)
+
+
+func _find_nearest_future_platform() -> Node2D:
+	var nearest: Node2D = null
+	var nearest_distance: float = INF
 	for platform in _platforms:
 		if (
 			platform == null
@@ -212,18 +335,75 @@ func _update_forward_assembly() -> void:
 			or not platform.has_method("is_assembly_pending")
 		):
 			continue
-
-		# Screen Y decreases during ascent. Only platforms above the ball are
-		# ahead; platforms below/behind it never enter this forward frontier.
 		var distance_ahead: float = _ball.global_position.y - platform.global_position.y
-		if distance_ahead < 0.0 or distance_ahead > assembly_lookahead_distance:
+		if distance_ahead <= 1.0:
 			continue
+		if distance_ahead < nearest_distance:
+			nearest_distance = distance_ahead
+			nearest = platform
+	return nearest
 
-		if distance_ahead < frontier_distance:
-			frontier_distance = distance_ahead
-			frontier_platform = platform
 
-	if frontier_platform == null:
+func _find_nearest_source_platform() -> Node2D:
+	var nearest: Node2D = null
+	var nearest_distance: float = INF
+	for platform in _platforms:
+		if (
+			platform == null
+			or not is_instance_valid(platform)
+			or not platform.visible
+			or not platform.has_method("half_width")
+		):
+			continue
+		var distance_below: float = platform.global_position.y - _ball.global_position.y
+		if distance_below < -1.0:
+			continue
+		if distance_below < nearest_distance:
+			nearest_distance = distance_below
+			nearest = platform
+	return nearest
+
+
+func _get_route_pulse_x(
+	source_platform: Node2D,
+	target_platform: Node2D,
+	pulse_y: float
+) -> float:
+	if (
+		source_platform == null
+		or not is_instance_valid(source_platform)
+		or target_platform == null
+		or not is_instance_valid(target_platform)
+	):
+		return _ball.global_position.x
+
+	var source_y: float = source_platform.global_position.y
+	var target_y: float = target_platform.global_position.y
+	var vertical_span: float = source_y - target_y
+	if vertical_span <= 1.0:
+		return target_platform.global_position.x
+
+	# Smoothly trace the horizontal route between platform centers. The lateral
+	# easing follows the actual pattern's geometry without adding a separate
+	# bespoke path for every pattern type.
+	var progress: float = clampf(
+		(source_y - pulse_y) / vertical_span,
+		0.0,
+		1.0
+	)
+	var eased_progress: float = progress * progress * (3.0 - 2.0 * progress)
+	var source_x: float = source_platform.global_position.x
+	var target_x: float = target_platform.global_position.x
+	var curve_offset: float = sin(progress * PI) * clampf(
+		(target_x - source_x) * 0.08,
+		-26.0,
+		26.0
+	)
+	return lerpf(source_x, target_x, eased_progress) + curve_offset
+
+
+func _begin_frontier_row(frontier_platform: Node2D) -> void:
+	if frontier_platform == null or not is_instance_valid(frontier_platform):
 		return
 
 	var frontier_y: float = frontier_platform.global_position.y
@@ -241,17 +421,19 @@ func _update_forward_assembly() -> void:
 		if bool(platform.call("is_assembly_pending")):
 			frontier_group.append(platform)
 
-	# Deterministic left-to-right ordering makes branch assembly feel like a
-	# single spatial wave instead of an arbitrary pool-order reveal.
+	# A branching route reveals as one coherent event. Sorting makes the small
+	# stagger deterministic and independent of pool order.
 	frontier_group.sort_custom(
 		func(a: Node2D, b: Node2D) -> bool:
 			return a.global_position.x < b.global_position.x
 	)
 	for index in range(frontier_group.size()):
-		frontier_group[index].call(
+		var platform: Node2D = frontier_group[index]
+		platform.call(
 			"begin_assembly",
 			maxf(assembly_stagger, 0.0) * float(index)
 		)
+		assembly_frontier_reached.emit(platform)
 
 
 ## Returns the biome section currently used by the Generator Brain.
