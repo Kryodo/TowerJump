@@ -30,7 +30,6 @@ var width_scale: float = 1.0
 
 @export_group("Forward Assembly Prototype")
 @export_range(0.20, 0.90, 0.05) var assembly_duration: float = 0.46
-@export_range(0.05, 0.40, 0.05) var assembly_preview_alpha: float = 0.18
 @export_range(8.0, 56.0, 2.0) var assembly_slide_distance: float = 30.0
 
 const NEON_COLOR := Color(0.0, 0.65, 0.90, 1.0)
