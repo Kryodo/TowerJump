@@ -290,6 +290,10 @@ func _update_forward_assembly(delta: float) -> void:
 		desired_pulse_y
 	)
 	var desired_pulse_position := Vector2(desired_pulse_x, desired_pulse_y)
+	var contact_position: Vector2 = _get_frontier_contact_position(
+		source_platform,
+		frontier_platform
+	)
 
 	var previous_pulse_position: Vector2 = _pulse_world_position
 	var pulse_speed: float = vertical_speed + assembly_pulse_speed_bonus
@@ -322,7 +326,7 @@ func _update_forward_assembly(delta: float) -> void:
 	# distance threshold was crossed; it must actually reach the frontier row.
 	if (
 		distance_ahead <= _current_lookahead_distance
-		and _pulse_world_position.distance_to(frontier_platform.global_position) <= 24.0
+		and _pulse_world_position.distance_to(contact_position) <= 24.0
 	):
 		_begin_frontier_row(frontier_platform)
 
@@ -341,7 +345,17 @@ func _find_nearest_future_platform() -> Node2D:
 		var distance_ahead: float = _ball.global_position.y - platform.global_position.y
 		if distance_ahead <= 1.0:
 			continue
-		if distance_ahead < nearest_distance:
+		if (
+			distance_ahead < nearest_distance - 0.5
+			or (
+				absf(distance_ahead - nearest_distance) <= assembly_frontier_height_tolerance
+				and (
+					nearest == null
+					or absf(platform.global_position.x - _ball.global_position.x)
+						< absf(nearest.global_position.x - _ball.global_position.x)
+				)
+			)
+		):
 			nearest_distance = distance_ahead
 			nearest = platform
 	return nearest
@@ -396,13 +410,35 @@ func _get_route_pulse_x(
 	)
 	var eased_progress: float = progress * progress * (3.0 - 2.0 * progress)
 	var source_x: float = source_platform.global_position.x
-	var target_x: float = target_platform.global_position.x
+	var target_center_x: float = target_platform.global_position.x
+	var horizontal_delta: float = target_center_x - source_x
+	var target_x: float = target_center_x
+	var lateral_threshold: float = maxf(_viewport_size.x * 0.08, 24.0)
+	if absf(horizontal_delta) >= lateral_threshold:
+		# The travelling dot strikes the entering edge, where the platform's
+		# left-to-right/right-to-left material boundary begins.
+		target_x -= signf(horizontal_delta) * float(target_platform.call("half_width"))
 	var curve_offset: float = sin(progress * PI) * clampf(
 		(target_x - source_x) * 0.08,
 		-26.0,
 		26.0
 	)
 	return lerpf(source_x, target_x, eased_progress) + curve_offset
+
+
+func _get_frontier_contact_position(
+	source_platform: Node2D,
+	target_platform: Node2D
+) -> Vector2:
+	var contact_x: float = target_platform.global_position.x
+	if source_platform != null and is_instance_valid(source_platform):
+		var horizontal_delta: float = (
+			target_platform.global_position.x - source_platform.global_position.x
+		)
+		var lateral_threshold: float = maxf(_viewport_size.x * 0.08, 24.0)
+		if absf(horizontal_delta) >= lateral_threshold:
+			contact_x -= signf(horizontal_delta) * float(target_platform.call("half_width"))
+	return Vector2(contact_x, target_platform.global_position.y)
 
 
 func _begin_frontier_row(frontier_platform: Node2D) -> void:
@@ -466,9 +502,9 @@ func _choose_assembly_direction(
 	if absf(horizontal_delta) >= lateral_threshold:
 		return 0 if horizontal_delta > 0.0 else 1
 
-	# Near-vertical progressions need a different construction gesture; alternate
-	# upward surface growth and center-out condensation instead of repeating a wipe.
-	return 2 if branch_index % 2 == 0 else 3
+	# Near-vertical progressions use a center-out condensation so the pulse
+	# can strike the center, where this reveal style naturally starts.
+	return 3
 
 
 ## Returns the biome section currently used by the Generator Brain.
