@@ -138,6 +138,7 @@ func _apply_geometry() -> void:
 		"platform_width",
 		width * width_scale
 	)
+	_visual.set_instance_shader_parameter("assembly_alpha", 1.0)
 
 	_visual.color = PLATFORM_BODY_COLOR
 
@@ -164,6 +165,7 @@ func _apply_geometry() -> void:
 	_neon_edge.set_instance_shader_parameter("platform_height", height)
 	_neon_edge.set_instance_shader_parameter("edge_height", EDGE_HEIGHT)
 	_neon_edge.set_instance_shader_parameter("idle_sheen_progress", -1.0)
+	_neon_edge.set_instance_shader_parameter("assembly_alpha", 1.0)
 
 	if _resonance_field != null and is_instance_valid(_resonance_field):
 		_resonance_field.call(
@@ -354,12 +356,23 @@ func begin_assembly(delay_seconds: float = 0.0) -> void:
 		Vector2.ONE,
 		duration
 	).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	_assembly_tween.parallel().tween_property(
-		self,
-		"modulate",
-		Color.WHITE,
+	_assembly_tween.parallel().tween_method(
+		_set_assembly_alpha,
+		clampf(assembly_preview_alpha, 0.05, 0.45),
+		1.0,
 		duration * 0.88
 	).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if _resonance_field != null and is_instance_valid(_resonance_field):
+		_resonance_field.visible = true
+		_resonance_field.modulate = Color(1.0, 1.0, 1.0, 0.0)
+		_assembly_tween.parallel().tween_property(
+			_resonance_field,
+			"modulate:a",
+			1.0,
+			duration * 0.68
+		).set_delay(minf(duration * 0.25, 0.12)).set_trans(
+			Tween.TRANS_CUBIC
+		).set_ease(Tween.EASE_OUT)
 	_assembly_tween.parallel().tween_property(
 		_neon_edge,
 		"position",
@@ -386,6 +399,16 @@ func _set_assembled_pose() -> void:
 	_neon_edge.position = Vector2.ZERO
 	_visual.scale = Vector2.ONE
 	_neon_edge.scale = Vector2.ONE
+	_set_assembly_alpha(1.0)
+	if _resonance_field != null and is_instance_valid(_resonance_field):
+		_resonance_field.visible = true
+		_resonance_field.modulate = Color.WHITE
+
+
+func _set_assembly_alpha(value: float) -> void:
+	var alpha: float = clampf(value, 0.0, 1.0)
+	_visual.set_instance_shader_parameter("assembly_alpha", alpha)
+	_neon_edge.set_instance_shader_parameter("assembly_alpha", alpha)
 
 
 func _set_assembly_preview_pose() -> void:
@@ -415,7 +438,11 @@ func _set_assembly_preview_pose() -> void:
 	_neon_edge.position = edge_offset
 	_visual.scale = Vector2(0.92, 0.86)
 	_neon_edge.scale = Vector2(0.94, 0.90)
-	modulate = Color(1.0, 1.0, 1.0, clampf(assembly_preview_alpha, 0.05, 0.45))
+	modulate = Color.WHITE
+	_set_assembly_alpha(assembly_preview_alpha)
+	if _resonance_field != null and is_instance_valid(_resonance_field):
+		_resonance_field.visible = false
+		_resonance_field.modulate = Color.WHITE
 
 
 func _finish_assembly() -> void:
