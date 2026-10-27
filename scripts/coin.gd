@@ -14,6 +14,7 @@ extends Area2D
 var _is_active: bool = false
 var _is_collected: bool = false
 var _assembly_platform: Node2D = null
+var _assembly_platform_generation: int = -1
 var _awaiting_platform_assembly: bool = false
 var _reveal_tween: Tween = null
 
@@ -35,7 +36,20 @@ func _draw() -> void:
 
 
 func _process(_delta: float) -> void:
-	if not _is_active or not _awaiting_platform_assembly:
+	if not _is_active:
+		return
+
+	# Platforms are pooled and can be reassigned before their attached coin crosses
+	# the recycle threshold. Never let an old coin bind to the next spawn generation.
+	if _assembly_platform != null and is_instance_valid(_assembly_platform):
+		var current_generation: int = int(_assembly_platform.get("spawn_generation"))
+		if current_generation != _assembly_platform_generation:
+			_assembly_platform = null
+			_assembly_platform_generation = -1
+			_awaiting_platform_assembly = false
+			# If it was waiting unseen, keep it dormant until CoinSpawner recycles it.
+
+	if not _awaiting_platform_assembly:
 		return
 	if _assembly_platform == null or not is_instance_valid(_assembly_platform):
 		_begin_materialization()
@@ -64,6 +78,11 @@ func spawn_as(new_position: Vector2, assembly_platform: Node2D = null) -> void:
 	_is_active = true
 	_is_collected = false
 	_assembly_platform = assembly_platform
+	_assembly_platform_generation = (
+		int(_assembly_platform.get("spawn_generation"))
+		if _assembly_platform != null and is_instance_valid(_assembly_platform)
+		else -1
+	)
 	scale = Vector2.ONE
 	modulate = Color.WHITE
 
@@ -130,6 +149,7 @@ func deactivate() -> void:
 	_is_active = false
 	_is_collected = false
 	_assembly_platform = null
+	_assembly_platform_generation = -1
 	_awaiting_platform_assembly = false
 	modulate = Color.WHITE
 	scale = Vector2.ONE
@@ -151,6 +171,7 @@ func _collect() -> void:
 		_reveal_tween.kill()
 	_reveal_tween = null
 	_assembly_platform = null
+	_assembly_platform_generation = -1
 	set_deferred("monitoring", false)
 	_collision_shape.set_deferred("disabled", true)
 	GameManager.add_coins(1)
