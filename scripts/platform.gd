@@ -364,11 +364,19 @@ func get_assembly_progress() -> float:
 	return _assembly_progress
 
 
-func begin_assembly(delay_seconds: float = 0.0) -> void:
+func begin_assembly(
+	delay_seconds: float = 0.0,
+	direction_override: int = -1
+) -> void:
 	if _is_assembled or not visible or _broken or _is_breaking:
 		return
 	if _assembly_tween != null and _assembly_tween.is_valid() and _assembly_tween.is_running():
 		return
+
+	# The route can provide a directional choreography: left/right travel follows
+	# the player's path, while near-vertical rows alternate bottom-up and center-out.
+	if direction_override >= 0:
+		_assembly_direction = direction_override % 4
 
 	# The shader reveals the ceramic surface behind a directional, irregular
 	# construction boundary. Position/scale provide only a small finishing motion.
