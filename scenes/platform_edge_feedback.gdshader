@@ -10,6 +10,7 @@ instance uniform float approach_target_x = 0.5;
 instance uniform float landing_confirm = 0.0;
 instance uniform float activated = 0.0;
 instance uniform float idle_sheen_progress = -1.0;
+instance uniform float assembly_alpha = 1.0;
 
 void vertex() {
 	edge_local_position = VERTEX.xy;
@@ -86,4 +87,5 @@ void fragment() {
 	result = mix(result, sheen_color, clamp(sheen_mix, 0.0, 0.18));
 
 	COLOR.rgb = result;
+	COLOR.a *= clamp(assembly_alpha, 0.0, 1.0);
 }
