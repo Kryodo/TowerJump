@@ -12,7 +12,7 @@ var _trail: Array[Dictionary] = []
 
 
 func set_pulse_state(local_position: Vector2, intensity: float, moving: bool) -> void:
-	if moving and _has_position and _pulse_position.distance_to(local_position) >= 2.0:
+	if moving and _intensity > 0.001 and _has_position and _pulse_position.distance_to(local_position) >= 2.0:
 		_trail.append({
 			"position": _pulse_position,
 			"age": 0.0,
