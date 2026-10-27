@@ -64,7 +64,12 @@ func _process(_delta: float) -> void:
 			c.call("deactivate")
 			_free_indices.append(i)
 
-func _on_platform_placed(pos: Vector2, half_width: float, guarantee_coin: bool) -> void:
+func _on_platform_placed(
+	pos: Vector2,
+	half_width: float,
+	guarantee_coin: bool,
+	platform: Node2D
+) -> void:
 	# guarantee_coin kommt vom Risk-Pattern (siehe platform_patterns.gd): die riskante
 	# Plattform bekommt garantiert einen Coin als Belohnung, statt nur mit
 	# spawn_chance zu würfeln wie jede andere Plattform.
@@ -76,4 +81,4 @@ func _on_platform_placed(pos: Vector2, half_width: float, guarantee_coin: bool) 
 	var jitter: float = half_width * horizontal_jitter_factor
 	var coin_x: float = pos.x + randf_range(-jitter, jitter)
 	var coin_y: float = pos.y - hover_height
-	_coins[idx].call("spawn_as", Vector2(coin_x, coin_y))
+	_coins[idx].call("spawn_as", Vector2(coin_x, coin_y), platform)
