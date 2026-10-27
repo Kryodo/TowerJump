@@ -1,10 +1,10 @@
 # Coherent Architecture Silhouettes — Experiment
 
-Branch: \`experiment-coherent-architecture-silhouettes\`
+Branch: `experiment-coherent-architecture-silhouettes`
 
-Parent prototype: \`experiment-procedural-architecture-background\`
+Parent prototype: `experiment-procedural-architecture-background`
 
-Baseline: \`experiment-vertical-resonance-field\`
+Baseline: `experiment-vertical-resonance-field`
 
 ## Purpose
 
@@ -14,11 +14,11 @@ This is an isolated visual experiment. The production main scene, player physics
 
 ## Run it
 
-1. Switch to \`experiment-coherent-architecture-silhouettes\` in GitHub Desktop.
+1. Switch to `experiment-coherent-architecture-silhouettes` in GitHub Desktop.
 2. Open the project in Godot.
-3. Open \`scenes/environment_architecture_test_room.tscn\`.
+3. Open `scenes/environment_architecture_test_room.tscn`.
 4. Use **Run Current Scene (F6)**.
-5. Steer with the left/right arrow keys. Press \`R\` for a new bounded composition or \`1\`, \`2\`, or \`3\` for fixed seeds.
+5. Steer with the left/right arrow keys. Press `R` for a new bounded composition or `1`, `2`, or `3` for fixed seeds.
 
 ## Visual grammar
 
