@@ -226,21 +226,30 @@ func _update_forward_assembly(delta: float) -> void:
 	if _pulse_visual == null or not is_instance_valid(_pulse_visual):
 		return
 
-	if not _pulse_has_world_position:
-		_pulse_world_position = _ball.global_position
-		_pulse_has_world_position = true
-
-	# No pulse is shown during the initial fall. After the first ascent, it
+	# No pulse is shown during the initial fall. After construction begins, it
 	# softly idles at its last frontier during descents and resumes on the next jump.
 	if _ball.velocity.y >= -1.0:
 		var idle_intensity: float = 0.22 if _has_started_construction else 0.0
+		var idle_position: Vector2 = (
+			_pulse_world_position if _pulse_has_world_position else _ball.global_position
+		)
 		_pulse_visual.call(
 			"set_pulse_state",
-			to_local(_pulse_world_position),
+			to_local(idle_position),
 			idle_intensity,
 			false
 		)
 		return
+
+	# Start each run's first pulse at the platform the ball launches from, not at
+	# the ball's original spawn position during the opening fall.
+	if not _pulse_has_world_position:
+		var launch_platform: Node2D = _find_nearest_source_platform()
+		if launch_platform != null:
+			_pulse_world_position = launch_platform.global_position
+		else:
+			_pulse_world_position = _ball.global_position
+		_pulse_has_world_position = true
 
 	_has_started_construction = true
 	var vertical_speed: float = absf(_ball.velocity.y)
@@ -273,7 +282,7 @@ func _update_forward_assembly(delta: float) -> void:
 	_current_lookahead_distance = move_toward(
 		_current_lookahead_distance,
 		desired_lookahead,
-		1800.0 * delta
+		3000.0 * delta
 	)
 
 	var distance_ahead: float = (
