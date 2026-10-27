@@ -46,11 +46,12 @@ func _draw_far_architecture() -> void:
 	var y: float = section_top_y - 900.0
 	var index := 0
 	while y < section_bottom_y:
-		var height := 1920.0
-		var left_width := 178.0 + float(index % 3) * 24.0
-		var right_width := 172.0 + float((index + 1) % 3) * 26.0
-		_draw_far_mass(1.0, y, height, left_width, index)
-		_draw_far_mass(-1.0, y + (120.0 if index % 2 == 0 else -80.0), height, right_width, index + 1)
+		var height := 1920.0 + _rng.randf_range(-110.0, 120.0)
+		var left_width := 165.0 + float(index % 3) * 24.0 + _rng.randf_range(-10.0, 10.0)
+		var right_width := 162.0 + float((index + 1) % 3) * 26.0 + _rng.randf_range(-10.0, 10.0)
+		var y_jitter := _rng.randf_range(-60.0, 60.0)
+		_draw_far_mass(1.0, y + y_jitter, height, left_width, index)
+		_draw_far_mass(-1.0, y + y_jitter + (120.0 if index % 2 == 0 else -80.0), height, right_width, index + 1)
 		index += 1
 		y += 1580.0
 
@@ -95,7 +96,7 @@ func _draw_mid_architecture() -> void:
 		_draw_support_module(1.0, y, index)
 		# Deliberately omit some opposing modules so the environment is composed,
 		# not mirrored like a corridor. The fixed cadence still unifies the kit.
-		if index % 4 != 1:
+		if index % 4 != 1 or _rng.randf() < 0.12:
 			_draw_support_module(-1.0, y + (180.0 if index % 2 == 0 else -110.0), index + 2)
 		index += 1
 		y += 1260.0
@@ -103,8 +104,8 @@ func _draw_mid_architecture() -> void:
 
 func _draw_support_module(side: float, top_y: float, index: int) -> void:
 	var edge_x: float = 0.0 if side > 0.0 else world_width
-	var height: float = 1030.0 + float(index % 3) * 60.0
-	var width: float = 136.0 + float(index % 3) * 15.0
+	var height: float = 1030.0 + float(index % 3) * 60.0 + _rng.randf_range(-22.0, 22.0)
+	var width: float = 136.0 + float(index % 3) * 15.0 + _rng.randf_range(-8.0, 8.0)
 	var inset: float = 20.0 if index % 2 == 0 else -10.0
 	var silhouette := PackedVector2Array([
 		Vector2(edge_x - side * 28.0, top_y),
@@ -158,7 +159,7 @@ func _draw_near_frames() -> void:
 	var y: float = section_top_y + 400.0
 	var index := 0
 	while y < section_bottom_y:
-		var length: float = 430.0 if index % 2 == 0 else 280.0
+		var length: float = (430.0 if index % 2 == 0 else 280.0) + _rng.randf_range(-45.0, 45.0)
 		var left_start := Vector2(14.0, y)
 		var right_start := Vector2(world_width - 14.0, y + 360.0)
 		if index % 2 == 0:
