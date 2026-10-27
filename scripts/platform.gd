@@ -339,6 +339,16 @@ func begin_assembly(delay_seconds: float = 0.0) -> void:
 	if _assembly_tween != null and _assembly_tween.is_valid() and _assembly_tween.is_running():
 		return
 
+	# Keep future platforms completely absent until this wave reaches them.
+	# Their StaticBody2D and collision shape are already fixed at the final position;
+	# only these child visuals become visible and animate.
+	_visual.visible = true
+	_neon_edge.visible = true
+	_set_assembly_alpha(0.0)
+	if _resonance_field != null and is_instance_valid(_resonance_field):
+		_resonance_field.visible = true
+		_resonance_field.modulate = Color(1.0, 1.0, 1.0, 0.0)
+
 	_assembly_tween = create_tween()
 	if delay_seconds > 0.0:
 		_assembly_tween.tween_interval(delay_seconds)
@@ -358,7 +368,7 @@ func begin_assembly(delay_seconds: float = 0.0) -> void:
 	).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	_assembly_tween.parallel().tween_method(
 		_set_assembly_alpha,
-		clampf(assembly_preview_alpha, 0.05, 0.45),
+		0.0,
 		1.0,
 		duration * 0.88
 	).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
@@ -395,6 +405,8 @@ func begin_assembly(delay_seconds: float = 0.0) -> void:
 func _set_assembled_pose() -> void:
 	_is_assembled = true
 	modulate = Color.WHITE
+	_visual.visible = true
+	_neon_edge.visible = true
 	_visual.position = Vector2.ZERO
 	_neon_edge.position = Vector2.ZERO
 	_visual.scale = Vector2.ONE
@@ -413,6 +425,10 @@ func _set_assembly_alpha(value: float) -> void:
 
 func _set_assembly_preview_pose() -> void:
 	_is_assembled = false
+	# Nothing from an unbuilt platform should be visible. The assembly wave is
+	# the only place that turns these visuals back on.
+	_visual.visible = false
+	_neon_edge.visible = false
 	var slide: float = maxf(assembly_slide_distance, 0.0)
 	var body_offset: Vector2 = Vector2.ZERO
 	var edge_offset: Vector2 = Vector2.ZERO
@@ -439,7 +455,7 @@ func _set_assembly_preview_pose() -> void:
 	_visual.scale = Vector2(0.92, 0.86)
 	_neon_edge.scale = Vector2(0.94, 0.90)
 	modulate = Color.WHITE
-	_set_assembly_alpha(assembly_preview_alpha)
+	_set_assembly_alpha(0.0)
 	if _resonance_field != null and is_instance_valid(_resonance_field):
 		_resonance_field.visible = false
 		_resonance_field.modulate = Color.WHITE
