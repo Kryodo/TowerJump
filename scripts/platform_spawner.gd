@@ -113,6 +113,7 @@ var _generator_brain: PlatformGeneratorBrain
 var _pulse_visual: Node2D = null
 var _pulse_world_position: Vector2 = Vector2.ZERO
 var _pulse_has_world_position: bool = false
+var _has_started_construction: bool = false
 var _current_lookahead_distance: float = 190.0
 var _last_pulse_direction: Vector2 = Vector2.UP
 var _last_pulse_speed: float = 0.0
@@ -229,17 +230,19 @@ func _update_forward_assembly(delta: float) -> void:
 		_pulse_world_position = _ball.global_position
 		_pulse_has_world_position = true
 
-	# The pulse pauses during descent and resumes with the next upward movement.
-	# This avoids building more of the future while the player is falling.
+	# No pulse is shown during the initial fall. After the first ascent, it
+	# softly idles at its last frontier during descents and resumes on the next jump.
 	if _ball.velocity.y >= -1.0:
+		var idle_intensity: float = 0.22 if _has_started_construction else 0.0
 		_pulse_visual.call(
 			"set_pulse_state",
 			to_local(_pulse_world_position),
-			0.22,
+			idle_intensity,
 			false
 		)
 		return
 
+	_has_started_construction = true
 	var vertical_speed: float = absf(_ball.velocity.y)
 	var frontier_platform: Node2D = _find_nearest_future_platform()
 	if frontier_platform == null:
