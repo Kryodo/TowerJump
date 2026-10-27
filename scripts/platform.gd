@@ -28,6 +28,11 @@ var width_scale: float = 1.0
 @export_group("Spring")
 @export var spring_multiplier: float = 1.75
 
+@export_group("Forward Assembly Prototype")
+@export_range(0.20, 0.90, 0.05) var assembly_duration: float = 0.46
+@export_range(0.05, 0.40, 0.05) var assembly_preview_alpha: float = 0.18
+@export_range(8.0, 56.0, 2.0) var assembly_slide_distance: float = 30.0
+
 const NEON_COLOR := Color(0.0, 0.65, 0.90, 1.0)
 const PLATFORM_BODY_COLOR := Color("#0B111B")
 
@@ -70,6 +75,8 @@ var _broken: bool = false
 # owns targeting/prediction; the platform only exposes a visual adapter.
 var _landing_approach: LandingApproachState = LandingApproachState.new()
 var _landing_confirmation_tween: Tween = null
+var _assembly_tween: Tween = null
+var _is_assembled: bool = true
 var _resonance_field: Node2D = null
 var _last_landing_world_x: float = 0.0
 var _idle_sheen_delay: float = -1.0
@@ -232,7 +239,7 @@ func _schedule_idle_sheen() -> void:
 
 
 func _is_idle_sheen_allowed() -> bool:
-	if not visible or _broken or _is_breaking:
+	if not visible or _broken or _is_breaking or not _is_assembled:
 		return false
 	if _landing_approach.progress > 0.0001:
 		return false
@@ -279,8 +286,16 @@ func half_width() -> float:
 func spawn_as(
 	type: PlatformType,
 	new_position: Vector2,
-	new_width_scale: float = 1.0
+	new_width_scale: float = 1.0,
+	start_assembled: bool = false
 ) -> void:
+	if _assembly_tween != null and _assembly_tween.is_valid():
+		_assembly_tween.kill()
+	_assembly_tween = null
+	if _landing_confirmation_tween != null and _landing_confirmation_tween.is_valid():
+		_landing_confirmation_tween.kill()
+	_landing_confirmation_tween = null
+
 	spawn_generation += 1
 	platform_type = type
 	width_scale = new_width_scale
@@ -300,7 +315,111 @@ func spawn_as(
 	visible = true
 
 	_apply_geometry()
+	if start_assembled:
+		_set_assembled_pose()
+	else:
+		_set_assembly_preview_pose()
 	_schedule_idle_sheen()
+
+
+func is_assembly_pending() -> bool:
+	if _is_assembled:
+		return false
+	if _assembly_tween != null and _assembly_tween.is_valid() and _assembly_tween.is_running():
+		return false
+	return true
+
+
+func begin_assembly(delay_seconds: float = 0.0) -> void:
+	if _is_assembled or not visible or _broken or _is_breaking:
+		return
+	if _assembly_tween != null and _assembly_tween.is_valid() and _assembly_tween.is_running():
+		return
+
+	_assembly_tween = create_tween()
+	if delay_seconds > 0.0:
+		_assembly_tween.tween_interval(delay_seconds)
+
+	var duration: float = maxf(assembly_duration, 0.05)
+	_assembly_tween.tween_property(
+		_visual,
+		"position",
+		Vector2.ZERO,
+		duration
+	).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_assembly_tween.parallel().tween_property(
+		_visual,
+		"scale",
+		Vector2.ONE,
+		duration
+	).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_assembly_tween.parallel().tween_property(
+		self,
+		"modulate",
+		Color.WHITE,
+		duration * 0.88
+	).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_assembly_tween.parallel().tween_property(
+		_neon_edge,
+		"position",
+		Vector2.ZERO,
+		duration * 0.80
+	).set_delay(minf(duration * 0.12, 0.07)).set_trans(
+		Tween.TRANS_CUBIC
+	).set_ease(Tween.EASE_OUT)
+	_assembly_tween.parallel().tween_property(
+		_neon_edge,
+		"scale",
+		Vector2.ONE,
+		duration * 0.78
+	).set_delay(minf(duration * 0.12, 0.07)).set_trans(
+		Tween.TRANS_BACK
+	).set_ease(Tween.EASE_OUT)
+	_assembly_tween.tween_callback(_finish_assembly)
+
+
+func _set_assembled_pose() -> void:
+	_is_assembled = true
+	modulate = Color.WHITE
+	_visual.position = Vector2.ZERO
+	_neon_edge.position = Vector2.ZERO
+	_visual.scale = Vector2.ONE
+	_neon_edge.scale = Vector2.ONE
+
+
+func _set_assembly_preview_pose() -> void:
+	_is_assembled = false
+	var slide: float = maxf(assembly_slide_distance, 0.0)
+	var body_offset: Vector2 = Vector2.ZERO
+	var edge_offset: Vector2 = Vector2.ZERO
+
+	# Alternate assembly directions so the tower feels constructed from
+	# different approaches, while each platform keeps a deterministic motion.
+	match spawn_generation % 4:
+		0:
+			body_offset = Vector2(-slide, -slide * 0.12)
+			edge_offset = Vector2(slide * 0.72, slide * 0.08)
+		1:
+			body_offset = Vector2(slide, slide * 0.10)
+			edge_offset = Vector2(-slide * 0.72, -slide * 0.06)
+		2:
+			body_offset = Vector2(-slide * 0.10, -slide * 0.62)
+			edge_offset = Vector2(slide * 0.08, slide * 0.52)
+		_:
+			body_offset = Vector2(slide * 0.08, slide * 0.62)
+			edge_offset = Vector2(-slide * 0.06, -slide * 0.52)
+
+	_visual.position = body_offset
+	_neon_edge.position = edge_offset
+	_visual.scale = Vector2(0.92, 0.86)
+	_neon_edge.scale = Vector2(0.94, 0.90)
+	modulate = Color(1.0, 1.0, 1.0, clampf(assembly_preview_alpha, 0.05, 0.45))
+
+
+func _finish_assembly() -> void:
+	_set_assembled_pose()
+	_assembly_tween = null
+
 
 func on_ball_landed(landing_world_x: float) -> float:
 	# Preserve the physical contact point for the visual response that follows
