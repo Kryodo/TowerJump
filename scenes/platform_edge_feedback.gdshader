@@ -11,6 +11,9 @@ instance uniform float landing_confirm = 0.0;
 instance uniform float activated = 0.0;
 instance uniform float idle_sheen_progress = -1.0;
 instance uniform float assembly_alpha = 1.0;
+instance uniform float assembly_progress: hint_range(0.0, 1.0) = 1.0;
+instance uniform float assembly_direction: hint_range(0.0, 3.0) = 0.0;
+instance uniform float assembly_seed = 0.0;
 
 void vertex() {
 	edge_local_position = VERTEX.xy;
@@ -86,6 +89,48 @@ void fragment() {
 	vec3 sheen_color = vec3(1.55, 2.35, 2.75);
 	result = mix(result, sheen_color, clamp(sheen_mix, 0.0, 0.18));
 
+	// Match the body surface's construction direction and noisy reveal boundary.
+	float progress = clamp(assembly_progress, 0.0, 1.0);
+	float normalized_y = clamp(
+		(edge_local_position.y + platform_height * 0.5) / max(platform_height, 0.001),
+		0.0,
+		1.0
+	);
+	float assembly_coordinate = 1.0 - x;
+	if (assembly_direction >= 0.5 && assembly_direction < 1.5) {
+		assembly_coordinate = x;
+	} else if (assembly_direction >= 1.5 && assembly_direction < 2.5) {
+		assembly_coordinate = normalized_y;
+	} else if (assembly_direction >= 2.5) {
+		assembly_coordinate = 1.0 - abs(x - 0.5) * 2.0;
+	}
+
+	float noise_cell = floor(x * 28.0) + floor(normalized_y * 5.0) * 7.0;
+	float noise_value = fract(
+		sin((noise_cell + assembly_seed * 17.17) * 12.9898) * 43758.5453
+	);
+	float boundary_coordinate = assembly_coordinate + (noise_value - 0.5) * 0.075;
+	float reveal_threshold = 1.0 - progress;
+	float assembly_mask = smoothstep(
+		reveal_threshold - 0.045,
+		reveal_threshold + 0.045,
+		boundary_coordinate
+	);
+	if (progress <= 0.0001) {
+		assembly_mask = 0.0;
+	} else if (progress >= 0.999) {
+		assembly_mask = 1.0;
+	}
+
+	float construction_front = 1.0 - smoothstep(
+		0.006,
+		0.070,
+		abs(boundary_coordinate - reveal_threshold)
+	);
+	construction_front *= 1.0 - smoothstep(0.88, 1.0, progress);
+	vec3 construction_color = vec3(0.20, 2.65, 4.10);
+	result = mix(result, construction_color, construction_front * 0.82);
+
 	COLOR.rgb = result;
-	COLOR.a *= clamp(assembly_alpha, 0.0, 1.0);
+	COLOR.a *= clamp(assembly_alpha, 0.0, 1.0) * assembly_mask;
 }
