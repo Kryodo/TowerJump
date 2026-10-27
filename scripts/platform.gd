@@ -89,6 +89,9 @@ var _idle_sheen_tween: Tween = null
 func _ready() -> void:
 	add_to_group("platforms")
 	_collision_shape.one_way_collision = true
+	# New pooled nodes start transparent before they are assigned a spawn state.
+	# This prevents a frame of fully visible geometry during pool initialization.
+	modulate = Color(1.0, 1.0, 1.0, 0.0)
 
 	_create_resonance_field()
 	_apply_geometry()
@@ -371,6 +374,14 @@ func begin_assembly(delay_seconds: float = 0.0) -> void:
 		1.0,
 		duration * 0.88
 	).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	# Parent-level alpha is a second visual gate for all children/shaders. The
+	# platform node itself remains visible so landing prediction can still target it.
+	_assembly_tween.parallel().tween_property(
+		self,
+		"modulate:a",
+		1.0,
+		duration * 0.88
+	).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	if _resonance_field != null and is_instance_valid(_resonance_field):
 		_resonance_field.visible = true
 		_resonance_field.modulate = Color(1.0, 1.0, 1.0, 0.0)
@@ -453,7 +464,9 @@ func _set_assembly_preview_pose() -> void:
 	_neon_edge.position = edge_offset
 	_visual.scale = Vector2(0.92, 0.86)
 	_neon_edge.scale = Vector2(0.94, 0.90)
-	modulate = Color.WHITE
+	# Keep the whole platform render tree transparent until its own assembly tween.
+	# Child visibility is also disabled below as an independent guard.
+	modulate = Color(1.0, 1.0, 1.0, 0.0)
 	_set_assembly_alpha(0.0)
 	if _resonance_field != null and is_instance_valid(_resonance_field):
 		_resonance_field.visible = false
