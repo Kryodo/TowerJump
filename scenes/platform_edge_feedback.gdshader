@@ -105,9 +105,12 @@ void fragment() {
 		assembly_coordinate = 1.0 - abs(x - 0.5) * 2.0;
 	}
 
-	float noise_cell = floor(x * 28.0) + floor(normalized_y * 5.0) * 7.0;
+	vec2 noise_cell = floor(vec2(x, normalized_y) * vec2(28.0, 5.0));
 	float noise_value = fract(
-		sin((noise_cell + assembly_seed * 17.17) * 12.9898) * 43758.5453
+		sin(dot(
+			noise_cell + vec2(assembly_seed, assembly_seed * 0.37),
+			vec2(12.9898, 78.233)
+		)) * 43758.5453
 	);
 	float boundary_coordinate = assembly_coordinate + (noise_value - 0.5) * 0.075;
 	float reveal_threshold = 1.0 - progress;
