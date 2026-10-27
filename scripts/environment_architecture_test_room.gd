@@ -135,7 +135,7 @@ func _create_overlay() -> void:
 
 	var title := Label.new()
 	title.position = Vector2(22.0, 18.0)
-	title.text = "PROCEDURAL ARCHITECTURE  /  SECTION STUDY"
+	title.text = "MONUMENTAL ARCHITECTURE  /  SILHOUETTE STUDY"
 	title.add_theme_font_size_override("font_size", 19)
 	title.add_theme_color_override("font_color", Color(0.62, 0.91, 1.0, 1.0))
 	title.add_theme_color_override("font_outline_color", Color(0.0, 0.01, 0.025, 1.0))
