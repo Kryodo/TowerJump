@@ -459,6 +459,10 @@ func _set_assembly_progress(value: float) -> void:
 	_assembly_progress = clampf(value, 0.0, 1.0)
 	_visual.set_instance_shader_parameter("assembly_progress", _assembly_progress)
 	_neon_edge.set_instance_shader_parameter("assembly_progress", _assembly_progress)
+	_visual.set_instance_shader_parameter("assembly_direction", float(_assembly_direction))
+	_neon_edge.set_instance_shader_parameter("assembly_direction", float(_assembly_direction))
+	_visual.set_instance_shader_parameter("assembly_seed", _assembly_seed)
+	_neon_edge.set_instance_shader_parameter("assembly_seed", _assembly_seed)
 
 
 func _set_assembly_preview_pose() -> void:
