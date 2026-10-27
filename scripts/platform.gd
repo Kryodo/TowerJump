@@ -61,6 +61,9 @@ const PlatformResonanceFieldScript := preload(
 # Physical landing is surfaced as an event so the centralized landing system
 # can fan the same event out to future ball/effect/score/combo/camera/audio layers.
 signal landing_occurred(landing_world_x: float)
+## World-object hooks for the shared construction coordinator.
+signal assembly_started(platform: Node2D)
+signal assembly_completed(platform: Node2D)
 
 var platform_type: PlatformType = PlatformType.NORMAL
 ## Increments every time this pooled node is assigned a new platform spawn.
@@ -77,6 +80,9 @@ var _landing_approach: LandingApproachState = LandingApproachState.new()
 var _landing_confirmation_tween: Tween = null
 var _assembly_tween: Tween = null
 var _is_assembled: bool = true
+var _assembly_progress: float = 1.0
+var _assembly_direction: int = 0
+var _assembly_seed: float = 0.0
 var _resonance_field: Node2D = null
 var _last_landing_world_x: float = 0.0
 var _idle_sheen_delay: float = -1.0
@@ -141,6 +147,9 @@ func _apply_geometry() -> void:
 		width * width_scale
 	)
 	_visual.set_instance_shader_parameter("assembly_alpha", 1.0)
+	_visual.set_instance_shader_parameter("assembly_progress", _assembly_progress)
+	_visual.set_instance_shader_parameter("assembly_direction", float(_assembly_direction))
+	_visual.set_instance_shader_parameter("assembly_seed", _assembly_seed)
 
 	_visual.color = PLATFORM_BODY_COLOR
 
@@ -168,6 +177,9 @@ func _apply_geometry() -> void:
 	_neon_edge.set_instance_shader_parameter("edge_height", EDGE_HEIGHT)
 	_neon_edge.set_instance_shader_parameter("idle_sheen_progress", -1.0)
 	_neon_edge.set_instance_shader_parameter("assembly_alpha", 1.0)
+	_neon_edge.set_instance_shader_parameter("assembly_progress", _assembly_progress)
+	_neon_edge.set_instance_shader_parameter("assembly_direction", float(_assembly_direction))
+	_neon_edge.set_instance_shader_parameter("assembly_seed", _assembly_seed)
 
 	if _resonance_field != null and is_instance_valid(_resonance_field):
 		_resonance_field.call(
@@ -335,18 +347,36 @@ func is_assembly_pending() -> bool:
 	return true
 
 
+func is_assembly_in_progress() -> bool:
+	return (
+		not _is_assembled
+		and _assembly_tween != null
+		and _assembly_tween.is_valid()
+		and _assembly_tween.is_running()
+	)
+
+
+func is_assembled() -> bool:
+	return _is_assembled
+
+
+func get_assembly_progress() -> float:
+	return _assembly_progress
+
+
 func begin_assembly(delay_seconds: float = 0.0) -> void:
 	if _is_assembled or not visible or _broken or _is_breaking:
 		return
 	if _assembly_tween != null and _assembly_tween.is_valid() and _assembly_tween.is_running():
 		return
 
-	# Keep future platforms completely absent until this wave reaches them.
-	# Their StaticBody2D and collision shape are already fixed at the final position;
-	# only these child visuals become visible and animate.
+	# The shader reveals the ceramic surface behind a directional, irregular
+	# construction boundary. Position/scale provide only a small finishing motion.
 	_visual.visible = true
 	_neon_edge.visible = true
-	_set_assembly_alpha(0.0)
+	modulate = Color.WHITE
+	_set_assembly_alpha(1.0)
+	_set_assembly_progress(0.0)
 	if _resonance_field != null and is_instance_valid(_resonance_field):
 		_resonance_field.visible = true
 		_resonance_field.modulate = Color(1.0, 1.0, 1.0, 0.0)
@@ -356,7 +386,13 @@ func begin_assembly(delay_seconds: float = 0.0) -> void:
 		_assembly_tween.tween_interval(delay_seconds)
 
 	var duration: float = maxf(assembly_duration, 0.05)
-	_assembly_tween.tween_property(
+	_assembly_tween.tween_method(
+		_set_assembly_progress,
+		0.0,
+		1.0,
+		duration
+	).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	_assembly_tween.parallel().tween_property(
 		_visual,
 		"position",
 		Vector2.ZERO,
@@ -368,23 +404,23 @@ func begin_assembly(delay_seconds: float = 0.0) -> void:
 		Vector2.ONE,
 		duration
 	).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	_assembly_tween.parallel().tween_method(
-		_set_assembly_alpha,
-		0.0,
-		1.0,
-		duration * 0.88
-	).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	# Parent-level alpha is a second visual gate for all children/shaders. The
-	# platform node itself remains visible so landing prediction can still target it.
 	_assembly_tween.parallel().tween_property(
-		self,
-		"modulate:a",
-		1.0,
-		duration * 0.88
-	).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		_neon_edge,
+		"position",
+		Vector2.ZERO,
+		duration * 0.80
+	).set_delay(minf(duration * 0.08, 0.05)).set_trans(
+		Tween.TRANS_CUBIC
+	).set_ease(Tween.EASE_OUT)
+	_assembly_tween.parallel().tween_property(
+		_neon_edge,
+		"scale",
+		Vector2.ONE,
+		duration * 0.78
+	).set_delay(minf(duration * 0.08, 0.05)).set_trans(
+		Tween.TRANS_BACK
+	).set_ease(Tween.EASE_OUT)
 	if _resonance_field != null and is_instance_valid(_resonance_field):
-		_resonance_field.visible = true
-		_resonance_field.modulate = Color(1.0, 1.0, 1.0, 0.0)
 		_assembly_tween.parallel().tween_property(
 			_resonance_field,
 			"modulate:a",
@@ -393,23 +429,8 @@ func begin_assembly(delay_seconds: float = 0.0) -> void:
 		).set_delay(minf(duration * 0.25, 0.12)).set_trans(
 			Tween.TRANS_CUBIC
 		).set_ease(Tween.EASE_OUT)
-	_assembly_tween.parallel().tween_property(
-		_neon_edge,
-		"position",
-		Vector2.ZERO,
-		duration * 0.80
-	).set_delay(minf(duration * 0.12, 0.07)).set_trans(
-		Tween.TRANS_CUBIC
-	).set_ease(Tween.EASE_OUT)
-	_assembly_tween.parallel().tween_property(
-		_neon_edge,
-		"scale",
-		Vector2.ONE,
-		duration * 0.78
-	).set_delay(minf(duration * 0.12, 0.07)).set_trans(
-		Tween.TRANS_BACK
-	).set_ease(Tween.EASE_OUT)
 	_assembly_tween.tween_callback(_finish_assembly)
+	assembly_started.emit(self)
 
 
 func _set_assembled_pose() -> void:
@@ -422,6 +443,7 @@ func _set_assembled_pose() -> void:
 	_visual.scale = Vector2.ONE
 	_neon_edge.scale = Vector2.ONE
 	_set_assembly_alpha(1.0)
+	_set_assembly_progress(1.0)
 	if _resonance_field != null and is_instance_valid(_resonance_field):
 		_resonance_field.visible = true
 		_resonance_field.modulate = Color.WHITE
@@ -431,6 +453,12 @@ func _set_assembly_alpha(value: float) -> void:
 	var alpha: float = clampf(value, 0.0, 1.0)
 	_visual.set_instance_shader_parameter("assembly_alpha", alpha)
 	_neon_edge.set_instance_shader_parameter("assembly_alpha", alpha)
+
+
+func _set_assembly_progress(value: float) -> void:
+	_assembly_progress = clampf(value, 0.0, 1.0)
+	_visual.set_instance_shader_parameter("assembly_progress", _assembly_progress)
+	_neon_edge.set_instance_shader_parameter("assembly_progress", _assembly_progress)
 
 
 func _set_assembly_preview_pose() -> void:
@@ -446,7 +474,9 @@ func _set_assembly_preview_pose() -> void:
 	# Alternate assembly directions across the whole tower, not just each
 	# pooled instance (all instances begin at the same spawn generation).
 	_assembly_sequence += 1
-	match _assembly_sequence % 4:
+	_assembly_direction = _assembly_sequence % 4
+	_assembly_seed = float(_assembly_sequence % 97)
+	match _assembly_direction:
 		0:
 			body_offset = Vector2(-slide, -slide * 0.12)
 			edge_offset = Vector2(slide * 0.72, slide * 0.08)
@@ -468,6 +498,7 @@ func _set_assembly_preview_pose() -> void:
 	# Child visibility is also disabled below as an independent guard.
 	modulate = Color(1.0, 1.0, 1.0, 0.0)
 	_set_assembly_alpha(0.0)
+	_set_assembly_progress(0.0)
 	if _resonance_field != null and is_instance_valid(_resonance_field):
 		_resonance_field.visible = false
 		_resonance_field.modulate = Color.WHITE
@@ -476,6 +507,7 @@ func _set_assembly_preview_pose() -> void:
 func _finish_assembly() -> void:
 	_set_assembled_pose()
 	_assembly_tween = null
+	assembly_completed.emit(self)
 
 
 func on_ball_landed(landing_world_x: float) -> float:
