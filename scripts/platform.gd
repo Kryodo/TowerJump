@@ -50,6 +50,7 @@ const IDLE_SHEEN_DURATION_MAX := 0.50
 
 static var _sheen_spawn_sequence: int = 0
 static var _last_sheen_spawn_sequence: int = -1000
+static var _assembly_sequence: int = 0
 
 const LandingApproachStateScript := preload(
 	"res://scripts/landing/landing_approach_state.gd"
@@ -393,9 +394,10 @@ func _set_assembly_preview_pose() -> void:
 	var body_offset: Vector2 = Vector2.ZERO
 	var edge_offset: Vector2 = Vector2.ZERO
 
-	# Alternate assembly directions so the tower feels constructed from
-	# different approaches, while each platform keeps a deterministic motion.
-	match spawn_generation % 4:
+	# Alternate assembly directions across the whole tower, not just each
+	# pooled instance (all instances begin at the same spawn generation).
+	_assembly_sequence += 1
+	match _assembly_sequence % 4:
 		0:
 			body_offset = Vector2(-slide, -slide * 0.12)
 			edge_offset = Vector2(slide * 0.72, slide * 0.08)
