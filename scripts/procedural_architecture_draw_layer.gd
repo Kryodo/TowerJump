@@ -48,19 +48,23 @@ func _draw() -> void:
 func _far_mass_color(index: int) -> Color:
 	match palette_variant:
 		PaletteVariant.REVERSED_VOID:
-			return Color(0.02745, 0.06667, 0.11765, 0.98) if index % 3 == 0 else Color(0.03137, 0.08235, 0.14118, 0.98)
+			# Reverse the existing roles: old game background becomes the far
+			# silhouette fill. Keep only a tiny variation between masses.
+			return Color(0.007843138, 0.023529412, 0.050980393, 0.98) if index % 3 == 0 else Color(0.007843138, 0.019607844, 0.043137256, 0.98)
 		PaletteVariant.INTERMEDIATE_BLUE_BLACK:
-			return Color(0.01176, 0.03137, 0.07059, 0.98) if index % 3 == 0 else Color(0.01569, 0.04314, 0.08627, 0.98)
+			# Keep the same dark navy silhouette but reduce the background-to-mass
+			# difference through an intermediate background shade.
+			return Color(0.007843138, 0.023529412, 0.050980393, 0.98) if index % 3 == 0 else Color(0.007843138, 0.019607844, 0.043137256, 0.98)
 		_:
 			return FAR_MASS_A if index % 3 == 0 else FAR_MASS_B
 
 
 func _mid_mass_color() -> Color:
 	match palette_variant:
-		PaletteVariant.REVERSED_VOID:
-			return Color(0.04314, 0.10588, 0.16863, 0.96)
-		PaletteVariant.INTERMEDIATE_BLUE_BLACK:
-			return Color(0.02353, 0.06275, 0.11373, 0.96)
+		PaletteVariant.REVERSED_VOID, PaletteVariant.INTERMEDIATE_BLUE_BLACK:
+			# Nearly-black middle structure. Do not brighten the geometry in the
+			# reversed test; its value remains close to the original silhouette fill.
+			return Color(0.011764706, 0.02745098, 0.050980393, 0.96)
 		_:
 			return MID_MASS
 
