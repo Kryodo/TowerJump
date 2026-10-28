@@ -32,7 +32,7 @@ The controlled experiments are kept in separate scenes on this same branch:
 - Void → structure → void transition, including E/F/G recipes and the D-fill H/I/J background sweep: `scenes/environment_architecture_transition_test.tscn`. Notes: `context/Architecture Void Structure Void Comparison.md`.
 - Final far-fill hue-versus-brightness study: `scenes/environment_architecture_hue_brightness_test.tscn`. Notes: `context/Architecture Far Fill Hue vs Brightness Test.md`.
 
-The latest hue-versus-brightness test holds the background at `#02060D` and the middle fill constant while comparing the original dark far fills, a blue-purple hue shift, a brightness-only lift and the combined A2 values. It is meant to identify color relationships for the future art library, not to force every zone to use the same architecture recipe.
+The latest hue-versus-brightness test holds the background at `#02060D` and the middle fill constant while comparing the original dark far fills, A2's actual color ratios at the original brightness, a brightness-only lift that preserves the original ratios, and the exact A2 values. The hue-only variant was corrected after the first candidate was too close to the background. This test is meant to identify color relationships for the future art library, not to force every zone to use the same architecture recipe.
 
 The mote depth/parallax idea and restrained architectural accent flicker remain separate future polish investigations. Neither is changed by these palette tests.
 
