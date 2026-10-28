@@ -8,7 +8,7 @@ enum LayerType {
 	MID_ARCHITECTURE,
 	NEAR_FRAMES,
 }
-enum PaletteVariant { CURRENT_NAVY, REVERSED_VOID, INTERMEDIATE_BLUE_BLACK }
+enum PaletteVariant { CURRENT_NAVY, REVERSED_VOID, INTERMEDIATE_BLUE_BLACK, INTERMEDIATE_BLUE_BLACK_MID_CONTRAST }
 
 @export var layer_type: LayerType = LayerType.FAR_SILHOUETTES
 @export var palette_variant: PaletteVariant = PaletteVariant.CURRENT_NAVY
@@ -62,9 +62,12 @@ func _far_mass_color(index: int) -> Color:
 func _mid_mass_color() -> Color:
 	match palette_variant:
 		PaletteVariant.REVERSED_VOID, PaletteVariant.INTERMEDIATE_BLUE_BLACK:
-			# Nearly-black middle structure. Do not brighten the geometry in the
-			# reversed test; its value remains close to the original silhouette fill.
+			# Existing low-contrast middle structure, retained for A/B/C.
 			return Color(0.011764706, 0.02745098, 0.050980393, 0.96)
+		PaletteVariant.INTERMEDIATE_BLUE_BLACK_MID_CONTRAST:
+			# D isolates a small middle-fill lift against C's unchanged background
+			# and far masses. Keep this dark blue-black, not a bright outline.
+			return Color(0.015686275, 0.03137255, 0.0627451, 0.96) # approx. #040810
 		_:
 			return MID_MASS
 
