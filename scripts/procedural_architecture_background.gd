@@ -1,7 +1,7 @@
 extends Node2D
-## Background manager for a controlled palette comparison.
-## Palette A preserves the current game backdrop; B swaps the existing near-black
-## far-mass shade with the game navy; C reduces that same separation.
+## Background manager for the architecture palette and fill-contrast comparisons.
+## A/B/C compare background/silhouette palette relationships; D tests C's middle
+## fill; E/F isolate middle/far fill adjustments over the original navy backdrop.
 
 enum PaletteVariant {
 	CURRENT_NAVY,
