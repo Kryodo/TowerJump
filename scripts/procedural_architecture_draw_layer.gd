@@ -8,9 +8,9 @@ enum LayerType {
 	MID_ARCHITECTURE,
 	NEAR_FRAMES,
 }
+enum PaletteVariant { CURRENT_NAVY, REVERSED_VOID, INTERMEDIATE_BLUE_BLACK }
 
 @export var layer_type: LayerType = LayerType.FAR_SILHOUETTES
-enum PaletteVariant { CURRENT_NAVY, REVERSED_VOID, INTERMEDIATE_BLUE_BLACK }
 @export var palette_variant: PaletteVariant = PaletteVariant.CURRENT_NAVY
 @export var environment_seed: int = 7319
 @export var world_width: float = 720.0
