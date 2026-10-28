@@ -9,6 +9,11 @@ const BACKGROUND_SCRIPT: Script = preload("res://scripts/procedural_architecture
 const STRUCTURE_TOP_Y: float = -9000.0
 const STRUCTURE_BOTTOM_Y: float = -6000.0
 
+const BG_ORIGINAL_NAVY := Color(0.007843138, 0.023529412, 0.050980393, 1.0) # #02060D
+const BG_INTERMEDIATE_BLUE_BLACK := Color(0.003921569, 0.019607844, 0.039215688, 1.0) # #01050A
+const BG_NEAR_BLACK := Color(0.003921569, 0.011764706, 0.02745098, 1.0) # #010307
+const D_BACKGROUND_PALETTE_VARIANT: int = 3
+
 # Existing palette enum values: E/A1 = 4, F/A2 = 5, new hybrid G = 6.
 enum ArchitectureRecipe {
 	A1_STRUCTURAL_DEPTH = 4,
@@ -21,11 +26,13 @@ enum ArchitectureRecipe {
 var _game: Node2D
 var _camera: Camera2D
 var _ball: CharacterBody2D
+var _base_background: ColorRect
 var _background: Node2D
 var _seed_label: Label
 var _recipe_label: Label
 var _height_label: Label
 var _recipe: int = ArchitectureRecipe.A1_STRUCTURAL_DEPTH
+var _d_background_trial: int = -1 # -1 means use E/F/G with the original navy background.
 var _start_y: float
 var _seed_rng := RandomNumberGenerator.new()
 
@@ -54,8 +61,9 @@ func _spawn_game() -> void:
 
 	_camera = _game.get_node_or_null("GameCamera") as Camera2D
 	_ball = _game.get_node_or_null("Ball") as CharacterBody2D
-	if _camera == null or _ball == null:
-		push_error("Architecture Transition Test: Main scene is missing GameCamera or Ball.")
+	_base_background = _game.get_node_or_null("GameCamera/Background") as ColorRect
+	if _camera == null or _ball == null or _base_background == null:
+		push_error("Architecture Transition Test: Main scene is missing GameCamera, Ball, or GameCamera/Background.")
 		return
 
 	_start_y = _ball.global_position.y
@@ -83,6 +91,12 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_set_recipe(ArchitectureRecipe.A2_INTEGRATED_FAR)
 		KEY_G:
 			_set_recipe(ArchitectureRecipe.HYBRID)
+		KEY_H:
+			_set_d_background_trial(0)
+		KEY_I:
+			_set_d_background_trial(1)
+		KEY_J:
+			_set_d_background_trial(2)
 		KEY_R:
 			_randomize_seed()
 		KEY_1:
@@ -111,7 +125,7 @@ func _create_architecture() -> void:
 	_background.z_index = -50
 	_game.add_child(_background)
 	_background.call("set_environment_seed", initial_seed)
-	_background.call("set_palette_variant", int(_recipe))
+	_apply_selected_presentation()
 
 
 func _create_overlay() -> void:
@@ -131,7 +145,7 @@ func _create_overlay() -> void:
 
 	var instructions := Label.new()
 	instructions.position = Vector2(22.0, 136.0)
-	instructions.text = "E / F / G: STRUCTURE RECIPE   •   1 / 2 / 3: FIXED SEED   •   R: NEW SEED   •   SPACE: RESTART"
+	instructions.text = "E / F / G: RECIPE   •   H / I / J: D + BACKGROUND   •   1 / 2 / 3: SEED   •   SPACE: RESTART"
 	instructions.add_theme_font_size_override("font_size", 10)
 	instructions.add_theme_color_override("font_color", Color(0.36, 0.54, 0.64, 0.95))
 	instructions.add_theme_color_override("font_outline_color", Color(0.0, 0.01, 0.025, 1.0))
@@ -164,7 +178,7 @@ func _create_overlay() -> void:
 
 	var background_note := Label.new()
 	background_note.position = Vector2(22.0, 224.0)
-	background_note.text = "BACKGROUND FIXED  #02060D   •   ARCHITECTURE ENTERS / EXITS VIA PARALLAX"
+	background_note.text = "H / I / J CHANGE THE WHOLE-WORLD BACKGROUND; D FILLS STAY FIXED"
 	background_note.add_theme_font_size_override("font_size", 10)
 	background_note.add_theme_color_override("font_color", Color(0.36, 0.54, 0.64, 0.90))
 	background_note.add_theme_color_override("font_outline_color", Color(0.0, 0.01, 0.025, 1.0))
@@ -176,9 +190,40 @@ func _create_overlay() -> void:
 
 func _set_recipe(value: int) -> void:
 	_recipe = value
-	if _background != null:
-		_background.call("set_palette_variant", int(_recipe))
+	_d_background_trial = -1
+	_apply_selected_presentation()
 	_update_recipe_label()
+
+
+func _set_d_background_trial(value: int) -> void:
+	# Keep D's structural fills identical while switching the entire world's backdrop.
+	_recipe = D_BACKGROUND_PALETTE_VARIANT
+	_d_background_trial = clampi(value, 0, 2)
+	_apply_selected_presentation()
+	_update_recipe_label()
+
+
+func _selected_background_color() -> Color:
+	match _d_background_trial:
+		1:
+			return BG_INTERMEDIATE_BLUE_BLACK
+		2:
+			return BG_NEAR_BLACK
+		_:
+			return BG_ORIGINAL_NAVY
+
+
+func _apply_selected_presentation() -> void:
+	var selected_background: Color = _selected_background_color()
+	if _base_background != null:
+		# This ColorRect covers the whole viewport on every frame/height, so this is
+		# a true global void-color change rather than a band confined to the structure.
+		_base_background.color = selected_background
+	if _background != null:
+		_background.call("set_palette_variant", _recipe)
+		# Match the transition-band fill to the global background so no color seam
+		# appears at the bounds. The manager override is off by default in the A-F scene.
+		_background.call("set_background_fill_override", selected_background)
 
 
 func _set_seed(value: int) -> void:
@@ -206,6 +251,15 @@ func _restart_game() -> void:
 
 func _update_recipe_label() -> void:
 	if _recipe_label == null:
+		return
+	if _d_background_trial >= 0:
+		match _d_background_trial:
+			0:
+				_recipe_label.text = "H  /  D FILLS + ORIGINAL NAVY  #02060D"
+			1:
+				_recipe_label.text = "I  /  D FILLS + INTERMEDIATE  #01050A"
+			2:
+				_recipe_label.text = "J  /  D FILLS + NEAR-BLACK  #010307"
 		return
 	match _recipe:
 		ArchitectureRecipe.A1_STRUCTURAL_DEPTH:
