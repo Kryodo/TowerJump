@@ -70,7 +70,7 @@ func set_environment_seed(value: int) -> void:
 
 
 func set_palette_variant(value: int) -> void:
-	palette_variant = clampi(value, PaletteVariant.CURRENT_NAVY, PaletteVariant.INTERMEDIATE_BLUE_BLACK)
+	palette_variant = clampi(value, PaletteVariant.CURRENT_NAVY, PaletteVariant.INTERMEDIATE_BLUE_BLACK_MID_CONTRAST)
 	for layer in _layers:
 		layer.set("palette_variant", palette_variant)
 		layer.queue_redraw()
