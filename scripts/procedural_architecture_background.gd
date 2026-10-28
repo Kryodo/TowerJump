@@ -7,6 +7,7 @@ enum PaletteVariant {
 	CURRENT_NAVY,
 	REVERSED_VOID,
 	INTERMEDIATE_BLUE_BLACK,
+	INTERMEDIATE_BLUE_BLACK_MID_CONTRAST,
 }
 
 @export var environment_seed: int = 7319
@@ -55,7 +56,7 @@ func _background_color() -> Color:
 	match palette_variant:
 		PaletteVariant.REVERSED_VOID:
 			return BACKGROUND_REVERSED_VOID
-		PaletteVariant.INTERMEDIATE_BLUE_BLACK:
+		PaletteVariant.INTERMEDIATE_BLUE_BLACK, PaletteVariant.INTERMEDIATE_BLUE_BLACK_MID_CONTRAST:
 			return BACKGROUND_INTERMEDIATE
 		_:
 			return BACKGROUND_CURRENT_NAVY
