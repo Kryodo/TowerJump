@@ -58,9 +58,10 @@ func _draw() -> void:
 func _far_mass_color(index: int) -> Color:
 	match palette_variant:
 		PaletteVariant.CURRENT_NAVY_HUE_ONLY:
-			# Hue-vs-brightness test B: lean toward blue-purple while keeping
-			# weighted RGB luminance close to the original dark control fills.
-			return Color(0.0075, 0.0090, 0.0450, 0.98) if index % 3 == 0 else Color(0.0110, 0.0125, 0.0530, 0.98)
+			# Hue-vs-brightness test B: use A2's actual RGB proportions,
+			# scaled down to match each original control fill's weighted RGB luminance.
+			# This preserves the subtle A2 hue/chromaticity shift without lifting brightness.
+			return Color(0.004514, 0.012040, 0.024080, 0.98) if index % 3 == 0 else Color(0.006366, 0.015911, 0.031821, 0.98)
 		PaletteVariant.CURRENT_NAVY_BRIGHTNESS_ONLY:
 			# Hue-vs-brightness test C: retain the original RGB ratios while
 			# lifting luminance close to the existing combined A2 fill values.
