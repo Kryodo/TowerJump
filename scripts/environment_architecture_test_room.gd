@@ -14,7 +14,9 @@ var _camera: Camera2D
 var _ball: CharacterBody2D
 var _background: Node2D
 var _seed_label: Label
+var _palette_label: Label
 var _height_label: Label
+var _palette_variant: int = 0
 var _start_y: float
 var _seed_rng := RandomNumberGenerator.new()
 
@@ -63,6 +65,12 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		return
 
 	match key_event.keycode:
+		KEY_A:
+			_set_palette_variant(0)
+		KEY_B:
+			_set_palette_variant(1)
+		KEY_C:
+			_set_palette_variant(2)
 		KEY_R:
 			_randomize_seed()
 		KEY_1:
@@ -80,6 +88,7 @@ func _create_background() -> void:
 	_background.name = "CoherentArchitectureBackground"
 	_background.set_script(BACKGROUND_SCRIPT)
 	_background.set("environment_seed", initial_seed)
+	_background.set("palette_variant", _palette_variant)
 	_background.set("world_width", 720.0)
 	_background.set("section_top_y", -10400.0)
 	_background.set("section_bottom_y", 1600.0)
@@ -91,6 +100,7 @@ func _create_background() -> void:
 	_background.z_index = -50
 	_game.add_child(_background)
 	_background.call("set_environment_seed", initial_seed)
+	_background.call("set_palette_variant", _palette_variant)
 
 
 func _create_overlay() -> void:
@@ -101,7 +111,7 @@ func _create_overlay() -> void:
 
 	var title := Label.new()
 	title.position = Vector2(22.0, 112.0)
-	title.text = "COHERENT ARCHITECTURE  /  LIVE GAME CONTEXT"
+	title.text = "TEST 1  /  BACKGROUND + SILHOUETTE PALETTE"
 	title.add_theme_font_size_override("font_size", 16)
 	title.add_theme_color_override("font_color", Color(0.43, 0.75, 0.85, 0.95))
 	title.add_theme_color_override("font_outline_color", Color(0.0, 0.01, 0.025, 1.0))
@@ -110,8 +120,8 @@ func _create_overlay() -> void:
 
 	var instructions := Label.new()
 	instructions.position = Vector2(22.0, 136.0)
-	instructions.text = "ARROWS: STEER   •   R: NEW SEED   •   1 / 2 / 3: FIXED   •   SPACE: RESTART"
-	instructions.add_theme_font_size_override("font_size", 11)
+	instructions.text = "A / B / C: PALETTE   •   1 / 2 / 3: FIXED SEED   •   R: NEW SEED   •   SPACE: RESTART"
+	instructions.add_theme_font_size_override("font_size", 10)
 	instructions.add_theme_color_override("font_color", Color(0.36, 0.54, 0.64, 0.95))
 	instructions.add_theme_color_override("font_outline_color", Color(0.0, 0.01, 0.025, 1.0))
 	instructions.add_theme_constant_override("outline_size", 3)
@@ -126,17 +136,33 @@ func _create_overlay() -> void:
 	canvas.add_child(_seed_label)
 
 	_height_label = Label.new()
-	_height_label.position = Vector2(22.0, 180.0)
+	_palette_label = Label.new()
+	_palette_label.position = Vector2(22.0, 180.0)
+	_palette_label.add_theme_font_size_override("font_size", 13)
+	_palette_label.add_theme_color_override("font_color", Color(0.52, 0.70, 0.83, 0.96))
+	_palette_label.add_theme_color_override("font_outline_color", Color(0.0, 0.01, 0.025, 1.0))
+	_palette_label.add_theme_constant_override("outline_size", 3)
+	canvas.add_child(_palette_label)
+
+	_height_label.position = Vector2(22.0, 202.0)
 	_height_label.add_theme_font_size_override("font_size", 13)
 	_height_label.add_theme_color_override("font_color", Color(0.45, 0.43, 0.74, 0.95))
 	_height_label.add_theme_color_override("font_outline_color", Color(0.0, 0.01, 0.025, 1.0))
 	_height_label.add_theme_constant_override("outline_size", 3)
 	canvas.add_child(_height_label)
 	_update_seed_label(initial_seed)
+	_update_palette_label()
 
 
 func _randomize_seed() -> void:
 	_set_seed(_seed_rng.randi_range(1, 2_000_000_000))
+
+
+func _set_palette_variant(value: int) -> void:
+	_palette_variant = clampi(value, 0, 2)
+	if _background != null:
+		_background.call("set_palette_variant", _palette_variant)
+	_update_palette_label()
 
 
 func _set_seed(value: int) -> void:
@@ -156,6 +182,18 @@ func _restart_game() -> void:
 	_ball = null
 	_background = null
 	_spawn_game()
+
+
+func _update_palette_label() -> void:
+	if _palette_label == null:
+		return
+	match _palette_variant:
+		0:
+			_palette_label.text = "PALETTE A  /  CURRENT NAVY + NEAR-BLACK SILHOUETTES"
+		1:
+			_palette_label.text = "PALETTE B  /  NEAR-BLACK VOID + BLUE SILHOUETTES"
+		2:
+			_palette_label.text = "PALETTE C  /  INTERMEDIATE BLUE-BLACK"
 
 
 func _update_seed_label(value: int) -> void:
