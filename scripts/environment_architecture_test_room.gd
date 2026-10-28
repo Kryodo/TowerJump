@@ -73,6 +73,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_set_palette_variant(2)
 		KEY_D:
 			_set_palette_variant(3)
+		KEY_E:
+			_set_palette_variant(4)
+		KEY_F:
+			_set_palette_variant(5)
 		KEY_R:
 			_randomize_seed()
 		KEY_1:
@@ -122,7 +126,7 @@ func _create_overlay() -> void:
 
 	var instructions := Label.new()
 	instructions.position = Vector2(22.0, 136.0)
-	instructions.text = "A / B / C / D: PALETTE   •   1 / 2 / 3: FIXED SEED   •   R: NEW SEED   •   SPACE: RESTART"
+	instructions.text = "A–F: PALETTE   •   1 / 2 / 3: FIXED SEED   •   R: NEW SEED   •   SPACE: RESTART"
 	instructions.add_theme_font_size_override("font_size", 10)
 	instructions.add_theme_color_override("font_color", Color(0.36, 0.54, 0.64, 0.95))
 	instructions.add_theme_color_override("font_outline_color", Color(0.0, 0.01, 0.025, 1.0))
@@ -161,7 +165,7 @@ func _randomize_seed() -> void:
 
 
 func _set_palette_variant(value: int) -> void:
-	_palette_variant = clampi(value, 0, 3)
+	_palette_variant = clampi(value, 0, 5)
 	if _background != null:
 		_background.call("set_palette_variant", _palette_variant)
 	_update_palette_label()
@@ -198,6 +202,10 @@ func _update_palette_label() -> void:
 			_palette_label.text = "C  /  INTERMEDIATE BLUE-BLACK (CONTROL)"
 		3:
 			_palette_label.text = "D  /  C + SLIGHTLY BRIGHTER MIDDLE FILL"
+		4:
+			_palette_label.text = "E  /  A1 - NAVY + BRIGHTER MIDDLE FILL"
+		5:
+			_palette_label.text = "F  /  A2 - NAVY + BRIGHTER BLUE FAR MASSES"
 
 
 func _update_seed_label(value: int) -> void:
