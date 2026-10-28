@@ -58,7 +58,7 @@ The three existing parallax Y factors remain unchanged:
 - Middle architecture: `0.46`
 - Near frames: `0.82`
 
-Because each depth moves at a different rate, the layers will not enter or leave simultaneously. Expect the far silhouettes to linger longest; this is part of the test, not a fixed promise about zone length. With the current bounds, the far silhouettes should begin entering at roughly 1.8–2.0k climb height, with middle structure becoming more apparent around 3.3k and near frames around 5.9k. On the way out, near frames should leave first (roughly 10k), then middle structure (roughly 11k), with the far silhouettes returning fully to void at roughly 14k. These are geometry/parallax estimates, not Godot-runtime measurements; camera-follow lag and seed variation can shift them.
+Because each depth moves at a different rate, the layers will not enter or leave simultaneously. Expect the far silhouettes to linger longest; this is part of the test, not a fixed promise about zone length. With the current bounds, the far silhouettes should begin entering at roughly 1.5–1.8k climb height, with middle structure becoming more apparent around 3.2–3.4k and near frames around 5.9k. On the way out, near frames should leave first (roughly 10k), then middle structure (roughly 11k), with the far silhouettes returning fully to void at roughly 14k. These are geometry/parallax estimates, not Godot-runtime measurements; camera-follow lag and seed variation can shift them.
 
 The background manager may draw a background-color rectangle within the band, but for E/F/G that fill is exactly the same navy as the production background. The intended visible change is architecture only.
 
