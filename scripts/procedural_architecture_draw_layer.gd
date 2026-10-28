@@ -47,7 +47,7 @@ func _draw() -> void:
 
 func _far_mass_color(index: int) -> Color:
 	match palette_variant:
-		PaletteVariant.REVERSED_VOID:
+		PaletteVariant.REVERSED_VOID, PaletteVariant.INTERMEDIATE_BLUE_BLACK_MID_CONTRAST:
 			# Reverse the existing roles: old game background becomes the far
 			# silhouette fill. Keep only a tiny variation between masses.
 			return Color(0.007843138, 0.023529412, 0.050980393, 0.98) if index % 3 == 0 else Color(0.007843138, 0.019607844, 0.043137256, 0.98)
