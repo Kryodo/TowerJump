@@ -36,7 +36,7 @@ func _draw() -> void:
 			Vector2(-100.0, section_top_y - 200.0),
 			Vector2(world_width + 200.0, section_bottom_y - section_top_y + 400.0)
 		),
-		Color(0.003, 0.006, 0.015, 1.0),
+		Color(0.007843138, 0.023529412, 0.050980393, 1.0),
 		true
 	)
 
