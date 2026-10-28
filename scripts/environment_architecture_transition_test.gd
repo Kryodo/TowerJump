@@ -26,7 +26,7 @@ var _background: Node2D
 var _seed_label: Label
 var _recipe_label: Label
 var _height_label: Label
-var _recipe: ArchitectureRecipe = ArchitectureRecipe.A1_STRUCTURAL_DEPTH
+var _recipe: int = ArchitectureRecipe.A1_STRUCTURAL_DEPTH
 var _start_y: float
 var _seed_rng := RandomNumberGenerator.new()
 
@@ -171,7 +171,7 @@ func _create_overlay() -> void:
 	_update_seed_label(initial_seed)
 
 
-func _set_recipe(value: ArchitectureRecipe) -> void:
+func _set_recipe(value: int) -> void:
 	_recipe = value
 	if _background != null:
 		_background.call("set_palette_variant", int(_recipe))
