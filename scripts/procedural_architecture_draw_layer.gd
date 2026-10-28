@@ -8,7 +8,7 @@ enum LayerType {
 	MID_ARCHITECTURE,
 	NEAR_FRAMES,
 }
-enum PaletteVariant { CURRENT_NAVY, REVERSED_VOID, INTERMEDIATE_BLUE_BLACK, INTERMEDIATE_BLUE_BLACK_MID_CONTRAST, CURRENT_NAVY_MID_CONTRAST, CURRENT_NAVY_BRIGHTER_FAR, CURRENT_NAVY_HYBRID }
+enum PaletteVariant { CURRENT_NAVY, REVERSED_VOID, INTERMEDIATE_BLUE_BLACK, INTERMEDIATE_BLUE_BLACK_MID_CONTRAST, CURRENT_NAVY_MID_CONTRAST, CURRENT_NAVY_BRIGHTER_FAR, CURRENT_NAVY_HYBRID, CURRENT_NAVY_HUE_ONLY, CURRENT_NAVY_BRIGHTNESS_ONLY }
 
 @export var layer_type: LayerType = LayerType.FAR_SILHOUETTES
 @export var palette_variant: PaletteVariant = PaletteVariant.CURRENT_NAVY
@@ -47,6 +47,14 @@ func _draw() -> void:
 
 func _far_mass_color(index: int) -> Color:
 	match palette_variant:
+		PaletteVariant.CURRENT_NAVY_HUE_ONLY:
+			# Hue-vs-brightness test B: lean toward blue-purple while keeping
+			# weighted RGB luminance close to the original dark control fills.
+			return Color(0.0075, 0.0090, 0.0450, 0.98) if index % 3 == 0 else Color(0.0110, 0.0125, 0.0530, 0.98)
+		PaletteVariant.CURRENT_NAVY_BRIGHTNESS_ONLY:
+			# Hue-vs-brightness test C: retain the original RGB ratios while
+			# lifting luminance close to the existing combined A2 fill values.
+			return Color(0.01042, 0.03127, 0.06776, 0.98) if index % 3 == 0 else Color(0.01479, 0.03945, 0.07890, 0.98)
 		PaletteVariant.CURRENT_NAVY_BRIGHTER_FAR, PaletteVariant.CURRENT_NAVY_HYBRID:
 			# F / A2 and G / Hybrid share the brighter blue-direction far fills.
 			# G pairs these with A1's brighter middle fill.
