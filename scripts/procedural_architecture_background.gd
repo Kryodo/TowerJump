@@ -1,7 +1,7 @@
 extends Node2D
 ## Background manager for a controlled palette comparison.
-## Palette A preserves the current game backdrop; B reverses the relationship
-## toward a near-black void with blue architecture; C is the in-between option.
+## Palette A preserves the current game backdrop; B swaps the existing near-black
+## far-mass shade with the game navy; C reduces that same separation.
 
 enum PaletteVariant {
 	CURRENT_NAVY,
@@ -26,8 +26,8 @@ const LAYER_NAMES: Array[String] = [
 ]
 
 const BACKGROUND_CURRENT_NAVY := Color(0.007843138, 0.023529412, 0.050980393, 1.0) # #02060D
-const BACKGROUND_REVERSED_VOID := Color(0.003921569, 0.007843138, 0.015686275, 1.0) # #010204
-const BACKGROUND_INTERMEDIATE := Color(0.003921569, 0.015686275, 0.035294118, 1.0) # #010409
+const BACKGROUND_REVERSED_VOID := Color(0.003921569, 0.011764706, 0.02745098, 1.0) # #010307 (near-black, matching the former darkest far mass)
+const BACKGROUND_INTERMEDIATE := Color(0.003921569, 0.019607844, 0.039215688, 1.0) # #01050A
 
 var _camera: Camera2D
 var _layers: Array[Node2D] = []
@@ -40,7 +40,7 @@ func _ready() -> void:
 
 
 func _draw() -> void:
-	# Only the solid background fill changes between palette trials.
+	# Only the solid background fill and matching far/mid silhouette fills change between palette trials.
 	draw_rect(
 		Rect2(
 			Vector2(-100.0, section_top_y - 200.0),
