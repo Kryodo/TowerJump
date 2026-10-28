@@ -195,7 +195,7 @@ func _update_palette_label() -> void:
 		return
 	match _palette_variant:
 		0:
-			_palette_label.text = "A  /  CURRENT NAVY"
+			_palette_label.text = "A0  /  CURRENT NAVY CONTROL"
 		1:
 			_palette_label.text = "B  /  NEAR-BLACK + REVERSED NAVY MASSES"
 		2:
