@@ -79,7 +79,7 @@ F isolates the far-mass fill change. Compare A and F with the same seed. The goa
 
 All six variants keep the same:
 - architecture geometry and deterministic random stream
-- current seed when switching A/B/C
+- current seed when switching A–F
 - far/middle/near layer placement and parallax
 - muted contour and seam colours
 - cyan/violet HDR accent colours and line placement
