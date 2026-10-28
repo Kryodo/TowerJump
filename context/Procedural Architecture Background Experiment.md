@@ -8,9 +8,11 @@ Baseline: experiment-vertical-resonance-field
 
 ## Purpose
 
-Compare how the empty-space background colour relates to the far and middle architectural silhouette fills. This is a palette-only test using the real TowerJump main scene and its glow configuration.
+Compare how the empty-space background colour relates to the architectural silhouette fills. This is a palette-only test using the actual TowerJump main scene and its production glow setup.
 
-The production main scene and gameplay scripts, geometry, parallax, contour lines, neon accent colours, and glow settings are unchanged.
+The earlier B/C palette values were too bright and exposed the geometry. This revision corrects that mistake: it keeps the original low-contrast art direction and reverses only the dark colour roles.
+
+The production main scene, gameplay scripts, geometry, parallax, contour lines, neon accents, and glow settings remain unchanged.
 
 ## Run it
 
@@ -26,46 +28,46 @@ The production main scene and gameplay scripts, geometry, parallax, contour line
 
 - Background: current TowerJump navy, #02060D.
 - Far silhouettes: current near-black blue fills.
-- Middle structures: current subtle blue-black fill.
+- Middle filled structures: current subtle blue-black fill.
 
-This preserves the existing palette for a direct control.
+This preserves the existing palette for direct comparison.
 
-### B — Reversed near-black void
+### B — Reversed dark colour roles
 
-- Background: #010204.
-- Far silhouettes: deep blue, approximately #07111E / #081524.
-- Middle structures: a more visible dark blue, approximately #0B1B2B.
+- Background: near-black #010307.
+- Far silhouettes: original game navy #02060D, with only a tiny variation for adjacent masses.
+- Middle filled structures: near-black #03070D.
 
-This tests whether the void should be nearly black while the architecture is what introduces blue into the environment.
+This swaps the current near-black far-mass shade and the game navy without introducing brighter blue. The nearest filled architecture remains only fractionally lighter than near-black.
 
-### C — Intermediate blue-black
+### C — Intermediate background
 
-- Background: #010409.
-- Far silhouettes: almost-black blue, approximately #030812 / #040B16.
-- Middle structures: a subtly lighter blue-black, approximately #06101D.
+- Background: #01050A, between A's navy and B's near-black.
+- Far silhouettes: the same subdued original-game navy values as B.
+- Middle filled structures: the same near-black #03070D as B.
 
-This keeps the environment very dark while giving the silhouette layers a clearer tonal hierarchy than palette A.
+This tests whether a slightly lifted near-black background keeps enough atmosphere while preserving the restrained silhouette hierarchy.
 
 ## Controlled variables
 
 All three variants keep the same:
-- architecture geometry and its deterministic random stream
+- architecture geometry and deterministic random stream
 - current seed when switching A/B/C
 - far/middle/near layer placement and parallax
 - muted contour and seam colours
 - cyan/violet HDR accent colours and line placement
 - actual main scene, WorldEnvironment, glow/bloom settings, ball, trail, platforms, and ambient particles
 
-Only the solid background fill and the far/middle silhouette fills change between palettes. Use the same fixed seed while making the A/B/C comparison; changing seeds is a separate check for robustness.
+Only the solid background fill and far/middle silhouette fills change between palettes. No new brighter-blue fills, extra outlines, or additional details are introduced. Use the same fixed seed while comparing A/B/C; changing seeds is a separate robustness check.
 
 ## Evaluation checklist
 
-1. Which palette best preserves the mysterious empty-space feeling?
-2. Does the architecture stand out without looking pasted on or becoming a bright neon wall?
-3. Does the middle layer read as a structure, an opening, or an ambiguous overlap?
-4. Do the contours and neon accents remain readable under real-game glow?
-5. Does the palette still leave the ball and platforms as the clearest, most important elements?
+1. Does B preserve the original subtle contrast while making the empty space feel more like a void?
+2. Do the silhouettes remain largely hidden, with only enough definition to suggest architecture?
+3. Does C feel like a useful middle ground between A and B?
+4. Do the existing contours and neon accents remain restrained under real-game glow?
+5. Does the palette keep the ball and platforms as the clearest elements?
 
 ## Validation status
 
-The A/B/C controls and source-level palette routing have been implemented and reviewed. The scene still needs to be run in Godot 4.7.x to verify script parsing and compare the actual rendered results. No visual winner is assumed before that playtest.
+The corrected A/B/C fills and controls have been implemented and source-reviewed. The scene still needs to be run in Godot 4.7.x to confirm script parsing and compare the actual rendered results. No visual winner is assumed before that playtest.
