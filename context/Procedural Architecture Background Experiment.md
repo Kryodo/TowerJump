@@ -1,50 +1,71 @@
-# Coherent Architecture Silhouettes — Experiment
+# Architecture Palette Comparison — Test 1
 
-Branch: `experiment-coherent-architecture-silhouettes`
+Branch: experiment-architecture-palette-comparison
 
-Parent prototype: `experiment-procedural-architecture-background`
+Parent: experiment-coherent-architecture-silhouettes
 
-Baseline: `experiment-vertical-resonance-field`
+Baseline: experiment-vertical-resonance-field
 
 ## Purpose
 
-Replace the first prototype's scattered polygon/arc composition with a consistent visual grammar: large connected side masses, repeated buttress/support modules, carefully interrupted seams, and an open central play lane. The goal is to make the tower feel like one enormous constructed place while keeping the background dark but clearly legible and subordinate to foreground gameplay.
+Compare how the empty-space background colour relates to the far and middle architectural silhouette fills. This is a palette-only test using the real TowerJump main scene and its glow configuration.
 
-This is an isolated visual experiment. The production main scene and gameplay scripts are not modified. The test wrapper instantiates the actual main scene at runtime so the experiment is evaluated with the real rendering and gameplay setup.
+The production main scene and gameplay scripts, geometry, parallax, contour lines, neon accent colours, and glow settings are unchanged.
 
 ## Run it
 
-1. Switch to `experiment-coherent-architecture-silhouettes` in GitHub Desktop.
+1. Switch to experiment-architecture-palette-comparison in GitHub Desktop.
 2. Open the project in Godot.
-3. Open `scenes/environment_architecture_test_room.tscn`.
+3. Open scenes/environment_architecture_test_room.tscn.
 4. Use **Run Current Scene (F6)**.
-5. Steer with the left/right arrow keys. Press `R` for a new bounded composition, `1`, `2`, or `3` for fixed seeds, or `Space` to restart the run.
+5. Press **A**, **B**, or **C** to switch palette while keeping the current seed. Use **1**, **2**, or **3** to set a fixed seed, **R** for a new seed, and **Space** to restart.
 
-## Visual grammar
+## Palette variants
 
-- **Far layer:** overlapping, dark architectural masses with a repeated stepped inner edge. These are broad silhouettes, not collections of independent fragments.
-- **Mid layer:** repeated upright/support/buttress modules, occasional missing modules, rare recessed seams, and a consistent structural cadence.
-- **Near layer:** sparse, interrupted side rails only. It does not form a third pile of shapes over the play area.
-- **Palette:** the base fill matches the real game's blue-black background. Broad silhouettes use clearly separated dark values, with low-contrast edge reveals and only occasional cyan/violet HDR accents. Those accents should respond to the actual glow pass without turning the environment into a bright neon outline.
-- **Play lane:** the middle remains mostly open. The architecture frames play from the sides rather than filling the center.
-- **Resonance Gate:** retained as one composed landmark in the mid layer, built from a thick dark mass and a clear aperture. It has only a few restrained seams, with no duplicated arcs or shards in other depth layers.
-- **Archive Fragment:** retained as a small recessed object embedded into the side structure, rather than a floating ring/diamond glyph.
+### A — Current navy (control)
 
-## What changed from the first prototype
+- Background: current TowerJump navy, #02060D.
+- Far silhouettes: current near-black blue fills.
+- Middle structures: current subtle blue-black fill.
 
-The original experiment's drawing script and background manager are revised only on this branch. Geometry now varies within authored module proportions and vertical rhythm rather than choosing unrelated shape primitives. The background's broad tinted horizontal bands were removed. Parallax remains, but is used to separate depth layers, not to duplicate landmark fragments.
+This preserves the existing palette for a direct control.
 
-The test wrapper instantiates `scenes/main.tscn` itself, then inserts the architecture between the main scene's background color and ambient motes. This reuses the exact production `WorldEnvironment` resource and settings (`BG_CANVAS`, glow enabled, intensity 0.8, bloom 0.3, HDR threshold 0.5), as well as the real ball/trail, platforms, motes, HUD, camera, and landing feedback. This prevents the test from proving the concept under a different glow setup.
+### B — Reversed near-black void
+
+- Background: #010204.
+- Far silhouettes: deep blue, approximately #07111E / #081524.
+- Middle structures: a more visible dark blue, approximately #0B1B2B.
+
+This tests whether the void should be nearly black while the architecture is what introduces blue into the environment.
+
+### C — Intermediate blue-black
+
+- Background: #010409.
+- Far silhouettes: almost-black blue, approximately #030812 / #040B16.
+- Middle structures: a subtly lighter blue-black, approximately #06101D.
+
+This keeps the environment very dark while giving the silhouette layers a clearer tonal hierarchy than palette A.
+
+## Controlled variables
+
+All three variants keep the same:
+- architecture geometry and its deterministic random stream
+- current seed when switching A/B/C
+- far/middle/near layer placement and parallax
+- muted contour and seam colours
+- cyan/violet HDR accent colours and line placement
+- actual main scene, WorldEnvironment, glow/bloom settings, ball, trail, platforms, and ambient particles
+
+Only the solid background fill and the far/middle silhouette fills change between palettes. Use the same fixed seed while making the A/B/C comparison; changing seeds is a separate check for robustness.
 
 ## Evaluation checklist
 
-1. Does the architecture read as a connected megastructure instead of abstract geometry?
-2. Are the silhouettes clearly visible while the real ball/platform bloom remains dominant?
-3. Does the center remain open enough for platforms, ball, and later hazards?
-4. Do different seeds retain the same visual identity while giving modest compositional variation?
-5. Does the Gate still feel special, without becoming a bright screen-filling effect?
-6. Does the Archive look embedded in the environment and worth investigating?
+1. Which palette best preserves the mysterious empty-space feeling?
+2. Does the architecture stand out without looking pasted on or becoming a bright neon wall?
+3. Does the middle layer read as a structure, an opening, or an ambiguous overlap?
+4. Do the contours and neon accents remain readable under real-game glow?
+5. Does the palette still leave the ball and platforms as the clearest, most important elements?
 
-## Deliberate limits / validation
+## Validation status
 
-This remains one art-direction prototype, not a finished zone kit, landmark system, or procedural tower atlas. The Archive is visual only and is not a collectible. The experiment must still be opened and run in Godot 4.7.x to verify script parsing, layer order, parallax, glow response, and target-device readability. The test now uses the real main scene and environment rather than reproducing those settings manually; engine/runtime validation is still pending. Do not treat it as engine-validated until that test is complete.
+The A/B/C controls and source-level palette routing have been implemented and reviewed. The scene still needs to be run in Godot 4.7.x to verify script parsing and compare the actual rendered results. No visual winner is assumed before that playtest.
