@@ -8,9 +8,11 @@ Scene: `scenes/environment_architecture_hue_brightness_test.tscn`
 
 The previous F/A2 test changed far-silhouette fill values in both brightness and color relationship. This controlled test asks which part contributes most to its integration with the TowerJump foreground:
 
-- a blue-purple-leaning hue shift at approximately the original luminance;
-- a brightness lift that retains the original RGB proportions;
-- or the combined A2 values.
+- the subtle A2 color-ratio (hue/chromaticity) change at the original control brightness;
+- a brightness lift that retains the original control RGB proportions;
+- or the exact combined A2 values.
+
+The previous B was the wrong hue direction and its far fills sat too close to the fixed navy background. B now uses A2's actual channel proportions, scaled down to each original control fill's weighted-RGB luminance proxy. This preserves the hue-only comparison without making the silhouettes disappear.
 
 ## Run it
 
@@ -42,12 +44,12 @@ Uses the existing A0 values:
 
 This is the reference for both hue and brightness.
 
-### B — Hue only: blue-purple lean at approximately matched luminance
+### B — Hue only: A2 color ratios at control brightness
 
-- Far mass A: `Color(0.0075, 0.0090, 0.0450, 0.98)`.
-- Far mass B: `Color(0.0110, 0.0125, 0.0530, 0.98)`.
+- Far mass A: `Color(0.004514, 0.012040, 0.024080, 0.98)`.
+- Far mass B: `Color(0.006366, 0.015911, 0.031821, 0.98)`.
 
-These values shift the far masses toward a blue-purple relationship while keeping a simple weighted-RGB luminance proxy close to the control values. They are an authored test candidate, not a mathematically perfect perceptual match. Display rendering and glow may affect the perceived comparison.
+These values use the actual A2 channel proportions for the corresponding far masses, scaled down to match the original A0 fill's weighted-RGB luminance proxy. This changes the subtle color relationship without borrowing A2's brightness lift. B should remain as dark as A, rather than merging into the fixed background. The luminance match is an approximation, so judge the rendered result.
 
 ### C — Brightness only: original hue proportions, lifted toward A2's luminance
 
@@ -79,16 +81,16 @@ The original A–F palette scene and H/I/J D-background transition test remain s
 
 ## Evaluation checklist
 
-1. Does B improve foreground integration while retaining A's deeper silhouette separation?
-2. Does C integrate better primarily because the far masses move closer to the background's value?
-3. Does D still look better than either isolated adjustment?
-4. Does the purple-platform relationship improve in B or D, and does it feel intentional rather than muddy?
+1. Comparing A and B, is A2's subtle color-ratio shift visible when silhouette brightness is held at the original dark level?
+2. Comparing A and C, does the brightness lift alone explain most of A2's improved foreground integration?
+3. Comparing C and D, can you see any additional benefit from A2's small color-ratio shift once the fills are bright?
+4. Does the exact A2 palette still relate well to the purple platforms without looking muddy?
 5. Does the winner remain convincing while climbing and across the fixed seeds?
 6. Do platforms, ball and trail remain the strongest and clearest foreground elements?
 
 ## Interpretation note
 
-The RGB-channel values and approximate luminance matching are starting points for a controlled visual test, not a claim of perfect perceptual equivalence. Judge the actual Godot render under the real game's environment and glow. If B and C appear too similar, too strong, or too weak, record that feedback before changing any values.
+The values use a weighted-RGB luminance proxy, not a perfect model of perceived brightness under Godot's render and glow. A and B should retain similar darkness; A versus B tests the actual, subtle A2 color-ratio change. C and D may still look nearly identical because the original and A2 channel proportions are quite close. That would be a meaningful result: brightness may contribute much more to A2's integration than its hue shift does.
 
 ## Validation status
 
