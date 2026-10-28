@@ -39,6 +39,10 @@ func _ready() -> void:
 
 
 func _spawn_game() -> void:
+	# Seed the global RNG before the real game enters the tree. This keeps the
+	# platform-pattern choices that use Godot's global RNG comparable on restart.
+	seed(initial_seed)
+
 	# Use the actual game scene so camera follow, platforms, ball/trail, motes,
 	# world glow and landing feedback match the normal game presentation.
 	_game = MAIN_GAME_SCENE.instantiate() as Node2D
