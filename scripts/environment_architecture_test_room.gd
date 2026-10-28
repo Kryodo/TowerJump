@@ -189,11 +189,11 @@ func _update_palette_label() -> void:
 		return
 	match _palette_variant:
 		0:
-			_palette_label.text = "PALETTE A  /  CURRENT NAVY + NEAR-BLACK SILHOUETTES"
+			_palette_label.text = "A  /  CURRENT NAVY"
 		1:
-			_palette_label.text = "PALETTE B  /  NEAR-BLACK VOID + BLUE SILHOUETTES"
+			_palette_label.text = "B  /  NEAR-BLACK + REVERSED NAVY MASSES"
 		2:
-			_palette_label.text = "PALETTE C  /  INTERMEDIATE BLUE-BLACK"
+			_palette_label.text = "C  /  INTERMEDIATE NEAR-BLACK"
 
 
 func _update_seed_label(value: int) -> void:
