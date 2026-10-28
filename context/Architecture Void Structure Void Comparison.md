@@ -57,7 +57,7 @@ The three existing parallax Y factors remain unchanged:
 - Middle architecture: `0.46`
 - Near frames: `0.82`
 
-Because each depth moves at a different rate, the layers will not enter or leave simultaneously. Expect the far silhouettes to linger longest; this is part of the test, not a fixed promise about zone length. The exact visible transition also depends on camera follow and the selected seed.
+Because each depth moves at a different rate, the layers will not enter or leave simultaneously. Expect the far silhouettes to linger longest; this is part of the test, not a fixed promise about zone length. With the current bounds, the far silhouettes should begin entering at roughly 1.8–2.0k climb height, with middle structure becoming more apparent around 3.3k and near frames around 5.9k. On the way out, near frames should leave first (roughly 10k), then middle structure (roughly 11k), with the far silhouettes returning fully to void at roughly 14k. These are geometry/parallax estimates, not Godot-runtime measurements; camera-follow lag and seed variation can shift them.
 
 The background manager may draw a background-color rectangle within the band, but for E/F/G that fill is exactly the same navy as the production background. The intended visible change is architecture only.
 
@@ -70,7 +70,7 @@ The background manager may draw a background-color rectangle within the band, bu
 - **R** — random seed
 - **Space / Enter** — restart
 
-The original A–F palette comparison remains available in `scenes/environment_architecture_test_room.tscn`; this is a separate test scene, not a replacement.
+The original A–F palette comparison remains available in `scenes/environment_architecture_test_room.tscn`; this is a separate test scene, not a replacement. The wrapper seeds Godot's global RNG before instantiating the real main scene so platform-pattern choices that use the global RNG are repeatable with a fixed seed; any separate RNGs that explicitly randomize themselves may still vary.
 
 ## Evaluation checklist
 
