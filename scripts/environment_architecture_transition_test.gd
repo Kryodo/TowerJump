@@ -8,7 +8,6 @@ const BACKGROUND_SCRIPT: Script = preload("res://scripts/procedural_architecture
 
 const STRUCTURE_TOP_Y: float = -9000.0
 const STRUCTURE_BOTTOM_Y: float = -6000.0
-const BACKGROUND_COLOR_HEX: String = "#02060D"
 
 # Existing palette enum values: E/A1 = 4, F/A2 = 5, new hybrid G = 6.
 enum ArchitectureRecipe {
