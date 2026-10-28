@@ -227,7 +227,7 @@ func _update_variant_label() -> void:
 		TestVariant.CONTROL_A0:
 			_variant_label.text = "A  /  CONTROL - ORIGINAL DARK FAR FILLS"
 		TestVariant.HUE_ONLY:
-			_variant_label.text = "B  /  HUE ONLY - BLUE-PURPLE LEAN, MATCHED LUMINANCE"
+			_variant_label.text = "B  /  HUE ONLY - A2 COLOR RATIOS, CONTROL BRIGHTNESS"
 		TestVariant.BRIGHTNESS_ONLY:
 			_variant_label.text = "C  /  BRIGHTNESS ONLY - ORIGINAL HUE, A2-LIKE LUMINANCE"
 		TestVariant.COMBINED_A2:
