@@ -35,6 +35,8 @@ const BACKGROUND_INTERMEDIATE := Color(0.003921569, 0.019607844, 0.039215688, 1.
 
 var _camera: Camera2D
 var _layers: Array[Node2D] = []
+var _use_background_fill_override: bool = false
+var _background_fill_override: Color = BACKGROUND_CURRENT_NAVY
 
 
 func _ready() -> void:
@@ -56,6 +58,8 @@ func _draw() -> void:
 
 
 func _background_color() -> Color:
+	if _use_background_fill_override:
+		return _background_fill_override
 	match palette_variant:
 		PaletteVariant.REVERSED_VOID:
 			return BACKGROUND_REVERSED_VOID
@@ -77,6 +81,14 @@ func set_palette_variant(value: int) -> void:
 	for layer in _layers:
 		layer.set("palette_variant", palette_variant)
 		layer.queue_redraw()
+	queue_redraw()
+
+
+func set_background_fill_override(value: Color) -> void:
+	# Transition-test wrapper can force the same backdrop throughout the world.
+	# With this disabled by default, the original A-F palette scene is unchanged.
+	_background_fill_override = value
+	_use_background_fill_override = true
 	queue_redraw()
 
 
