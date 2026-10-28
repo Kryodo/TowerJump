@@ -17,13 +17,16 @@ enum LayerType {
 
 var _rng := RandomNumberGenerator.new()
 
-const FAR_MASS_A := Color(0.006, 0.013, 0.027, 0.98)
-const FAR_MASS_B := Color(0.008, 0.016, 0.033, 0.96)
-const MID_MASS := Color(0.009, 0.019, 0.037, 0.90)
-const MID_SHADOW := Color(0.004, 0.010, 0.023, 0.92)
-const SEAM_CYAN := Color(0.025, 0.17, 0.23, 0.23)
-const SEAM_VIOLET := Color(0.095, 0.045, 0.17, 0.20)
-const NEAR_SEAM := Color(0.018, 0.11, 0.15, 0.12)
+const FAR_MASS_A := Color(0.004, 0.012, 0.026, 0.98)
+const FAR_MASS_B := Color(0.006, 0.016, 0.032, 0.98)
+const MID_MASS := Color(0.011, 0.024, 0.044, 0.96)
+const MID_SHADOW := Color(0.003, 0.008, 0.019, 0.96)
+const SEAM_CYAN := Color(0.025, 0.19, 0.26, 0.42)
+const SEAM_VIOLET := Color(0.15, 0.07, 0.27, 0.34)
+const NEAR_SEAM := Color(0.018, 0.13, 0.18, 0.20)
+const ACCENT_CYAN := Color(0.012, 0.82, 1.15, 0.84)
+const ACCENT_VIOLET := Color(0.42, 0.16, 0.88, 0.78)
+const EDGE_REVEAL := Color(0.026, 0.105, 0.155, 0.64)
 
 
 func _draw() -> void:
@@ -120,6 +123,17 @@ func _draw_support_module(side: float, top_y: float, index: int) -> void:
 	])
 	draw_colored_polygon(silhouette, MID_MASS)
 
+	# A quiet edge reveal separates the mass from the game background, while
+	# the broad fill still carries most of the structure's visual weight.
+	var inner_edge_x: float = edge_x + side * (width - 2.0)
+	draw_line(
+		Vector2(inner_edge_x, top_y + height * 0.10),
+		Vector2(inner_edge_x, top_y + height * 0.78),
+		EDGE_REVEAL,
+		2.0,
+		true
+	)
+
 	# A single dark inset makes the upright feel thick and constructed.
 	var inset_x: float = edge_x + side * (width - 27.0)
 	draw_line(
@@ -142,12 +156,22 @@ func _draw_support_module(side: float, top_y: float, index: int) -> void:
 			true
 		)
 
-	# A restrained cap edge occasionally catches light; never trace every edge.
-	if index % 4 == 0:
+	# Most modules stay unlit. Every fifth module gets a short HDR edge accent,
+	# enough to react to the game's glow pass without tracing every edge.
+	var accent_y: float = top_y + height * (0.13 if index % 5 == 0 else 0.64)
+	if index % 5 == 0:
 		draw_line(
-			Vector2(edge_x + side * 12.0, top_y + 96.0),
-			Vector2(edge_x + side * (width - 12.0), top_y + 96.0),
-			Color(0.025, 0.14, 0.19, 0.19),
+			Vector2(inner_edge_x, accent_y),
+			Vector2(inner_edge_x, accent_y + height * 0.105),
+			ACCENT_CYAN,
+			2.0,
+			true
+		)
+	elif index % 7 == 0:
+		draw_line(
+			Vector2(inner_edge_x, accent_y),
+			Vector2(inner_edge_x, accent_y + height * 0.07),
+			ACCENT_VIOLET,
 			2.0,
 			true
 		)
@@ -203,6 +227,13 @@ func _draw_resonance_gate() -> void:
 		Vector2(cx, cy + 372.0),
 	])
 	draw_colored_polygon(aperture, Color(0.003, 0.007, 0.017, 1.0))
+
+	# Partial contour reveals clarify the monument's shape. Only a few short
+	# HDR segments glow under the same WorldEnvironment as the normal game.
+	draw_line(Vector2(cx - 245.0, cy + 165.0), Vector2(cx - 245.0, cy - 118.0), ACCENT_CYAN, 2.5, true)
+	draw_line(Vector2(cx + 245.0, cy - 118.0), Vector2(cx + 245.0, cy + 165.0), ACCENT_CYAN, 2.5, true)
+	draw_line(Vector2(cx - 128.0, cy - 390.0), Vector2(cx - 76.0, cy - 320.0), ACCENT_VIOLET, 2.0, true)
+	draw_line(Vector2(cx + 128.0, cy - 390.0), Vector2(cx + 76.0, cy - 320.0), ACCENT_VIOLET, 2.0, true)
 
 	# Inner reveals and only two small lit joints. No circular halo, floating
 	# shards, or duplicated gate geometry on the parallax layers.
