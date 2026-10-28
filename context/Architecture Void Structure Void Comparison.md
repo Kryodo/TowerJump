@@ -8,7 +8,7 @@ Scene: `scenes/environment_architecture_transition_test.tscn`
 
 Evaluate the architecture as part of a continuous climb rather than as a static screenshot: begin in the normal empty void, enter a bounded architectural region, and then climb back into the empty void.
 
-The global background is held at the existing TowerJump navy, `#02060D`, for the entire test. The production `scenes/main.tscn` remains unchanged. The transition wrapper instantiates the real main scene and adds the existing procedural architecture behind gameplay and in front of the base background.
+The E/F/G recipe comparison uses the existing TowerJump navy, `#02060D`, for the entire test. An added H/I/J comparison uses D's architectural fills while testing three different background colors across the entire world. The production `scenes/main.tscn` remains unchanged: the wrapper changes the instantiated background ColorRect at runtime and matches the architecture band's background fill to it, so the color does not change only inside the structure band.
 
 ## Run it
 
@@ -17,8 +17,9 @@ The global background is held at the existing TowerJump navy, `#02060D`, for the
 3. Open `scenes/environment_architecture_transition_test.tscn`.
 4. Run **Run Current Scene (F6)**.
 5. Start with fixed seed **1** (7319). Compare E, F and G with that same seed. Use **2** (24017) and **3** (91207) only after the first comparison.
-6. For a full-sequence comparison, select E, F or G and then press **Space** to restart from the initial void. The selected recipe and seed are retained; the wrapper reseeds the global RNG before the game scene initializes.
-7. Climb continuously: the architecture is a finite band, so the scene begins with empty void, gradually gains architecture at different parallax depths, and eventually returns to empty void. Use **Space** to restart the run.
+6. For the D-background pass, select **H**, **I** or **J**, then press **Space** to restart from the initial void. Compare them with the same seed.
+7. For a full-sequence comparison, select E/F/G or H/I/J and then press **Space** to restart. The selected recipe, background mode and seed are retained; the wrapper reseeds the global RNG before the game scene initializes.
+8. Climb continuously: the architecture is a finite band, so the scene begins with empty void, gradually gains architecture at different parallax depths, and eventually returns to empty void.
 
 ## Recipes
 
@@ -46,7 +47,17 @@ This is the integration-oriented recipe where the far structures approach the ba
 - Middle supports: same as E / A1.
 - Background: `#02060D`.
 
-This untested hybrid asks whether the integrated far masses can be combined with enough middle-layer separation to recover a little more depth.
+This was added as a comparison hypothesis, but the user later judged it too merged and low in depth. It remains available in the test scene but is not a leading candidate.
+
+## D architecture with alternative global backgrounds — H / I / J
+
+These variants use the same D architecture fills: far silhouettes from D/C and the brighter middle fill, approximately `#040810`. The only intended variable is the background color. The wrapper changes both the main scene's camera-following `Background` ColorRect and the architecture manager's band fill to the same color so there is no background-colored rectangle confined to the architecture band.
+
+- **H — Original navy:** `#02060D`.
+- **I — Intermediate blue-black:** `#01050A`.
+- **J — Near-black:** `#010307`.
+
+The H/I/J controls are new to the transition test. They do not change the palette choices in the original A–F comparison scene. The goal is to find out how D's architecture reads when entering and leaving a void of each color, not merely how it looks inside the structure band.
 
 ## Transition band and parallax
 
@@ -60,13 +71,16 @@ The three existing parallax Y factors remain unchanged:
 
 Because each depth moves at a different rate, the layers will not enter or leave simultaneously. Expect the far silhouettes to linger longest; this is part of the test, not a fixed promise about zone length. With the current bounds, the far silhouettes should begin entering at roughly 1.5–1.8k climb height, with middle structure becoming more apparent around 3.2–3.4k and near frames around 5.9k. On the way out, near frames should leave first (roughly 10k), then middle structure (roughly 11k), with the far silhouettes returning fully to void at roughly 14k. These are geometry/parallax estimates, not Godot-runtime measurements; camera-follow lag and seed variation can shift them.
 
-The background manager may draw a background-color rectangle within the band, but for E/F/G that fill is exactly the same navy as the production background. The intended visible change is architecture only.
+For E/F/G, the background is the original navy. For H/I/J, the main scene's full background and the background manager's band fill are both updated at runtime to the selected background color. This prevents an unintended color seam or background band.
 
 ## Controls
 
 - **E** — E / A1 structural-depth recipe
 - **F** — F / A2 integrated-far recipe
 - **G** — hybrid (A2 far + A1 middle)
+- **H** — D fills + original navy `#02060D`
+- **I** — D fills + intermediate blue-black `#01050A`
+- **J** — D fills + near-black `#010307`
 - **1 / 2 / 3** — fixed seeds 7319 / 24017 / 91207
 - **R** — random seed
 - **Space / Enter** — restart
@@ -91,4 +105,4 @@ The original A–F palette comparison remains available in `scenes/environment_a
 
 ## Validation status
 
-The test scene, wrapper and hybrid recipe have been added to the existing experiment branch. Source checks should confirm the new keys and fill mappings; the scene still needs to be run in Godot 4.7.x to verify parsing and assess the rendered transitions. No visual winner is assumed before the playtest.
+The separate transition scene now contains E/F/G (the original navy recipe comparison) and H/I/J (D's structural fills with three global background colors). The original A–F palette scene remains unchanged in purpose and available separately. Source has been checked for the background ColorRect update, matched architecture-band override, controls and palette mappings, but the scene still needs to be run in Godot 4.7.x to verify parsing and assess the rendered transitions. No visual winner is assumed before the playtest.
