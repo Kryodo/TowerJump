@@ -1,7 +1,7 @@
 extends Node2D
 ## A separate void -> structure -> void study using the actual TowerJump main
-## scene. The production background stays #02060D while a bounded architecture
-## band enters and leaves the view through the existing three parallax layers.
+## scene. E/F/G use the original #02060D background; H/I/J hold D's structural
+## fills constant while testing three whole-world background colors.
 
 const MAIN_GAME_SCENE: PackedScene = preload("res://scenes/main.tscn")
 const BACKGROUND_SCRIPT: Script = preload("res://scripts/procedural_architecture_background.gd")
