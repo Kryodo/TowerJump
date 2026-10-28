@@ -22,6 +22,20 @@ The production main scene, gameplay scripts, geometry, parallax, contour lines, 
 4. Use **Run Current Scene (F6)**.
 5. Press **A–F** to switch variants while keeping the current seed. A is A0, E is A1, and F is A2; B/C/D are retained from the previous pass. Use **1**, **2**, or **3** to set a fixed seed, **R** for a new seed, and **Space** to restart.
 
+## Current decisions and related test scenes
+
+The global void background is now the leading shared baseline at **`#02060D`**. The H/I/J transition test supported keeping TowerJump's established navy atmosphere rather than switching the global void to near-black or intermediate blue-black. The architectural fill relationships remain open to further testing.
+
+The controlled experiments are kept in separate scenes on this same branch:
+
+- Original A–F palette comparison: `scenes/environment_architecture_test_room.tscn`.
+- Void → structure → void transition, including E/F/G recipes and the D-fill H/I/J background sweep: `scenes/environment_architecture_transition_test.tscn`. Notes: `context/Architecture Void Structure Void Comparison.md`.
+- Final far-fill hue-versus-brightness study: `scenes/environment_architecture_hue_brightness_test.tscn`. Notes: `context/Architecture Far Fill Hue vs Brightness Test.md`.
+
+The latest hue-versus-brightness test holds the background at `#02060D` and the middle fill constant while comparing the original dark far fills, a blue-purple hue shift, a brightness-only lift and the combined A2 values. It is meant to identify color relationships for the future art library, not to force every zone to use the same architecture recipe.
+
+The mote depth/parallax idea and restrained architectural accent flicker remain separate future polish investigations. Neither is changed by these palette tests.
+
 ## Palette variants
 
 ### A / A0 — Current navy (control)
