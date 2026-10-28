@@ -52,8 +52,8 @@ func _far_mass_color(index: int) -> Color:
 			# brighter and bluer than the near-black A control fills.
 			return Color(0.011764706, 0.03137255, 0.0627451, 0.98) if index % 3 == 0 else Color(0.015686275, 0.039215688, 0.078431375, 0.98)
 		PaletteVariant.REVERSED_VOID, PaletteVariant.INTERMEDIATE_BLUE_BLACK_MID_CONTRAST:
-			# Reverse the existing roles: old game background becomes the far
-			# silhouette fill. Keep only a tiny variation between masses.
+			# B reverses the existing roles; D deliberately retains C's far-mass
+			# fills so D changes only the middle fill compared with C.
 			return Color(0.007843138, 0.023529412, 0.050980393, 0.98) if index % 3 == 0 else Color(0.007843138, 0.019607844, 0.043137256, 0.98)
 		PaletteVariant.INTERMEDIATE_BLUE_BLACK:
 			# Keep the same dark navy silhouette but reduce the background-to-mass
