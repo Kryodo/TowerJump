@@ -10,6 +10,8 @@ enum LayerType {
 }
 
 @export var layer_type: LayerType = LayerType.FAR_SILHOUETTES
+enum PaletteVariant { CURRENT_NAVY, REVERSED_VOID, INTERMEDIATE_BLUE_BLACK }
+@export var palette_variant: PaletteVariant = PaletteVariant.CURRENT_NAVY
 @export var environment_seed: int = 7319
 @export var world_width: float = 720.0
 @export var section_top_y: float = -10400.0
@@ -43,6 +45,26 @@ func _draw() -> void:
 			_draw_near_frames()
 
 
+func _far_mass_color(index: int) -> Color:
+	match palette_variant:
+		PaletteVariant.REVERSED_VOID:
+			return Color(0.02745, 0.06667, 0.11765, 0.98) if index % 3 == 0 else Color(0.03137, 0.08235, 0.14118, 0.98)
+		PaletteVariant.INTERMEDIATE_BLUE_BLACK:
+			return Color(0.01176, 0.03137, 0.07059, 0.98) if index % 3 == 0 else Color(0.01569, 0.04314, 0.08627, 0.98)
+		_:
+			return FAR_MASS_A if index % 3 == 0 else FAR_MASS_B
+
+
+func _mid_mass_color() -> Color:
+	match palette_variant:
+		PaletteVariant.REVERSED_VOID:
+			return Color(0.04314, 0.10588, 0.16863, 0.96)
+		PaletteVariant.INTERMEDIATE_BLUE_BLACK:
+			return Color(0.02353, 0.06275, 0.11373, 0.96)
+		_:
+			return MID_MASS
+
+
 # A few broad, overlapping side masses imply an enormous continuous structure.
 # The inner edges step in a repeated cadence; there are no detached shards.
 func _draw_far_architecture() -> void:
@@ -74,7 +96,7 @@ func _draw_far_mass(side: float, top_y: float, height: float, width: float, inde
 		Vector2(edge_x + side * (inner + 10.0), top_y + height),
 		Vector2(edge_x - side * 86.0, top_y + height),
 	])
-	var fill: Color = FAR_MASS_A if index % 3 == 0 else FAR_MASS_B
+	var fill: Color = _far_mass_color(index)
 	draw_colored_polygon(points, fill)
 
 	# One recessed vertical seam on selected modules. The silhouette, not an
@@ -121,7 +143,7 @@ func _draw_support_module(side: float, top_y: float, index: int) -> void:
 		Vector2(edge_x + side * (width - 6.0), top_y + height),
 		Vector2(edge_x - side * 28.0, top_y + height),
 	])
-	draw_colored_polygon(silhouette, MID_MASS)
+	draw_colored_polygon(silhouette, _mid_mass_color())
 
 	# A quiet edge reveal separates the mass from the game background, while
 	# the broad fill still carries most of the structure's visual weight.
