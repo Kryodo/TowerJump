@@ -17,7 +17,8 @@ The global background is held at the existing TowerJump navy, `#02060D`, for the
 3. Open `scenes/environment_architecture_transition_test.tscn`.
 4. Run **Run Current Scene (F6)**.
 5. Start with fixed seed **1** (7319). Compare E, F and G with that same seed. Use **2** (24017) and **3** (91207) only after the first comparison.
-6. Climb continuously: the architecture is a finite band, so the scene begins with empty void, gradually gains architecture at different parallax depths, and eventually returns to empty void. Use **Space** to restart the run.
+6. For a full-sequence comparison, select E, F or G and then press **Space** to restart from the initial void. The selected recipe and seed are retained; the wrapper reseeds the global RNG before the game scene initializes.
+7. Climb continuously: the architecture is a finite band, so the scene begins with empty void, gradually gains architecture at different parallax depths, and eventually returns to empty void. Use **Space** to restart the run.
 
 ## Recipes
 
