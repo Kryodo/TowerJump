@@ -1,7 +1,7 @@
 extends Node2D
-## Background manager for the architecture palette and fill-contrast comparisons.
-## A/B/C compare background/silhouette palette relationships; D tests C's middle
-## fill; E/F isolate middle/far fill adjustments over the original navy backdrop.
+## Background manager for isolated architecture palette comparisons.
+## It supports the original A-F palette study, D-background transition study,
+## and far-fill hue/brightness study while keeping the production scene unchanged.
 
 enum PaletteVariant {
 	CURRENT_NAVY,
