@@ -8,7 +8,7 @@ enum LayerType {
 	MID_ARCHITECTURE,
 	NEAR_FRAMES,
 }
-enum PaletteVariant { CURRENT_NAVY, REVERSED_VOID, INTERMEDIATE_BLUE_BLACK, INTERMEDIATE_BLUE_BLACK_MID_CONTRAST, CURRENT_NAVY_MID_CONTRAST, CURRENT_NAVY_BRIGHTER_FAR }
+enum PaletteVariant { CURRENT_NAVY, REVERSED_VOID, INTERMEDIATE_BLUE_BLACK, INTERMEDIATE_BLUE_BLACK_MID_CONTRAST, CURRENT_NAVY_MID_CONTRAST, CURRENT_NAVY_BRIGHTER_FAR, CURRENT_NAVY_HYBRID }
 
 @export var layer_type: LayerType = LayerType.FAR_SILHOUETTES
 @export var palette_variant: PaletteVariant = PaletteVariant.CURRENT_NAVY
@@ -47,9 +47,9 @@ func _draw() -> void:
 
 func _far_mass_color(index: int) -> Color:
 	match palette_variant:
-		PaletteVariant.CURRENT_NAVY_BRIGHTER_FAR:
-			# F / A2: retain the original navy void and make far masses subtly
-			# brighter and bluer than the near-black A control fills.
+		PaletteVariant.CURRENT_NAVY_BRIGHTER_FAR, PaletteVariant.CURRENT_NAVY_HYBRID:
+			# F / A2 and G / Hybrid share the brighter blue-direction far fills.
+			# G pairs these with A1's brighter middle fill.
 			return Color(0.011764706, 0.03137255, 0.0627451, 0.98) if index % 3 == 0 else Color(0.015686275, 0.039215688, 0.078431375, 0.98)
 		PaletteVariant.REVERSED_VOID, PaletteVariant.INTERMEDIATE_BLUE_BLACK_MID_CONTRAST:
 			# B reverses the existing roles; D deliberately retains C's far-mass
@@ -65,9 +65,9 @@ func _far_mass_color(index: int) -> Color:
 
 func _mid_mass_color() -> Color:
 	match palette_variant:
-		PaletteVariant.CURRENT_NAVY_MID_CONTRAST, PaletteVariant.INTERMEDIATE_BLUE_BLACK_MID_CONTRAST:
-			# E / A1 and D share the same slightly lifted middle fill so the
-			# contrast adjustment can be compared across the two backgrounds.
+		PaletteVariant.CURRENT_NAVY_MID_CONTRAST, PaletteVariant.INTERMEDIATE_BLUE_BLACK_MID_CONTRAST, PaletteVariant.CURRENT_NAVY_HYBRID:
+			# E / A1, D and G / Hybrid share the same slightly lifted middle fill.
+			# G combines A1's middle separation with F's integrated far masses.
 			return Color(0.015686275, 0.03137255, 0.0627451, 0.96) # approx. #040810
 		PaletteVariant.REVERSED_VOID, PaletteVariant.INTERMEDIATE_BLUE_BLACK:
 			# Existing low-contrast middle structure, retained for A/B/C.
