@@ -1,7 +1,7 @@
 extends Node2D
 ## Architecture study wrapped around the actual Main scene.
 ## This intentionally reuses TowerJump's production WorldEnvironment, camera,
-## ball, platforms, particles, HUD and feedback so glow/readability are evaluated
+## ball, platforms, ambient motes, HUD and feedback so glow/readability are tested
 ## under the same rendering conditions as normal gameplay.
 
 const MAIN_GAME_SCENE: PackedScene = preload("res://scenes/main.tscn")
@@ -20,11 +20,18 @@ var _seed_rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
+	# Keep seed/restart controls available after the game-over screen pauses the
+	# gameplay tree. This wrapper affects only the isolated test scene.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_seed_rng.randomize()
+	_create_overlay()
+	_spawn_game()
 
-	# Instantiate the real game scene instead of rebuilding a lookalike test
-	# setup. Its own WorldEnvironment has the same Canvas background mode and
-	# glow values as production, and its ambient motes/trail remain present.
+
+func _spawn_game() -> void:
+	# Reuse the actual main scene instead of a separately reconstructed lookalike.
+	# This preserves the main scene's Canvas background mode, glow values, HDR
+	# sources, ambient motes, ball/trail, platform glow and landing responses.
 	_game = MAIN_GAME_SCENE.instantiate() as Node2D
 	if _game == null:
 		push_error("Architecture Test: Could not instantiate scenes/main.tscn.")
@@ -40,7 +47,6 @@ func _ready() -> void:
 
 	_start_y = _ball.global_position.y
 	_create_background()
-	_create_overlay()
 
 
 func _process(_delta: float) -> void:
@@ -65,6 +71,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_set_seed(24017)
 		KEY_3:
 			_set_seed(91207)
+		KEY_SPACE, KEY_ENTER:
+			_restart_game()
 
 
 func _create_background() -> void:
@@ -77,9 +85,9 @@ func _create_background() -> void:
 	_background.set("section_bottom_y", 1600.0)
 	_background.set("camera_path", NodePath("../GameCamera"))
 
-	# Main.tscn's screen-fixed background is z=-60 and its ambient motes are
-	# around z=-30. Draw the architecture between them: over the base color,
-	# but below the actual game’s ambient glow particles and gameplay.
+	# The main scene's background ColorRect sits at z=-60 and its ambient motes
+	# around z=-30. The architecture sits between them: over the base fill but
+	# below the actual game's ambient glow particles and gameplay.
 	_background.z_index = -50
 	_game.add_child(_background)
 	_background.call("set_environment_seed", initial_seed)
@@ -102,8 +110,8 @@ func _create_overlay() -> void:
 
 	var instructions := Label.new()
 	instructions.position = Vector2(22.0, 136.0)
-	instructions.text = "ARROWS: STEER   •   R: NEW SEED   •   1 / 2 / 3: FIXED SEEDS"
-	instructions.add_theme_font_size_override("font_size", 12)
+	instructions.text = "ARROWS: STEER   •   R: NEW SEED   •   1 / 2 / 3: FIXED   •   SPACE: RESTART"
+	instructions.add_theme_font_size_override("font_size", 11)
 	instructions.add_theme_color_override("font_color", Color(0.36, 0.54, 0.64, 0.95))
 	instructions.add_theme_color_override("font_outline_color", Color(0.0, 0.01, 0.025, 1.0))
 	instructions.add_theme_constant_override("outline_size", 3)
@@ -137,6 +145,17 @@ func _set_seed(value: int) -> void:
 	initial_seed = value
 	_background.call("set_environment_seed", value)
 	_update_seed_label(value)
+
+
+func _restart_game() -> void:
+	get_tree().paused = false
+	if is_instance_valid(_game):
+		_game.free()
+	_game = null
+	_camera = null
+	_ball = null
+	_background = null
+	_spawn_game()
 
 
 func _update_seed_label(value: int) -> void:
