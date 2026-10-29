@@ -32,6 +32,7 @@ The controlled experiments are kept in separate scenes on this same branch:
 - Void → structure → void transition, including E/F/G recipes and the D-fill H/I/J background sweep: `scenes/environment_architecture_transition_test.tscn`. Notes: `context/Architecture Void Structure Void Comparison.md`.
 - Long-form **void → Structure 1 → void → Structure 2** comparison (A1 depth followed by A2 integrated blue): `scenes/environment_architecture_sequence_test.tscn`. Notes: `context/Architecture Sequence Test.md`.
 - **Architecture Life Treatment** static far-detail study (baseline / subtle contours / contours plus sparse windows, across A1/A2): `scenes/environment_architecture_life_test.tscn`. Notes: `context/Architecture Life Treatment Test.md`.
+- **Architecture Life Treatment Follow-up** (structured recessed bays, dormant/lit/rare-neon window states, and combined treatments across A1/A2): `scenes/environment_architecture_life_followup_test.tscn`. Notes: `context/Architecture Life Treatment Follow-up.md`.
 - Final far-fill hue-versus-brightness study: `scenes/environment_architecture_hue_brightness_test.tscn`. Notes: `context/Architecture Far Fill Hue vs Brightness Test.md`.
 - Bounded base-composition palette comparison (A1 far tints and A2 middle-fill alternatives): `scenes/environment_architecture_base_palette_test.tscn`. Notes: `context/Architecture Base Composition Palette Test.md`.
 - Final E/A2 palette refinements and purple-placement comparison: `scenes/environment_architecture_followup_palette_test.tscn`. Notes: `context/Architecture Follow-up Palette Test.md`.
@@ -41,6 +42,7 @@ The latest hue-versus-brightness test holds the background at `#02060D` and the 
 The next long-form pass is now available as a separate sequence scene: it holds the global `#02060D` void fixed, then compares the A1 depth-oriented profile and A2 integrated profile in two separated architecture bands using matching geometry seeds. The earlier transition and palette comparison scenes remain available unchanged.
 
 The isolated **Architecture Life Treatment** branch keeps that work as its starting point and adds a bounded static-detail comparison to the far silhouettes. It tests no extra detail, subtle contours/joints, and contours with sparse dim windows under both A1 and A2. Flicker and mote behavior remain out of scope until the static-detail balance is chosen.
+The follow-up pass refines the detail vocabulary into geometry-aligned recessed bays and static window states (mostly dark, some subtly lit, rare low-strength neon), with separate contour-only, window-only, and combined variants. The first life-treatment scene is retained as the baseline reference. Flicker and mote behavior remain out of scope until these static treatments are visually approved.
 
 The mote depth/parallax idea and restrained architectural accent flicker remain separate future polish investigations. Neither is changed by these palette tests.
 
