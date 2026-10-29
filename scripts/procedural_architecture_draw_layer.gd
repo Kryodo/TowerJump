@@ -22,6 +22,10 @@ enum PaletteVariant {
 	CURRENT_NAVY_A1_BRIGHT_TINT_FAR,
 	CURRENT_NAVY_A2_DARK_BLUE_MID,
 	CURRENT_NAVY_A2_DARK_PURPLE_MID,
+	CURRENT_NAVY_E_BALANCED,
+	CURRENT_NAVY_E_BRIGHTER,
+	CURRENT_NAVY_PURPLE_FAR_BLUE_MID,
+	CURRENT_NAVY_BLUE_FAR_PURPLE_MID,
 }
 
 @export var layer_type: LayerType = LayerType.FAR_SILHOUETTES
@@ -75,11 +79,19 @@ func _far_mass_color(index: int) -> Color:
 			# darker overall than the navy void and distinct from A1's middle fill.
 			return Color(0.012, 0.010, 0.032, 0.98) if index % 3 == 0 else Color(0.016, 0.012, 0.038, 0.98)
 		PaletteVariant.CURRENT_NAVY_A1_BRIGHT_TINT_FAR:
-			# C in the bounded comparison: brighter blue-purple far masses.
-			# The raised red/blue and restrained green keep the tint distinct from A1's middle fill.
+			# Earlier A1 candidate C, retained as a historical comparison.
 			return Color(0.020, 0.026, 0.066, 0.98) if index % 3 == 0 else Color(0.025, 0.027, 0.072, 0.98)
-		PaletteVariant.CURRENT_NAVY_BRIGHTER_FAR, PaletteVariant.CURRENT_NAVY_HYBRID, PaletteVariant.CURRENT_NAVY_A2_DARK_BLUE_MID, PaletteVariant.CURRENT_NAVY_A2_DARK_PURPLE_MID:
-			# F / A2, G / Hybrid, and E/F in the new comparison share A2's brighter far fills.
+		PaletteVariant.CURRENT_NAVY_E_BALANCED:
+			# New follow-up B: a modestly darker, slightly purple-shifted A2 far tint.
+			return Color(0.010, 0.026, 0.060, 0.98) if index % 3 == 0 else Color(0.014, 0.032, 0.070, 0.98)
+		PaletteVariant.CURRENT_NAVY_E_BRIGHTER:
+			# New follow-up C: a brighter blue-purple far tint than A2.
+			return Color(0.016, 0.033, 0.075, 0.98) if index % 3 == 0 else Color(0.022, 0.041, 0.092, 0.98)
+		PaletteVariant.CURRENT_NAVY_PURPLE_FAR_BLUE_MID:
+			# New follow-up D: purple-leaning far fills matched approximately to A2's far-fill luminance.
+			return Color(0.056, 0.014, 0.100, 0.98) if index % 3 == 0 else Color(0.071, 0.018, 0.126, 0.98)
+		PaletteVariant.CURRENT_NAVY_BRIGHTER_FAR, PaletteVariant.CURRENT_NAVY_HYBRID, PaletteVariant.CURRENT_NAVY_A2_DARK_BLUE_MID, PaletteVariant.CURRENT_NAVY_A2_DARK_PURPLE_MID, PaletteVariant.CURRENT_NAVY_BLUE_FAR_PURPLE_MID:
+			# F / A2, G / Hybrid, and new E use A2's original brighter blue far fills.
 			return Color(0.011764706, 0.03137255, 0.0627451, 0.98) if index % 3 == 0 else Color(0.015686275, 0.039215688, 0.078431375, 0.98)
 		PaletteVariant.REVERSED_VOID, PaletteVariant.INTERMEDIATE_BLUE_BLACK_MID_CONTRAST:
 			# B reverses the existing roles; D deliberately retains C's far-mass
@@ -96,14 +108,23 @@ func _far_mass_color(index: int) -> Color:
 func _mid_mass_color() -> Color:
 	match palette_variant:
 		PaletteVariant.CURRENT_NAVY_MID_CONTRAST, PaletteVariant.INTERMEDIATE_BLUE_BLACK_MID_CONTRAST, PaletteVariant.CURRENT_NAVY_HYBRID, PaletteVariant.CURRENT_NAVY_A1_DARK_TINT_FAR, PaletteVariant.CURRENT_NAVY_A1_BRIGHT_TINT_FAR:
-			# E / A1, D and G / Hybrid plus new B/C retain the brighter blue-purple middle fill.
+			# Existing A1/D family retains the brighter blue-purple middle fill.
 			return Color(0.015686275, 0.03137255, 0.0627451, 0.96) # approx. #040810
-		PaletteVariant.CURRENT_NAVY_A2_DARK_BLUE_MID:
-			# New E: a dark cool-blue fill below the background's overall brightness.
+		PaletteVariant.CURRENT_NAVY_A2_DARK_BLUE_MID, PaletteVariant.CURRENT_NAVY_PURPLE_FAR_BLUE_MID:
+			# A2/E and new D use the same dark-blue middle fill for the purple-placement comparison.
 			return Color(0.0055, 0.0165, 0.038, 0.96)
 		PaletteVariant.CURRENT_NAVY_A2_DARK_PURPLE_MID:
-			# New F: a darker purple-leaning fill derived from A1's cool palette relationship.
+			# Earlier A2/F option, retained unchanged.
 			return Color(0.014, 0.010, 0.038, 0.96)
+		PaletteVariant.CURRENT_NAVY_E_BALANCED:
+			# New follow-up B: modest middle-fill lift, still darker than the global navy backdrop.
+			return Color(0.0065, 0.0185, 0.042, 0.96)
+		PaletteVariant.CURRENT_NAVY_E_BRIGHTER:
+			# New follow-up C: brighter cool-blue middle fill, still distinct from background.
+			return Color(0.0075, 0.020, 0.045, 0.96)
+		PaletteVariant.CURRENT_NAVY_BLUE_FAR_PURPLE_MID:
+			# New follow-up E: purple middle hue with approximate luminance matched to the dark-blue E fill.
+			return Color(0.030, 0.0075, 0.054, 0.96)
 		PaletteVariant.REVERSED_VOID, PaletteVariant.INTERMEDIATE_BLUE_BLACK:
 			# Existing low-contrast middle structure, retained for A/B/C.
 			return Color(0.011764706, 0.02745098, 0.050980393, 0.96)
