@@ -27,6 +27,9 @@ enum LifeTreatment {
 	BASELINE,
 	SUBTLE_CONTOURS,
 	CONTOURS_AND_WINDOWS,
+	STRUCTURED_CONTOURS,
+	WINDOW_STATES,
+	STRUCTURED_COMBINED,
 }
 
 @export var environment_seed: int = 7319
@@ -102,7 +105,7 @@ func set_palette_variant(value: int) -> void:
 
 
 func set_life_treatment(value: int) -> void:
-	life_treatment = clampi(value, LifeTreatment.BASELINE, LifeTreatment.CONTOURS_AND_WINDOWS)
+	life_treatment = clampi(value, LifeTreatment.BASELINE, LifeTreatment.STRUCTURED_COMBINED)
 	for layer in _layers:
 		layer.set("life_treatment", life_treatment)
 		layer.queue_redraw()
