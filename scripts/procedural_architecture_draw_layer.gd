@@ -383,18 +383,19 @@ func _draw_far_window_states(side: float, top_y: float, height: float, width: fl
 
 func _draw_far_window(window_rect: Rect2, state: int, detail: Dictionary) -> void:
 	# State mapping: 4/7 dormant, 2/7 softly lit, 1/7 low-strength neon.
+	# Draw the low-alpha halo first so it remains visible outside the aperture.
+	if state == 0:
+		var halo := Rect2(window_rect.position - Vector2(2.0, 2.0), window_rect.size + Vector2(4.0, 4.0))
+		draw_rect(halo, detail["window_halo"], true)
+
 	draw_rect(window_rect, detail["window_dark"], true)
 	draw_rect(window_rect, detail["window_frame"], false, 1.0)
-
 	var inner := Rect2(
 		window_rect.position + Vector2(3.0, 4.0),
 		window_rect.size - Vector2(6.0, 8.0)
 	)
 	if state == 0:
-		# Broader translucent halo stays far below the main structural accent's strength.
-		var halo := Rect2(window_rect.position - Vector2(2.0, 2.0), window_rect.size + Vector2(4.0, 4.0))
-		draw_rect(halo, detail["window_halo"], true)
-		draw_rect(window_rect, detail["window_dark"], true)
+		# Neon remains well below the strength of the middle layer's main accents.
 		draw_rect(inner, detail["window_neon"], true)
 		draw_rect(
 			Rect2(inner.position + Vector2(3.0, 2.0), Vector2(2.0, inner.size.y - 4.0)),
