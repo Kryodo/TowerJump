@@ -28,8 +28,15 @@ enum PaletteVariant {
 	CURRENT_NAVY_BLUE_FAR_PURPLE_MID,
 }
 
+enum LifeTreatment {
+	BASELINE,
+	SUBTLE_CONTOURS,
+	CONTOURS_AND_WINDOWS,
+}
+
 @export var layer_type: LayerType = LayerType.FAR_SILHOUETTES
 @export var palette_variant: PaletteVariant = PaletteVariant.CURRENT_NAVY
+@export var life_treatment: LifeTreatment = LifeTreatment.BASELINE
 @export var environment_seed: int = 7319
 @export var world_width: float = 720.0
 @export var section_top_y: float = -10400.0
@@ -47,6 +54,19 @@ const NEAR_SEAM := Color(0.018, 0.13, 0.18, 0.20)
 const ACCENT_CYAN := Color(0.012, 0.82, 1.15, 0.84)
 const ACCENT_VIOLET := Color(0.42, 0.16, 0.88, 0.78)
 const EDGE_REVEAL := Color(0.026, 0.105, 0.155, 0.64)
+
+# Static far-layer life treatments. These remain below HDR/emissive intensity:
+# they add construction cues without turning the distant layer into a neon outline.
+const FAR_DETAIL_A1 := {
+	"contour": Color(0.052, 0.040, 0.082, 0.38),
+	"window": Color(0.052, 0.038, 0.088, 0.46),
+	"window_edge": Color(0.095, 0.073, 0.145, 0.36),
+}
+const FAR_DETAIL_A2 := {
+	"contour": Color(0.030, 0.071, 0.105, 0.36),
+	"window": Color(0.025, 0.070, 0.110, 0.42),
+	"window_edge": Color(0.050, 0.105, 0.150, 0.32),
+}
 
 
 func _draw() -> void:
@@ -180,6 +200,68 @@ func _draw_far_mass(side: float, top_y: float, height: float, width: float, inde
 			2.0,
 			true
 		)
+
+	if life_treatment != LifeTreatment.BASELINE:
+		_draw_far_life_details(side, top_y, height, width, index)
+
+
+func _far_life_palette() -> Dictionary:
+	match palette_variant:
+		PaletteVariant.CURRENT_NAVY_MID_CONTRAST, PaletteVariant.CURRENT_NAVY_A1_DARK_TINT_FAR, PaletteVariant.CURRENT_NAVY_A1_BRIGHT_TINT_FAR:
+			return FAR_DETAIL_A1
+		_:
+			return FAR_DETAIL_A2
+
+
+func _draw_far_life_details(side: float, top_y: float, height: float, width: float, index: int) -> void:
+	var edge_x: float = 0.0 if side > 0.0 else world_width
+	var detail_palette := _far_life_palette()
+	var contour_color: Color = detail_palette["contour"]
+
+	# A few interrupted inset contours and joints suggest constructed panels.
+	# They are deliberately sparse, low contrast, and non-emissive.
+	var vertical_x: float = edge_x + side * (width - 24.0)
+	if index % 2 == 0:
+		draw_line(
+			Vector2(vertical_x, top_y + height * 0.18),
+			Vector2(vertical_x, top_y + height * 0.29),
+			contour_color,
+			1.8,
+			true
+		)
+	if index % 3 != 1:
+		var joint_y: float = top_y + height * (0.43 if index % 2 == 0 else 0.63)
+		draw_line(
+			Vector2(edge_x + side * (width - 76.0), joint_y),
+			Vector2(edge_x + side * (width - 18.0), joint_y),
+			contour_color,
+			1.5,
+			true
+		)
+
+	if life_treatment != LifeTreatment.CONTOURS_AND_WINDOWS:
+		return
+
+	# Windows appear only on selected far modules. They are small, dim, and
+	# theme-tinted; they do not use HDR values or contribute to glow/bloom.
+	if index % 3 != 1:
+		var window_x: float = edge_x + side * (width - 70.0) - (18.0 if side < 0.0 else 0.0)
+		var window_rect := Rect2(
+			Vector2(window_x, top_y + height * 0.47),
+			Vector2(18.0, 46.0)
+		)
+		draw_rect(window_rect, detail_palette["window"], true)
+		draw_rect(window_rect, detail_palette["window_edge"], false, 1.0)
+
+	# A smaller secondary opening is rarer, keeping the facade from becoming a grid.
+	if index % 5 == 0:
+		var second_window_x: float = edge_x + side * (width - 112.0) - (12.0 if side < 0.0 else 0.0)
+		var second_window := Rect2(
+			Vector2(second_window_x, top_y + height * 0.66),
+			Vector2(12.0, 32.0)
+		)
+		draw_rect(second_window, detail_palette["window"], true)
+		draw_rect(second_window, detail_palette["window_edge"], false, 1.0)
 
 
 # Mid-distance structures use a repeated upright-and-buttress module. The same
