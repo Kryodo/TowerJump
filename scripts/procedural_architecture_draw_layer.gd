@@ -320,17 +320,17 @@ func _draw_structured_far_contours(side: float, top_y: float, height: float, wid
 
 	var edge_x: float = 0.0 if side > 0.0 else world_width
 	var detail: Dictionary = _structured_far_palette()
-	const PANEL_WIDTH: float = 46.0
-	var panel_x: float = _far_panel_left_x(side, edge_x, width, PANEL_WIDTH)
+	var panel_width: float = 46.0
+	var panel_x: float = _far_panel_left_x(side, edge_x, width, panel_width)
 	var panel_y: float = top_y + height * (0.20 if index % 2 == 0 else 0.23)
 	var panel_height: float = height * (0.49 if index % 2 == 0 else 0.45)
-	var panel := Rect2(Vector2(panel_x, panel_y), Vector2(PANEL_WIDTH, panel_height))
+	var panel := Rect2(Vector2(panel_x, panel_y), Vector2(panel_width, panel_height))
 
 	draw_rect(panel, detail["panel_fill"], true)
 	draw_rect(panel, detail["panel_edge"], false, 1.4)
 
 	# A second inner rail reads as a recessed structural lip, not an outline.
-	var rail_x: float = panel_x + (5.0 if side > 0.0 else PANEL_WIDTH - 5.0)
+	var rail_x: float = panel_x + (5.0 if side > 0.0 else panel_width - 5.0)
 	draw_line(
 		Vector2(rail_x, panel_y + 12.0),
 		Vector2(rail_x, panel_y + panel_height - 12.0),
@@ -344,7 +344,7 @@ func _draw_structured_far_contours(side: float, top_y: float, height: float, wid
 		var joint_y: float = panel_y + panel_height * 0.66
 		draw_line(
 			Vector2(panel_x + 4.0, joint_y),
-			Vector2(panel_x + PANEL_WIDTH - 4.0, joint_y),
+			Vector2(panel_x + panel_width - 4.0, joint_y),
 			detail["panel_edge"],
 			1.2,
 			true
@@ -360,10 +360,10 @@ func _draw_far_window_states(side: float, top_y: float, height: float, width: fl
 	var edge_x: float = 0.0 if side > 0.0 else world_width
 	var detail: Dictionary = _structured_far_palette()
 	var panel_x: float = _far_panel_left_x(side, edge_x, width)
-	const WINDOW_WIDTH: float = 16.0
-	const WINDOW_HEIGHT: float = 58.0
-	const WINDOW_GAP: float = 7.0
-	var group_width: float = WINDOW_WIDTH * 2.0 + WINDOW_GAP
+	var window_width: float = 16.0
+	var window_height: float = 58.0
+	var window_gap: float = 7.0
+	var group_width: float = window_width * 2.0 + window_gap
 	var group_x: float = panel_x + (46.0 - group_width) * 0.5
 
 	# Two aligned openings form a small architectural group. A third, lower
@@ -375,8 +375,8 @@ func _draw_far_window_states(side: float, top_y: float, height: float, width: fl
 	for row_index in range(window_rows.size()):
 		var y: float = top_y + height * window_rows[row_index]
 		for column_index in range(2):
-			var x: float = group_x + float(column_index) * (WINDOW_WIDTH + WINDOW_GAP)
-			var window_rect := Rect2(Vector2(x, y), Vector2(WINDOW_WIDTH, WINDOW_HEIGHT))
+			var x: float = group_x + float(column_index) * (window_width + window_gap)
+			var window_rect := Rect2(Vector2(x, y), Vector2(window_width, window_height))
 			var state: int = posmod(index * 2 + row_index * 3 + column_index, 7)
 			_draw_far_window(window_rect, state, detail)
 
