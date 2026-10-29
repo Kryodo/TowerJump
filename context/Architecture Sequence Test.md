@@ -27,7 +27,7 @@ Both structures use the same architecture seed and procedural geometry grammar. 
 
 ## Fixed variables
 
-- The global background remains `#02060D throughout the climb.
+- The global background remains `#02060D` throughout the climb.
 - The real `scenes/main.tscn` provides the ball, trail, platforms, camera follow, landing feedback, ambient motes, WorldEnvironment, and glow/bloom.
 - Both architecture bands use the same seed and the same geometry-generation rules.
 - Layer parallax, seams, accents, recesses, the resonance gate, archive recess, and near frames come from the existing architecture script.
