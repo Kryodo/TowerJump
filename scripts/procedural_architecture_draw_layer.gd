@@ -30,8 +30,11 @@ enum PaletteVariant {
 
 enum LifeTreatment {
 	BASELINE,
-	SUBTLE_CONTOURS,
-	CONTOURS_AND_WINDOWS,
+	SUBTLE_CONTOURS, # Preserve the first life experiment's mapping.
+	CONTOURS_AND_WINDOWS, # Preserve the first life experiment's mapping.
+	STRUCTURED_CONTOURS,
+	WINDOW_STATES,
+	STRUCTURED_COMBINED,
 }
 
 @export var layer_type: LayerType = LayerType.FAR_SILHOUETTES
@@ -66,6 +69,30 @@ const FAR_DETAIL_A2 := {
 	"contour": Color(0.030, 0.071, 0.105, 0.36),
 	"window": Color(0.025, 0.070, 0.110, 0.42),
 	"window_edge": Color(0.050, 0.105, 0.150, 0.32),
+}
+
+# Second-pass details have architectural structure rather than free-floating strokes.
+# The A1 treatment lifts the details enough to remain legible on dark far masses;
+# A2 uses cool blue details that sit clearly below the middle layer's HDR accents.
+const FAR_STRUCTURED_A1 := {
+	"panel_fill": Color(0.003, 0.004, 0.012, 0.82),
+	"panel_edge": Color(0.070, 0.052, 0.112, 0.54),
+	"panel_rail": Color(0.105, 0.078, 0.166, 0.42),
+	"window_frame": Color(0.092, 0.066, 0.138, 0.78),
+	"window_dark": Color(0.003, 0.004, 0.011, 0.98),
+	"window_lit": Color(0.085, 0.048, 0.142, 0.84),
+	"window_neon": Color(0.36, 0.18, 0.54, 0.76),
+	"window_halo": Color(0.26, 0.12, 0.40, 0.11),
+}
+const FAR_STRUCTURED_A2 := {
+	"panel_fill": Color(0.005, 0.015, 0.030, 0.82),
+	"panel_edge": Color(0.040, 0.088, 0.128, 0.50),
+	"panel_rail": Color(0.060, 0.128, 0.174, 0.38),
+	"window_frame": Color(0.035, 0.084, 0.124, 0.76),
+	"window_dark": Color(0.003, 0.008, 0.018, 0.98),
+	"window_lit": Color(0.024, 0.090, 0.142, 0.82),
+	"window_neon": Color(0.13, 0.37, 0.55, 0.74),
+	"window_halo": Color(0.08, 0.24, 0.38, 0.10),
 }
 
 
@@ -201,8 +228,16 @@ func _draw_far_mass(side: float, top_y: float, height: float, width: float, inde
 			true
 		)
 
-	if life_treatment != LifeTreatment.BASELINE:
-		_draw_far_life_details(side, top_y, height, width, index)
+	match life_treatment:
+		LifeTreatment.SUBTLE_CONTOURS, LifeTreatment.CONTOURS_AND_WINDOWS:
+			_draw_far_life_details(side, top_y, height, width, index)
+		LifeTreatment.STRUCTURED_CONTOURS:
+			_draw_structured_far_contours(side, top_y, height, width, index)
+		LifeTreatment.WINDOW_STATES:
+			_draw_far_window_states(side, top_y, height, width, index)
+		LifeTreatment.STRUCTURED_COMBINED:
+			_draw_structured_far_contours(side, top_y, height, width, index)
+			_draw_far_window_states(side, top_y, height, width, index)
 
 
 func _far_life_palette() -> Dictionary:
@@ -262,6 +297,120 @@ func _draw_far_life_details(side: float, top_y: float, height: float, width: flo
 		)
 		draw_rect(second_window, detail_palette["window"], true)
 		draw_rect(second_window, detail_palette["window_edge"], false, 1.0)
+
+
+func _structured_far_palette() -> Dictionary:
+	match palette_variant:
+		PaletteVariant.CURRENT_NAVY_MID_CONTRAST, PaletteVariant.CURRENT_NAVY_A1_DARK_TINT_FAR, PaletteVariant.CURRENT_NAVY_A1_BRIGHT_TINT_FAR:
+			return FAR_STRUCTURED_A1
+		_:
+			return FAR_STRUCTURED_A2
+
+
+func _far_panel_left_x(side: float, edge_x: float, width: float, panel_width: float = 46.0) -> float:
+	var panel_anchor: float = edge_x + side * (width - 78.0)
+	return panel_anchor if side > 0.0 else panel_anchor - panel_width
+
+
+func _draw_structured_far_contours(side: float, top_y: float, height: float, width: float, index: int) -> void:
+	# Repeated recessed bays define a construction system. Their vertical rails,
+	# caps, and inset surfaces share a consistent layout instead of random strokes.
+	if index % 3 == 1:
+		return
+
+	var edge_x: float = 0.0 if side > 0.0 else world_width
+	var detail: Dictionary = _structured_far_palette()
+	const PANEL_WIDTH: float = 46.0
+	var panel_x: float = _far_panel_left_x(side, edge_x, width, PANEL_WIDTH)
+	var panel_y: float = top_y + height * (0.20 if index % 2 == 0 else 0.23)
+	var panel_height: float = height * (0.49 if index % 2 == 0 else 0.45)
+	var panel := Rect2(Vector2(panel_x, panel_y), Vector2(PANEL_WIDTH, panel_height))
+
+	draw_rect(panel, detail["panel_fill"], true)
+	draw_rect(panel, detail["panel_edge"], false, 1.4)
+
+	# A second inner rail reads as a recessed structural lip, not an outline.
+	var rail_x: float = panel_x + (5.0 if side > 0.0 else PANEL_WIDTH - 5.0)
+	draw_line(
+		Vector2(rail_x, panel_y + 12.0),
+		Vector2(rail_x, panel_y + panel_height - 12.0),
+		detail["panel_rail"],
+		1.6,
+		true
+	)
+
+	# Panel joints only occur within the framed bay and follow its construction.
+	if index % 2 == 0:
+		var joint_y: float = panel_y + panel_height * 0.66
+		draw_line(
+			Vector2(panel_x + 4.0, joint_y),
+			Vector2(panel_x + PANEL_WIDTH - 4.0, joint_y),
+			detail["panel_edge"],
+			1.2,
+			true
+		)
+
+
+func _draw_far_window_states(side: float, top_y: float, height: float, width: float, index: int) -> void:
+	# Sparse paired apertures sit in a stable facade bay. Most remain dark;
+	# occasional subdued interiors and rarer low-strength neon imply distant activity.
+	if index % 3 == 1:
+		return
+
+	var edge_x: float = 0.0 if side > 0.0 else world_width
+	var detail: Dictionary = _structured_far_palette()
+	var panel_x: float = _far_panel_left_x(side, edge_x, width)
+	const WINDOW_WIDTH: float = 16.0
+	const WINDOW_HEIGHT: float = 58.0
+	const WINDOW_GAP: float = 7.0
+	var group_width: float = WINDOW_WIDTH * 2.0 + WINDOW_GAP
+	var group_x: float = panel_x + (46.0 - group_width) * 0.5
+
+	# Two aligned openings form a small architectural group. A third, lower
+	# opening is used on fewer modules to avoid an uninterrupted repeated grid.
+	var window_rows: Array[float] = [0.36, 0.49]
+	if index % 5 == 0:
+		window_rows.append(0.64)
+
+	for row_index in range(window_rows.size()):
+		var y: float = top_y + height * window_rows[row_index]
+		for column_index in range(2):
+			var x: float = group_x + float(column_index) * (WINDOW_WIDTH + WINDOW_GAP)
+			var window_rect := Rect2(Vector2(x, y), Vector2(WINDOW_WIDTH, WINDOW_HEIGHT))
+			var state: int = posmod(index * 2 + row_index * 3 + column_index, 7)
+			_draw_far_window(window_rect, state, detail)
+
+
+func _draw_far_window(window_rect: Rect2, state: int, detail: Dictionary) -> void:
+	# State mapping: 4/7 dormant, 2/7 softly lit, 1/7 low-strength neon.
+	draw_rect(window_rect, detail["window_dark"], true)
+	draw_rect(window_rect, detail["window_frame"], false, 1.0)
+
+	var inner := Rect2(
+		window_rect.position + Vector2(3.0, 4.0),
+		window_rect.size - Vector2(6.0, 8.0)
+	)
+	if state == 0:
+		# Broader translucent halo stays far below the main structural accent's strength.
+		var halo := Rect2(window_rect.position - Vector2(2.0, 2.0), window_rect.size + Vector2(4.0, 4.0))
+		draw_rect(halo, detail["window_halo"], true)
+		draw_rect(window_rect, detail["window_dark"], true)
+		draw_rect(inner, detail["window_neon"], true)
+		draw_rect(
+			Rect2(inner.position + Vector2(3.0, 2.0), Vector2(2.0, inner.size.y - 4.0)),
+			detail["window_neon"],
+			true
+		)
+	elif state == 2 or state == 5:
+		draw_rect(inner, detail["window_lit"], true)
+		# A single interior division suggests a lit recess, not a glowing sign.
+		draw_line(
+			inner.position + Vector2(2.0, inner.size.y * 0.58),
+			Vector2(inner.end.x - 2.0, inner.position.y + inner.size.y * 0.58),
+			detail["window_frame"],
+			1.0,
+			true
+		)
 
 
 # Mid-distance structures use a repeated upright-and-buttress module. The same
