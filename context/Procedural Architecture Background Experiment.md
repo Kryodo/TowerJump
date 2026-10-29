@@ -32,6 +32,7 @@ The controlled experiments are kept in separate scenes on this same branch:
 - Void → structure → void transition, including E/F/G recipes and the D-fill H/I/J background sweep: `scenes/environment_architecture_transition_test.tscn`. Notes: `context/Architecture Void Structure Void Comparison.md`.
 - Final far-fill hue-versus-brightness study: `scenes/environment_architecture_hue_brightness_test.tscn`. Notes: `context/Architecture Far Fill Hue vs Brightness Test.md`.
 - Bounded base-composition palette comparison (A1 far tints and A2 middle-fill alternatives): `scenes/environment_architecture_base_palette_test.tscn`. Notes: `context/Architecture Base Composition Palette Test.md`.
+- Final E/A2 palette refinements and purple-placement comparison: `scenes/environment_architecture_followup_palette_test.tscn`. Notes: `context/Architecture Follow-up Palette Test.md`.
 
 The latest hue-versus-brightness test holds the background at `#02060D` and the middle fill constant while comparing the original dark far fills, A2's actual color ratios at the original brightness, a brightness-only lift that preserves the original ratios, and the exact A2 values. The hue-only variant was corrected after the first candidate was too close to the background. The bounded base-composition palette test now adds two A1 far-tint options and two A2 middle-fill alternatives; all earlier comparison scenes remain available. These tests are meant to identify useful options for the future art library, not to force every zone to use the same architecture recipe.
 
