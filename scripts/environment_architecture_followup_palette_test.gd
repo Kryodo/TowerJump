@@ -164,7 +164,6 @@ func _create_overlay() -> void:
 	canvas.add_child(_variant_label)
 
 	_height_label = Label.new()
-	_height_label = Label.new()
 	_height_label.position = Vector2(22.0, 218.0)
 	_height_label.add_theme_font_size_override("font_size", 13)
 	_height_label.add_theme_color_override("font_color", Color(0.45, 0.43, 0.74, 0.95))
@@ -236,7 +235,8 @@ func _update_variant_label() -> void:
 			_variant_label.text = "D  /  PURPLE FAR FILL + DARK BLUE MIDDLE"
 		TestVariant.BLUE_FAR_PURPLE_MID:
 			_variant_label.text = "E  /  BLUE FAR FILL + PURPLE MIDDLE"
-		
+
+
 func _update_seed_label(value: int) -> void:
 	if _seed_label != null:
 		_seed_label.text = "ENVIRONMENT SEED  %d" % value
