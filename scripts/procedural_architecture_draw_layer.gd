@@ -18,6 +18,10 @@ enum PaletteVariant {
 	CURRENT_NAVY_HYBRID,
 	CURRENT_NAVY_HUE_ONLY,
 	CURRENT_NAVY_BRIGHTNESS_ONLY,
+	CURRENT_NAVY_A1_DARK_TINT_FAR,
+	CURRENT_NAVY_A1_BRIGHT_TINT_FAR,
+	CURRENT_NAVY_A2_DARK_BLUE_MID,
+	CURRENT_NAVY_A2_DARK_PURPLE_MID,
 }
 
 @export var layer_type: LayerType = LayerType.FAR_SILHOUETTES
@@ -66,9 +70,16 @@ func _far_mass_color(index: int) -> Color:
 			# Hue-vs-brightness test C: retain the original RGB ratios while
 			# lifting luminance close to the existing combined A2 fill values.
 			return Color(0.01042, 0.03127, 0.06776, 0.98) if index % 3 == 0 else Color(0.01479, 0.03945, 0.07890, 0.98)
-		PaletteVariant.CURRENT_NAVY_BRIGHTER_FAR, PaletteVariant.CURRENT_NAVY_HYBRID:
-			# F / A2 and G / Hybrid share the brighter blue-direction far fills.
-			# G pairs these with A1's brighter middle fill.
+		PaletteVariant.CURRENT_NAVY_A1_DARK_TINT_FAR:
+			# B in the bounded comparison: dark indigo/blue-purple far masses,
+			# darker overall than the navy void and distinct from A1's middle fill.
+			return Color(0.012, 0.010, 0.032, 0.98) if index % 3 == 0 else Color(0.016, 0.012, 0.038, 0.98)
+		PaletteVariant.CURRENT_NAVY_A1_BRIGHT_TINT_FAR:
+			# C in the bounded comparison: brighter blue-purple far masses.
+			# The raised red/blue and restrained green keep the tint distinct from A1's middle fill.
+			return Color(0.020, 0.026, 0.066, 0.98) if index % 3 == 0 else Color(0.025, 0.027, 0.072, 0.98)
+		PaletteVariant.CURRENT_NAVY_BRIGHTER_FAR, PaletteVariant.CURRENT_NAVY_HYBRID, PaletteVariant.CURRENT_NAVY_A2_DARK_BLUE_MID, PaletteVariant.CURRENT_NAVY_A2_DARK_PURPLE_MID:
+			# F / A2, G / Hybrid, and E/F in the new comparison share A2's brighter far fills.
 			return Color(0.011764706, 0.03137255, 0.0627451, 0.98) if index % 3 == 0 else Color(0.015686275, 0.039215688, 0.078431375, 0.98)
 		PaletteVariant.REVERSED_VOID, PaletteVariant.INTERMEDIATE_BLUE_BLACK_MID_CONTRAST:
 			# B reverses the existing roles; D deliberately retains C's far-mass
@@ -84,10 +95,15 @@ func _far_mass_color(index: int) -> Color:
 
 func _mid_mass_color() -> Color:
 	match palette_variant:
-		PaletteVariant.CURRENT_NAVY_MID_CONTRAST, PaletteVariant.INTERMEDIATE_BLUE_BLACK_MID_CONTRAST, PaletteVariant.CURRENT_NAVY_HYBRID:
-			# E / A1, D and G / Hybrid share the same slightly lifted middle fill.
-			# G combines A1's middle separation with F's integrated far masses.
+		PaletteVariant.CURRENT_NAVY_MID_CONTRAST, PaletteVariant.INTERMEDIATE_BLUE_BLACK_MID_CONTRAST, PaletteVariant.CURRENT_NAVY_HYBRID, PaletteVariant.CURRENT_NAVY_A1_DARK_TINT_FAR, PaletteVariant.CURRENT_NAVY_A1_BRIGHT_TINT_FAR:
+			# E / A1, D and G / Hybrid plus new B/C retain the brighter blue-purple middle fill.
 			return Color(0.015686275, 0.03137255, 0.0627451, 0.96) # approx. #040810
+		PaletteVariant.CURRENT_NAVY_A2_DARK_BLUE_MID:
+			# New E: a dark cool-blue fill below the background's overall brightness.
+			return Color(0.0055, 0.0165, 0.038, 0.96)
+		PaletteVariant.CURRENT_NAVY_A2_DARK_PURPLE_MID:
+			# New F: a darker purple-leaning fill derived from A1's cool palette relationship.
+			return Color(0.014, 0.010, 0.038, 0.96)
 		PaletteVariant.REVERSED_VOID, PaletteVariant.INTERMEDIATE_BLUE_BLACK:
 			# Existing low-contrast middle structure, retained for A/B/C.
 			return Color(0.011764706, 0.02745098, 0.050980393, 0.96)
