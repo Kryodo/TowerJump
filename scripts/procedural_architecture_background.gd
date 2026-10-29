@@ -17,6 +17,10 @@ enum PaletteVariant {
 	CURRENT_NAVY_A1_BRIGHT_TINT_FAR,
 	CURRENT_NAVY_A2_DARK_BLUE_MID,
 	CURRENT_NAVY_A2_DARK_PURPLE_MID,
+	CURRENT_NAVY_E_BALANCED,
+	CURRENT_NAVY_E_BRIGHTER,
+	CURRENT_NAVY_PURPLE_FAR_BLUE_MID,
+	CURRENT_NAVY_BLUE_FAR_PURPLE_MID,
 }
 
 @export var environment_seed: int = 7319
@@ -83,7 +87,7 @@ func set_environment_seed(value: int) -> void:
 
 
 func set_palette_variant(value: int) -> void:
-	palette_variant = clampi(value, PaletteVariant.CURRENT_NAVY, PaletteVariant.CURRENT_NAVY_A2_DARK_PURPLE_MID)
+	palette_variant = clampi(value, PaletteVariant.CURRENT_NAVY, PaletteVariant.CURRENT_NAVY_BLUE_FAR_PURPLE_MID)
 	for layer in _layers:
 		layer.set("palette_variant", palette_variant)
 		layer.queue_redraw()
