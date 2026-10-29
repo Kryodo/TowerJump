@@ -27,6 +27,10 @@ The global background stays `#02060D`. Earlier comparison scenes remain unchange
 - Architecture geometry, world bounds, layer parallax, contours, seams, accents, landmarks and near frames.
 - Game camera, ball/trail, platforms, ambient motes, WorldEnvironment and glow/bloom.
 
+## How far-silhouette overlaps work
+
+The far layer intentionally contains multiple tall polygons whose vertical spans overlap. This is part of its structural rhythm and has not been removed. Each polygon is assigned one of the two authored far-fill colors based on its deterministic module index (`index % 3`), not a new third layer or an uncontrolled random color. At overlaps, the two intended fills can visually blend; they remain part of the far layer. Both far-fill shades in every candidate are kept chromatically distinct from the fixed navy background, and their overlap should not be interpreted as another architectural depth layer.
+
 ## Variants
 
 ### A — E baseline
@@ -41,17 +45,17 @@ The current preferred integration/depth balance reference from the previous test
 
 - Far A: `Color(0.010, 0.026, 0.060, 0.98)`.
 - Far B: `Color(0.014, 0.032, 0.070, 0.98)`.
-- Middle: `Color(0.0065, 0.0185, 0.042, 0.96)`.
+- Middle: `Color(0.0055, 0.018, 0.060, 0.96)`.
 
-Far silhouettes are slightly darker and a little more purple-leaning than A2. Middle fill is modestly brighter than E, but its blue value relationship remains different from the global navy background.
+Far silhouettes are slightly darker and a little more purple-leaning than A2. The middle fill is modestly brighter than E, with red/green below the navy backdrop and blue above it. This intentional channel relationship makes the fill visibly blue rather than nearly matching the global navy.
 
 ### C — Brighter E
 
 - Far A: `Color(0.016, 0.033, 0.075, 0.98)`.
 - Far B: `Color(0.022, 0.041, 0.092, 0.98)`.
-- Middle: `Color(0.0075, 0.020, 0.045, 0.96)`.
+- Middle: `Color(0.0055, 0.019, 0.070, 0.96)`.
 
-Far silhouettes are a little brighter and more purple-leaning than A2. The blue middle fill is also brighter, while remaining below the background's weighted-RGB luminance proxy. This tests whether a brighter combination can retain a distinct middle structure.
+Far silhouettes are a little brighter and more purple-leaning than A2. The middle fill is brighter than B and has a more pronounced blue channel than the fixed navy background, while remaining darker overall by a weighted-RGB luminance proxy. This tests a more atmospheric combination without allowing the middle fill to reuse the background's navy color relationship.
 
 ### D — Purple far, blue middle
 
