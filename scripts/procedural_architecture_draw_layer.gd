@@ -117,11 +117,14 @@ func _mid_mass_color() -> Color:
 			# Earlier A2/F option, retained unchanged.
 			return Color(0.014, 0.010, 0.038, 0.96)
 		PaletteVariant.CURRENT_NAVY_E_BALANCED:
-			# New follow-up B: modest middle-fill lift, still darker than the global navy backdrop.
-			return Color(0.0065, 0.0185, 0.042, 0.96)
+			# New follow-up B: slightly brighter, distinct blue middle fill.
+			# Red/green stay below the navy backdrop while blue sits above it,
+			# so the fill cannot visually collapse into the same navy relationship.
+			return Color(0.0055, 0.018, 0.060, 0.96)
 		PaletteVariant.CURRENT_NAVY_E_BRIGHTER:
-			# New follow-up C: brighter cool-blue middle fill, still distinct from background.
-			return Color(0.0075, 0.020, 0.045, 0.96)
+			# New follow-up C: brighter blue middle fill, still darker overall than the void.
+			# Its blue channel rises farther above the backdrop while red/green remain lower.
+			return Color(0.0055, 0.019, 0.070, 0.96)
 		PaletteVariant.CURRENT_NAVY_BLUE_FAR_PURPLE_MID:
 			# New follow-up E: purple middle hue with approximate luminance matched to the dark-blue E fill.
 			return Color(0.030, 0.0075, 0.054, 0.96)
