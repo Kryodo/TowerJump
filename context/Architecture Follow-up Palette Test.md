@@ -45,17 +45,17 @@ The current preferred integration/depth balance reference from the previous test
 
 - Far A: `Color(0.010, 0.026, 0.060, 0.98)`.
 - Far B: `Color(0.014, 0.032, 0.070, 0.98)`.
-- Middle: `Color(0.0055, 0.018, 0.060, 0.96)`.
+- Middle: `Color(0.004, 0.016, 0.065, 0.96)`.
 
-Far silhouettes are slightly darker and a little more purple-leaning than A2. The middle fill is modestly brighter than E, with red/green below the navy backdrop and blue above it. This intentional channel relationship makes the fill visibly blue rather than nearly matching the global navy.
+Far silhouettes are slightly darker and a little more purple-leaning than A2. The middle fill is modestly brighter than E by weighted-RGB luminance. It is a deliberate dark-blue tint: red/green remain below the navy backdrop, while blue is clearly above it. This creates a stronger color distinction than a small uniform lift toward the background.
 
 ### C — Brighter E
 
 - Far A: `Color(0.016, 0.033, 0.075, 0.98)`.
 - Far B: `Color(0.022, 0.041, 0.092, 0.98)`.
-- Middle: `Color(0.0055, 0.019, 0.070, 0.96)`.
+- Middle: `Color(0.004, 0.018, 0.075, 0.96)`.
 
-Far silhouettes are a little brighter and more purple-leaning than A2. The middle fill is brighter than B and has a more pronounced blue channel than the fixed navy background, while remaining darker overall by a weighted-RGB luminance proxy. This tests a more atmospheric combination without allowing the middle fill to reuse the background's navy color relationship.
+Far silhouettes are a little brighter and more purple-leaning than A2. The middle fill is brighter than B, with a more pronounced blue channel than the fixed navy background. Its weighted-RGB luminance remains below the background, but the blue-tint difference is intentionally clear rather than a near-match. This tests a more atmospheric combination without allowing the middle fill to reuse the background's navy color relationship.
 
 ### D — Purple far, blue middle
 
