@@ -220,7 +220,7 @@ func _draw_far_life_details(side: float, top_y: float, height: float, width: flo
 
 	# A few interrupted inset contours and joints suggest constructed panels.
 	# They are deliberately sparse, low contrast, and non-emissive.
-	var vertical_x: float = edge_x + side * (width - 24.0)
+	var vertical_x: float = edge_x + side * (width - 42.0)
 	if index % 2 == 0:
 		draw_line(
 			Vector2(vertical_x, top_y + height * 0.18),
