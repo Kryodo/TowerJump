@@ -120,11 +120,11 @@ func _mid_mass_color() -> Color:
 			# New follow-up B: slightly brighter, distinct blue middle fill.
 			# Red/green stay below the navy backdrop while blue sits above it,
 			# so the fill cannot visually collapse into the same navy relationship.
-			return Color(0.0055, 0.018, 0.060, 0.96)
+			return Color(0.004, 0.016, 0.065, 0.96)
 		PaletteVariant.CURRENT_NAVY_E_BRIGHTER:
 			# New follow-up C: brighter blue middle fill, still darker overall than the void.
 			# Its blue channel rises farther above the backdrop while red/green remain lower.
-			return Color(0.0055, 0.019, 0.070, 0.96)
+			return Color(0.004, 0.018, 0.075, 0.96)
 		PaletteVariant.CURRENT_NAVY_BLUE_FAR_PURPLE_MID:
 			# New follow-up E: purple middle hue with approximate luminance matched to the dark-blue E fill.
 			return Color(0.030, 0.0075, 0.054, 0.96)
