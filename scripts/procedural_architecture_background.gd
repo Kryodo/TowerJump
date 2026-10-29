@@ -23,8 +23,15 @@ enum PaletteVariant {
 	CURRENT_NAVY_BLUE_FAR_PURPLE_MID,
 }
 
+enum LifeTreatment {
+	BASELINE,
+	SUBTLE_CONTOURS,
+	CONTOURS_AND_WINDOWS,
+}
+
 @export var environment_seed: int = 7319
 @export var palette_variant: PaletteVariant = PaletteVariant.CURRENT_NAVY
+@export var life_treatment: LifeTreatment = LifeTreatment.BASELINE
 @export var world_width: float = 720.0
 @export var section_top_y: float = -10400.0
 @export var section_bottom_y: float = 1600.0
@@ -94,6 +101,13 @@ func set_palette_variant(value: int) -> void:
 	queue_redraw()
 
 
+func set_life_treatment(value: int) -> void:
+	life_treatment = clampi(value, LifeTreatment.BASELINE, LifeTreatment.CONTOURS_AND_WINDOWS)
+	for layer in _layers:
+		layer.set("life_treatment", life_treatment)
+		layer.queue_redraw()
+
+
 func set_background_fill_override(value: Color) -> void:
 	# Transition-test wrapper can force the same backdrop throughout the world.
 	# With this disabled by default, the original A-F palette scene is unchanged.
@@ -114,6 +128,7 @@ func _create_layers() -> void:
 		layer.set("layer_type", i)
 		layer.set("environment_seed", environment_seed)
 		layer.set("palette_variant", palette_variant)
+		layer.set("life_treatment", life_treatment)
 		layer.set("world_width", world_width)
 		layer.set("section_top_y", section_top_y)
 		layer.set("section_bottom_y", section_bottom_y)
