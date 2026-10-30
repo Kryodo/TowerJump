@@ -471,7 +471,7 @@ func _draw_abstract_far_apertures(
 	var pattern_side: int = 1 if side < 0.0 else 0
 	var pattern: int = posmod(index * 3 + pattern_side, 5)
 	var base_x: float = _far_panel_left_x(side, edge_x, width, 72.0)
-	var specs := []
+	var specs: Array[Vector4] = []
 
 	match pattern:
 		0:
