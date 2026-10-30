@@ -37,6 +37,8 @@ enum LifeTreatment {
 	STRUCTURED_COMBINED,
 	ABSTRACT_APERTURES,
 	ABSTRACT_ENERGY,
+	PANEL_CLUSTERS,
+	PANEL_ENERGY_STATES,
 }
 
 @export var layer_type: LayerType = LayerType.FAR_SILHOUETTES
@@ -115,7 +117,7 @@ func _draw() -> void:
 
 func _process(delta: float) -> void:
 	# Only the abstract-energy study animates. All other treatments stay static.
-	if layer_type == LayerType.FAR_SILHOUETTES and life_treatment == LifeTreatment.ABSTRACT_ENERGY:
+	if layer_type == LayerType.FAR_SILHOUETTES and (life_treatment == LifeTreatment.ABSTRACT_ENERGY or life_treatment == LifeTreatment.PANEL_ENERGY_STATES):
 		_energy_clock += delta
 		queue_redraw()
 
@@ -252,6 +254,10 @@ func _draw_far_mass(side: float, top_y: float, height: float, width: float, inde
 			_draw_abstract_far_apertures(side, top_y, height, width, index, false)
 		LifeTreatment.ABSTRACT_ENERGY:
 			_draw_abstract_far_apertures(side, top_y, height, width, index, true)
+		LifeTreatment.PANEL_CLUSTERS:
+			_draw_far_panel_clusters(side, top_y, height, width, index, false)
+		LifeTreatment.PANEL_ENERGY_STATES:
+			_draw_far_panel_clusters(side, top_y, height, width, index, true)
 
 
 func _far_life_palette() -> Dictionary:
@@ -610,6 +616,189 @@ func _draw_abstract_aperture(
 	core_color.a = core_color.a * intensity
 	draw_circle(Vector2(pulse_x, pulse_y), 7.0, halo_color)
 	draw_circle(Vector2(pulse_x, pulse_y), 2.8, core_color)
+
+
+
+# Organized panel clusters use a small, deliberate composition library.
+# Rectangles remain the dominant language; variation comes from grouping,
+# scale, spacing, and placement rather than arbitrary decorative geometry.
+func _draw_far_panel_clusters(
+	side: float,
+	top_y: float,
+	height: float,
+	width: float,
+	index: int,
+	animated: bool
+) -> void:
+	# Not every far module receives a detail cluster. Empty modules preserve scale
+	# and make the detailed modules feel like intentional structural states.
+	if index % 3 == 1:
+		return
+
+	var edge_x: float = 0.0 if side > 0.0 else world_width
+	var detail: Dictionary = _structured_far_palette()
+	var side_index: int = 1 if side < 0.0 else 0
+	var pattern: int = posmod(index * 3 + side_index, 5)
+	var cluster_width: float = 88.0
+	var cluster_height: float = 286.0
+	var cluster_x: float = _far_panel_left_x(side, edge_x, width, cluster_width)
+	var cluster_y: float = top_y + height * (0.28 + float(posmod(index + side_index, 3)) * 0.035)
+
+	# Two-thirds of clusters sit in a shallow recess. The remaining third are
+	# integrated directly into the silhouette with no large backing panel.
+	var has_recess: bool = posmod(index + side_index, 3) != 1
+	if has_recess:
+		var recess_width: float = 100.0 if pattern % 2 == 0 else 96.0
+		var recess_height: float = cluster_height + 30.0
+		var recess_x: float = cluster_x - (recess_width - cluster_width) * 0.5
+		var recess_y: float = cluster_y - 15.0
+		var recess := Rect2(Vector2(recess_x, recess_y), Vector2(recess_width, recess_height))
+		draw_rect(recess, detail["panel_fill"], true)
+		draw_rect(recess, detail["panel_edge"], false, 1.35)
+
+		# A partial inner rail creates depth without boxing every cluster in a bright frame.
+		var rail_x: float = recess_x + (5.0 if side > 0.0 else recess_width - 5.0)
+		draw_line(
+			Vector2(rail_x, recess_y + 13.0),
+			Vector2(rail_x, recess_y + recess_height - 13.0),
+			detail["panel_rail"],
+			1.45,
+			true
+		)
+		if pattern % 2 == 0:
+			draw_line(
+				Vector2(recess_x + 7.0, recess_y + recess_height * 0.73),
+				Vector2(recess_x + recess_width - 7.0, recess_y + recess_height * 0.73),
+				detail["panel_edge"],
+				1.0,
+				true
+			)
+
+	var elements: Array[Vector4] = []
+	match pattern:
+		0:
+			# Mixed three-part cluster: broad square, short horizontal panel, tall element below.
+			elements.append(Vector4(4.0, 0.15, 31.0, 31.0))
+			elements.append(Vector4(42.0, 0.19, 39.0, 20.0))
+			elements.append(Vector4(23.0, 0.55, 19.0, 82.0))
+		1:
+			# Two substantial, separated elements with contrasting proportions.
+			elements.append(Vector4(3.0, 0.18, 61.0, 29.0))
+			elements.append(Vector4(28.0, 0.59, 45.0, 78.0))
+		2:
+			# Four-piece cluster: two upper elements and a lower offset pair.
+			elements.append(Vector4(5.0, 0.12, 22.0, 46.0))
+			elements.append(Vector4(37.0, 0.14, 43.0, 23.0))
+			elements.append(Vector4(5.0, 0.59, 35.0, 25.0))
+			elements.append(Vector4(49.0, 0.54, 30.0, 58.0))
+		3:
+			# Larger charged slits. Their width and length remain readable at far parallax.
+			elements.append(Vector4(7.0, 0.16, 15.0, 94.0))
+			elements.append(Vector4(35.0, 0.30, 35.0, 23.0))
+			elements.append(Vector4(56.0, 0.55, 16.0, 83.0))
+		_:
+			# Sparse asymmetric trio: one broad upper aperture and two offset squares.
+			elements.append(Vector4(27.0, 0.12, 51.0, 32.0))
+			elements.append(Vector4(3.0, 0.49, 31.0, 31.0))
+			elements.append(Vector4(47.0, 0.63, 31.0, 31.0))
+
+	for element_index in range(elements.size()):
+		var spec: Vector4 = elements[element_index]
+		var aperture_rect := Rect2(
+			Vector2(cluster_x + spec.x, cluster_y + cluster_height * spec.y),
+			Vector2(spec.z, spec.w)
+		)
+		var state_roll: int = posmod(index * 3 + element_index * 5 + pattern * 2 + side_index, 10)
+		var state: int = 0
+		if state_roll >= 8:
+			state = 2 # energized
+		elif state_roll >= 5:
+			state = 1 # active
+		_draw_panel_aperture(aperture_rect, state, animated, index, element_index, detail)
+
+
+func _draw_panel_aperture(
+	aperture_rect: Rect2,
+	state: int,
+	animated: bool,
+	module_index: int,
+	element_index: int,
+	detail: Dictionary
+) -> void:
+	# State 0 = dormant, 1 = active, 2 = energized.
+	# The glow reuses the visible treatment from the successful static window test.
+	var halo_color: Color = detail["window_halo"]
+	if state == 2:
+		var halo := Rect2(
+			aperture_rect.position - Vector2(3.5, 3.5),
+			aperture_rect.size + Vector2(7.0, 7.0)
+		)
+		draw_rect(halo, halo_color, true)
+
+	draw_rect(aperture_rect, detail["window_dark"], true)
+	draw_rect(aperture_rect, detail["window_frame"], false, 1.0)
+
+	var inner := Rect2(
+		aperture_rect.position + Vector2(2.5, 2.5),
+		aperture_rect.size - Vector2(5.0, 5.0)
+	)
+	if inner.size.x <= 2.0 or inner.size.y <= 2.0:
+		return
+
+	if state == 0:
+		return
+
+	var intensity: float = 1.0
+	if animated and state == 1:
+		var active_wave: float = 0.5 + 0.5 * sin(_energy_clock * 0.30 + float(module_index) * 0.91 + float(element_index) * 1.73)
+		intensity = 0.82 + active_wave * 0.18
+	if animated and state == 2:
+		var energy_wave: float = 0.5 + 0.5 * sin(_energy_clock * 0.40 + float(module_index) * 1.13 + float(element_index) * 2.07)
+		intensity = 0.78 + energy_wave * 0.22
+
+	var fill_color: Color = detail["window_lit"] if state == 1 else detail["window_neon"]
+	fill_color.a = fill_color.a * intensity
+	draw_rect(inner, fill_color, true)
+
+	if state == 2:
+		# A brighter inset rail keeps energized apertures readable at small display size.
+		var rail_color: Color = detail["window_neon"]
+		rail_color.a = minf(1.0, rail_color.a * intensity)
+		if inner.size.x >= inner.size.y:
+			draw_rect(
+				Rect2(inner.position + Vector2(2.0, 2.0), Vector2(2.5, inner.size.y - 4.0)),
+				rail_color,
+				true
+			)
+		else:
+			draw_rect(
+				Rect2(inner.position + Vector2(2.0, 2.0), Vector2(inner.size.x - 4.0, 2.5)),
+				rail_color,
+				true
+			)
+
+		if animated:
+			# Travel a distinct rectangular charge through the aperture's long axis.
+			var phase: float = fposmod(
+				_energy_clock * 0.16 + float(module_index) * 0.137 + float(element_index) * 0.293,
+				1.0
+			)
+			var pulse_color: Color = detail["window_neon"]
+			pulse_color.a = minf(1.0, pulse_color.a * 1.18)
+			if inner.size.x >= inner.size.y:
+				var pulse_x: float = lerpf(inner.position.x + 3.0, inner.end.x - 5.0, phase)
+				draw_rect(
+					Rect2(Vector2(pulse_x, inner.position.y + 2.0), Vector2(3.0, inner.size.y - 4.0)),
+					pulse_color,
+					true
+				)
+			else:
+				var pulse_y: float = lerpf(inner.position.y + 3.0, inner.end.y - 5.0, phase)
+				draw_rect(
+					Rect2(Vector2(inner.position.x + 2.0, pulse_y), Vector2(inner.size.x - 4.0, 3.0)),
+					pulse_color,
+					true
+				)
 
 
 # Mid-distance structures use a repeated upright-and-buttress module. The same
