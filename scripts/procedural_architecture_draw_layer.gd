@@ -37,6 +37,8 @@ enum LifeTreatment {
 	STRUCTURED_COMBINED,
 	PANEL_CLUSTERS,
 	PANEL_ENERGY_STATES,
+	COMPACT_PANEL_STATES,
+	COMPACT_PANEL_FLICKER,
 }
 
 @export var layer_type: LayerType = LayerType.FAR_SILHOUETTES
@@ -115,7 +117,7 @@ func _draw() -> void:
 
 func _process(delta: float) -> void:
 	# Only the abstract-energy study animates. All other treatments stay static.
-	if layer_type == LayerType.FAR_SILHOUETTES and life_treatment == LifeTreatment.PANEL_ENERGY_STATES:
+	if layer_type == LayerType.FAR_SILHOUETTES and (life_treatment == LifeTreatment.PANEL_ENERGY_STATES or life_treatment == LifeTreatment.COMPACT_PANEL_FLICKER):
 		_energy_clock += delta
 		queue_redraw()
 
@@ -252,6 +254,10 @@ func _draw_far_mass(side: float, top_y: float, height: float, width: float, inde
 			_draw_far_panel_clusters(side, top_y, height, width, index, false)
 		LifeTreatment.PANEL_ENERGY_STATES:
 			_draw_far_panel_clusters(side, top_y, height, width, index, true)
+		LifeTreatment.COMPACT_PANEL_STATES:
+			_draw_far_compact_panel_clusters(side, top_y, height, width, index, false)
+		LifeTreatment.COMPACT_PANEL_FLICKER:
+			_draw_far_compact_panel_clusters(side, top_y, height, width, index, true)
 
 
 func _far_life_palette() -> Dictionary:
@@ -611,6 +617,179 @@ func _draw_panel_aperture(
 					pulse_color,
 					true
 				)
+
+
+
+# Compact panel pass: retain the taller recessed bays, but make their contents
+# smaller and more selective. Rectangles remain the language; illumination is
+# concentrated in compact apertures and slits rather than broad glowing panels.
+func _draw_far_compact_panel_clusters(
+	side: float,
+	top_y: float,
+	height: float,
+	width: float,
+	index: int,
+	flicker_enabled: bool
+) -> void:
+	if index % 3 == 1:
+		return
+
+	var edge_x: float = 0.0 if side > 0.0 else world_width
+	var detail: Dictionary = _structured_far_palette()
+	var side_index: int = 1 if side < 0.0 else 0
+	var pattern: int = posmod(index * 3 + side_index, 5)
+	var cluster_width: float = 104.0
+	# Compensate for far-layer parallax (x=0.88, y=0.18): compact elements
+	# still read as square, broad, or tall in the actual game viewport.
+	var cluster_height: float = 540.0
+	var cluster_x: float = _far_panel_left_x(side, edge_x, width, cluster_width)
+	var cluster_y: float = top_y + height * (0.24 + float(posmod(index + side_index, 3)) * 0.025)
+
+	# Keep the recess clearly taller than its panel contents, like the earlier
+	# successful window bay. A minority of groups remain integrated on the surface.
+	var has_recess: bool = posmod(index + side_index, 3) != 1
+	if has_recess:
+		var recess_width: float = 116.0 if pattern % 2 == 0 else 112.0
+		var recess_height: float = cluster_height + 82.0
+		var recess_x: float = cluster_x - (recess_width - cluster_width) * 0.5
+		var recess_y: float = cluster_y - 34.0
+		var recess := Rect2(Vector2(recess_x, recess_y), Vector2(recess_width, recess_height))
+		draw_rect(recess, detail["panel_fill"], true)
+		draw_rect(recess, detail["panel_edge"], false, 1.35)
+
+		# Long side rail and a restrained lower cross-joint establish depth and scale.
+		var rail_x: float = recess_x + (5.0 if side > 0.0 else recess_width - 5.0)
+		draw_line(
+			Vector2(rail_x, recess_y + 16.0),
+			Vector2(rail_x, recess_y + recess_height - 16.0),
+			detail["panel_rail"],
+			1.5,
+			true
+		)
+		if pattern % 2 == 0:
+			var joint_y: float = recess_y + recess_height * 0.76
+			draw_line(
+				Vector2(recess_x + 8.0, joint_y),
+				Vector2(recess_x + recess_width - 8.0, joint_y),
+				detail["panel_edge"],
+				1.0,
+				true
+			)
+
+	# Each pattern is a deliberate grouping. Most illuminated elements are compact:
+	# small squares, short rectangles and readable slits. The broadest element
+	# in a group is usually dormant or secondary, not a large glowing surface.
+	var elements: Array[Vector4] = []
+	match pattern:
+		0:
+			# Compact square, short horizontal aperture, taller slit beneath.
+			elements.append(Vector4(4.0, 0.08, 27.0, 132.0))
+			elements.append(Vector4(49.0, 0.12, 36.0, 78.0))
+			elements.append(Vector4(25.0, 0.58, 15.0, 150.0))
+		1:
+			# Two separated apertures: medium horizontal panel and compact square.
+			elements.append(Vector4(4.0, 0.12, 45.0, 78.0))
+			elements.append(Vector4(65.0, 0.56, 27.0, 132.0))
+		2:
+			# Four-piece structured cluster with distinct sizes and a lower offset pair.
+			elements.append(Vector4(3.0, 0.05, 14.0, 145.0))
+			elements.append(Vector4(27.0, 0.07, 27.0, 132.0))
+			elements.append(Vector4(64.0, 0.10, 32.0, 70.0))
+			elements.append(Vector4(17.0, 0.60, 40.0, 70.0))
+		3:
+			# Three substantial slits around a compact horizontal energy aperture.
+			elements.append(Vector4(5.0, 0.07, 12.0, 175.0))
+			elements.append(Vector4(34.0, 0.25, 13.0, 142.0))
+			elements.append(Vector4(65.0, 0.50, 12.0, 158.0))
+			elements.append(Vector4(73.0, 0.13, 24.0, 72.0))
+		_:
+			# Sparse asymmetric trio: one broad upper element and two compact squares below.
+			elements.append(Vector4(29.0, 0.08, 43.0, 76.0))
+			elements.append(Vector4(3.0, 0.56, 27.0, 132.0))
+			elements.append(Vector4(74.0, 0.62, 27.0, 132.0))
+
+	for element_index in range(elements.size()):
+		var spec: Vector4 = elements[element_index]
+		var aperture_rect := Rect2(
+			Vector2(cluster_x + spec.x, cluster_y + cluster_height * spec.y),
+			Vector2(spec.z, spec.w)
+		)
+		var state_roll: int = posmod(index * 3 + element_index * 5 + pattern * 2 + side_index, 10)
+		var state: int = 0
+		if state_roll >= 8:
+			state = 2 # energized
+		elif state_roll >= 5:
+			state = 1 # active
+		_draw_compact_panel_light(aperture_rect, state, flicker_enabled, index, element_index, detail)
+
+
+func _draw_compact_panel_light(
+	aperture_rect: Rect2,
+	state: int,
+	flicker_enabled: bool,
+	module_index: int,
+	element_index: int,
+	detail: Dictionary
+) -> void:
+	# The aperture itself remains small and sharply legible. Light is inset further
+	# so it reads as a source inside a technical element, not a whole illuminated wall.
+	draw_rect(aperture_rect, detail["window_dark"], true)
+	draw_rect(aperture_rect, detail["window_frame"], false, 1.0)
+
+	if state == 0:
+		return
+
+	var inner := Rect2(
+		aperture_rect.position + Vector2(2.5, 12.0),
+		aperture_rect.size - Vector2(5.0, 24.0)
+	)
+	if inner.size.x <= 2.0 or inner.size.y <= 3.0:
+		return
+
+	var intensity: float = 1.0
+	if flicker_enabled:
+		# Three deterministic oscillations create restrained irregular flicker.
+		# The light never switches off completely or travels through the aperture.
+		var phase: float = float(module_index) * 0.93 + float(element_index) * 1.71
+		var flicker_signal: float = (
+			sin(_energy_clock * 4.4 + phase) * 0.52
+			+ sin(_energy_clock * 7.9 + phase * 1.83) * 0.31
+			+ sin(_energy_clock * 12.7 + phase * 2.41) * 0.17
+		)
+		intensity = 0.82 + flicker_signal * (0.10 if state == 1 else 0.18)
+
+	var fill_color: Color = detail["window_lit"] if state == 1 else detail["window_neon"]
+	fill_color.a = fill_color.a * intensity
+
+	if state == 2:
+		var halo_color: Color = detail["window_halo"]
+		halo_color.a = halo_color.a * intensity
+		# Y padding is expanded to compensate for the far layer's compressed vertical scale.
+		var halo_rect := Rect2(
+			inner.position - Vector2(3.5, 14.0),
+			inner.size + Vector2(7.0, 28.0)
+		)
+		draw_rect(halo_rect, halo_color, true)
+
+	draw_rect(inner, fill_color, true)
+
+	# A short, stationary highlight reinforces an energized source without a
+	# traveling segment or broad illuminated panel.
+	if state == 2:
+		var highlight_color: Color = detail["window_neon"]
+		highlight_color.a = minf(1.0, highlight_color.a * intensity)
+		if inner.size.x >= inner.size.y:
+			draw_rect(
+				Rect2(inner.position + Vector2(2.0, 2.0), Vector2(2.0, inner.size.y - 4.0)),
+				highlight_color,
+				true
+			)
+		else:
+			draw_rect(
+				Rect2(inner.position + Vector2(2.0, 2.0), Vector2(inner.size.x - 4.0, 2.0)),
+				highlight_color,
+				true
+			)
 
 
 # Mid-distance structures use a repeated upright-and-buttress module. The same
