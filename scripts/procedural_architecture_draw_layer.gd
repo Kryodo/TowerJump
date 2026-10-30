@@ -640,7 +640,9 @@ func _draw_far_panel_clusters(
 	var side_index: int = 1 if side < 0.0 else 0
 	var pattern: int = posmod(index * 3 + side_index, 5)
 	var cluster_width: float = 88.0
-	var cluster_height: float = 286.0
+	# The far layer is vertically scaled to 0.18, so local panel heights are
+	# deliberately taller to preserve readable square / rectangle proportions on screen.
+	var cluster_height: float = 370.0
 	var cluster_x: float = _far_panel_left_x(side, edge_x, width, cluster_width)
 	var cluster_y: float = top_y + height * (0.28 + float(posmod(index + side_index, 3)) * 0.035)
 
@@ -677,30 +679,30 @@ func _draw_far_panel_clusters(
 	var elements: Array[Vector4] = []
 	match pattern:
 		0:
-			# Mixed three-part cluster: broad square, short horizontal panel, tall element below.
-			elements.append(Vector4(4.0, 0.15, 31.0, 31.0))
-			elements.append(Vector4(42.0, 0.19, 39.0, 20.0))
-			elements.append(Vector4(23.0, 0.55, 19.0, 82.0))
+			# Mixed three-part cluster: screen-square panel, broad horizontal panel, tall element below.
+			elements.append(Vector4(4.0, 0.10, 31.0, 150.0))
+			elements.append(Vector4(42.0, 0.15, 39.0, 65.0))
+			elements.append(Vector4(23.0, 0.55, 19.0, 150.0))
 		1:
 			# Two substantial, separated elements with contrasting proportions.
-			elements.append(Vector4(3.0, 0.18, 61.0, 29.0))
-			elements.append(Vector4(28.0, 0.59, 45.0, 78.0))
+			elements.append(Vector4(3.0, 0.17, 61.0, 70.0))
+			elements.append(Vector4(28.0, 0.56, 26.0, 160.0))
 		2:
-			# Four-piece cluster: two upper elements and a lower offset pair.
-			elements.append(Vector4(5.0, 0.12, 22.0, 46.0))
-			elements.append(Vector4(37.0, 0.14, 43.0, 23.0))
-			elements.append(Vector4(5.0, 0.59, 35.0, 25.0))
-			elements.append(Vector4(49.0, 0.54, 30.0, 58.0))
+			# Four-piece cluster: upper pair and an offset lower pair.
+			elements.append(Vector4(5.0, 0.07, 22.0, 112.0))
+			elements.append(Vector4(37.0, 0.08, 43.0, 60.0))
+			elements.append(Vector4(5.0, 0.56, 35.0, 70.0))
+			elements.append(Vector4(49.0, 0.53, 30.0, 140.0))
 		3:
-			# Larger charged slits. Their width and length remain readable at far parallax.
-			elements.append(Vector4(7.0, 0.16, 15.0, 94.0))
-			elements.append(Vector4(35.0, 0.30, 35.0, 23.0))
-			elements.append(Vector4(56.0, 0.55, 16.0, 83.0))
+			# Substantial charged slits arranged around a wider central panel.
+			elements.append(Vector4(7.0, 0.08, 15.0, 190.0))
+			elements.append(Vector4(35.0, 0.22, 35.0, 60.0))
+			elements.append(Vector4(58.0, 0.45, 16.0, 170.0))
 		_:
-			# Sparse asymmetric trio: one broad upper aperture and two offset squares.
-			elements.append(Vector4(27.0, 0.12, 51.0, 32.0))
-			elements.append(Vector4(3.0, 0.49, 31.0, 31.0))
-			elements.append(Vector4(47.0, 0.63, 31.0, 31.0))
+			# Sparse asymmetric trio: one broad upper panel and two separated square-like panels.
+			elements.append(Vector4(27.0, 0.08, 51.0, 68.0))
+			elements.append(Vector4(3.0, 0.47, 31.0, 142.0))
+			elements.append(Vector4(47.0, 0.55, 31.0, 142.0))
 
 	for element_index in range(elements.size()):
 		var spec: Vector4 = elements[element_index]
