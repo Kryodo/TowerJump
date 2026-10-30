@@ -36,7 +36,6 @@ enum LifeTreatment {
 	WINDOW_STATES,
 	STRUCTURED_COMBINED,
 	PANEL_CLUSTERS,
-	PANEL_ENERGY_STATES,
 	COMPACT_PANEL_STATES,
 	COMPACT_PANEL_FLICKER,
 }
@@ -117,7 +116,7 @@ func _draw() -> void:
 
 func _process(delta: float) -> void:
 	# Only the abstract-energy study animates. All other treatments stay static.
-	if layer_type == LayerType.FAR_SILHOUETTES and (life_treatment == LifeTreatment.PANEL_ENERGY_STATES or life_treatment == LifeTreatment.COMPACT_PANEL_FLICKER):
+	if layer_type == LayerType.FAR_SILHOUETTES and life_treatment == LifeTreatment.COMPACT_PANEL_FLICKER:
 		_energy_clock += delta
 		queue_redraw()
 
@@ -251,9 +250,7 @@ func _draw_far_mass(side: float, top_y: float, height: float, width: float, inde
 			_draw_structured_far_contours(side, top_y, height, width, index)
 			_draw_far_window_states(side, top_y, height, width, index)
 		LifeTreatment.PANEL_CLUSTERS:
-			_draw_far_panel_clusters(side, top_y, height, width, index, false)
-		LifeTreatment.PANEL_ENERGY_STATES:
-			_draw_far_panel_clusters(side, top_y, height, width, index, true)
+			_draw_far_panel_clusters(side, top_y, height, width, index)
 		LifeTreatment.COMPACT_PANEL_STATES:
 			_draw_far_compact_panel_clusters(side, top_y, height, width, index, false)
 		LifeTreatment.COMPACT_PANEL_FLICKER:
@@ -443,8 +440,7 @@ func _draw_far_panel_clusters(
 	top_y: float,
 	height: float,
 	width: float,
-	index: int,
-	animated: bool
+	index: int
 ) -> void:
 	# Not every far module receives a detail cluster. Empty modules preserve scale
 	# and make the detailed modules feel like intentional structural states.
@@ -532,15 +528,12 @@ func _draw_far_panel_clusters(
 			state = 2 # energized
 		elif state_roll >= 5:
 			state = 1 # active
-		_draw_panel_aperture(aperture_rect, state, animated, index, element_index, detail)
+		_draw_panel_aperture(aperture_rect, state, detail)
 
 
 func _draw_panel_aperture(
 	aperture_rect: Rect2,
 	state: int,
-	animated: bool,
-	module_index: int,
-	element_index: int,
 	detail: Dictionary
 ) -> void:
 	# State 0 = dormant, 1 = active, 2 = energized.
@@ -566,16 +559,7 @@ func _draw_panel_aperture(
 	if state == 0:
 		return
 
-	var intensity: float = 1.0
-	if animated and state == 1:
-		var active_wave: float = 0.5 + 0.5 * sin(_energy_clock * 0.30 + float(module_index) * 0.91 + float(element_index) * 1.73)
-		intensity = 0.82 + active_wave * 0.18
-	if animated and state == 2:
-		var energy_wave: float = 0.5 + 0.5 * sin(_energy_clock * 0.40 + float(module_index) * 1.13 + float(element_index) * 2.07)
-		intensity = 0.78 + energy_wave * 0.22
-
 	var fill_color: Color = detail["window_lit"] if state == 1 else detail["window_neon"]
-	fill_color.a = fill_color.a * intensity
 	draw_rect(inner, fill_color, true)
 
 	if state == 2:
@@ -595,28 +579,6 @@ func _draw_panel_aperture(
 				true
 			)
 
-		if animated:
-			# Travel a distinct rectangular charge through the aperture's long axis.
-			var phase: float = fposmod(
-				_energy_clock * 0.16 + float(module_index) * 0.137 + float(element_index) * 0.293,
-				1.0
-			)
-			var pulse_color: Color = detail["window_neon"]
-			pulse_color.a = minf(1.0, pulse_color.a * 1.18)
-			if inner.size.x >= inner.size.y:
-				var pulse_x: float = lerpf(inner.position.x + 3.0, inner.end.x - 5.0, phase)
-				draw_rect(
-					Rect2(Vector2(pulse_x, inner.position.y + 2.0), Vector2(3.0, inner.size.y - 4.0)),
-					pulse_color,
-					true
-				)
-			else:
-				var pulse_y: float = lerpf(inner.position.y + 3.0, inner.end.y - 5.0, phase)
-				draw_rect(
-					Rect2(Vector2(inner.position.x + 2.0, pulse_y), Vector2(inner.size.x - 4.0, 3.0)),
-					pulse_color,
-					true
-				)
 
 
 
