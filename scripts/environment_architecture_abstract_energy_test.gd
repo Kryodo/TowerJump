@@ -176,7 +176,7 @@ func _create_overlay() -> void:
 		"1 / 2 / 3: FIXED SEED   R: RANDOM   SPACE / ENTER: RESTART",
 		10, Color(0.36, 0.54, 0.64, 0.90))
 	_add_label(canvas, Vector2(22.0, 253.0),
-		"DORMANT / ACTIVE / ENERGIZED   |   STATIONARY SOURCES WITH CONTROLLED FLICKER",
+		"DORMANT / MID / NEON   |   SOME SOURCES SWITCH, OTHERS SHIMMER",
 		9, Color(0.36, 0.54, 0.64, 0.90))
 	_update_seed_label(initial_seed)
 
