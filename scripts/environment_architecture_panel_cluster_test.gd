@@ -1,6 +1,6 @@
 extends Node2D
-## Organized far-detail study: compares the existing treatment with deliberate
-## rectangular panel clusters and their dormant, active, and energized states.
+## Compact-panel refinement: compares the previous cluster layout with taller bays,
+## smaller light-bearing apertures, and restrained flicker instead of traveling pulses.
 ## The actual main scene is used; production gameplay files remain untouched.
 
 const MAIN_GAME_SCENE: PackedScene = preload("res://scenes/main.tscn")
@@ -18,16 +18,20 @@ const LIFE_BASELINE: int = 0
 const LIFE_STRUCTURED_COMBINED: int = 5
 const LIFE_PANEL_CLUSTERS: int = 6
 const LIFE_PANEL_ENERGY_STATES: int = 7
+const LIFE_COMPACT_PANEL_STATES: int = 8
+const LIFE_COMPACT_PANEL_FLICKER: int = 9
 
 enum TestVariant {
 	A1_BASELINE,
 	A1_EXISTING_COMBINED,
 	A1_PANEL_CLUSTERS,
-	A1_PANEL_ENERGY_STATES,
+	A1_COMPACT_STATIC,
+	A1_COMPACT_FLICKER,
 	A2_BASELINE,
 	A2_EXISTING_COMBINED,
 	A2_PANEL_CLUSTERS,
-	A2_PANEL_ENERGY_STATES,
+	A2_COMPACT_STATIC,
+	A2_COMPACT_FLICKER,
 }
 
 @export var initial_seed: int = 7319
@@ -96,15 +100,19 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		KEY_C:
 			_set_variant(TestVariant.A1_PANEL_CLUSTERS)
 		KEY_D:
-			_set_variant(TestVariant.A1_PANEL_ENERGY_STATES)
+			_set_variant(TestVariant.A1_COMPACT_STATIC)
 		KEY_E:
-			_set_variant(TestVariant.A2_BASELINE)
+			_set_variant(TestVariant.A1_COMPACT_FLICKER)
 		KEY_F:
-			_set_variant(TestVariant.A2_EXISTING_COMBINED)
+			_set_variant(TestVariant.A2_BASELINE)
 		KEY_G:
-			_set_variant(TestVariant.A2_PANEL_CLUSTERS)
+			_set_variant(TestVariant.A2_EXISTING_COMBINED)
 		KEY_H:
-			_set_variant(TestVariant.A2_PANEL_ENERGY_STATES)
+			_set_variant(TestVariant.A2_PANEL_CLUSTERS)
+		KEY_I:
+			_set_variant(TestVariant.A2_COMPACT_STATIC)
+		KEY_J:
+			_set_variant(TestVariant.A2_COMPACT_FLICKER)
 		KEY_1:
 			_set_seed(7319)
 		KEY_2:
@@ -141,14 +149,14 @@ func _create_overlay() -> void:
 	add_child(canvas)
 
 	_add_label(canvas, Vector2(22.0, 110.0),
-		"ORGANIZED LIFE  /  RECTANGULAR PANEL CLUSTERS + ENERGY STATES",
-		15, Color(0.43, 0.75, 0.85, 0.95))
+		"COMPACT PANEL PASS  /  TALL RECESSES + RESTRAINED LIGHT SOURCES",
+		14, Color(0.43, 0.75, 0.85, 0.95))
 	_add_label(canvas, Vector2(22.0, 133.0),
-		"A: A1 BASE   B: EXISTING COMBINED   C: PANEL CLUSTERS   D: MOVING ENERGY",
-		10, Color(0.36, 0.54, 0.64, 0.95))
+		"A: A1 BASE   B: WINDOW REF   C: PREV CLUSTERS   D: COMPACT STATIC   E: FLICKER",
+		9, Color(0.36, 0.54, 0.64, 0.95))
 	_add_label(canvas, Vector2(22.0, 149.0),
-		"E: A2 BASE   F: EXISTING COMBINED   G: PANEL CLUSTERS   H: MOVING ENERGY",
-		10, Color(0.36, 0.54, 0.64, 0.95))
+		"F: A2 BASE   G: WINDOW REF   H: PREV CLUSTERS   I: COMPACT STATIC   J: FLICKER",
+		9, Color(0.36, 0.54, 0.64, 0.95))
 
 	_seed_label = Label.new()
 	_seed_label.position = Vector2(22.0, 171.0)
@@ -169,8 +177,8 @@ func _create_overlay() -> void:
 		"1 / 2 / 3: FIXED SEED   R: RANDOM   SPACE / ENTER: RESTART",
 		10, Color(0.36, 0.54, 0.64, 0.90))
 	_add_label(canvas, Vector2(22.0, 253.0),
-		"DORMANT / ACTIVE / ENERGIZED PANELS   |   SLOW CHARGE TRAVEL IN D / H",
-		10, Color(0.36, 0.54, 0.64, 0.90))
+		"DORMANT / ACTIVE / ENERGIZED   |   STATIONARY SOURCES WITH CONTROLLED FLICKER",
+		9, Color(0.36, 0.54, 0.64, 0.90))
 	_update_seed_label(initial_seed)
 
 
@@ -210,9 +218,12 @@ func _apply_variant() -> void:
 		TestVariant.A1_PANEL_CLUSTERS:
 			palette = PALETTE_A1_DEPTH
 			life = LIFE_PANEL_CLUSTERS
-		TestVariant.A1_PANEL_ENERGY_STATES:
+		TestVariant.A1_COMPACT_STATIC:
 			palette = PALETTE_A1_DEPTH
-			life = LIFE_PANEL_ENERGY_STATES
+			life = LIFE_COMPACT_PANEL_STATES
+		TestVariant.A1_COMPACT_FLICKER:
+			palette = PALETTE_A1_DEPTH
+			life = LIFE_COMPACT_PANEL_FLICKER
 		TestVariant.A2_BASELINE:
 			palette = PALETTE_A2_INTEGRATED
 			life = LIFE_BASELINE
@@ -222,9 +233,12 @@ func _apply_variant() -> void:
 		TestVariant.A2_PANEL_CLUSTERS:
 			palette = PALETTE_A2_INTEGRATED
 			life = LIFE_PANEL_CLUSTERS
-		TestVariant.A2_PANEL_ENERGY_STATES:
+		TestVariant.A2_COMPACT_STATIC:
 			palette = PALETTE_A2_INTEGRATED
-			life = LIFE_PANEL_ENERGY_STATES
+			life = LIFE_COMPACT_PANEL_STATES
+		TestVariant.A2_COMPACT_FLICKER:
+			palette = PALETTE_A2_INTEGRATED
+			life = LIFE_COMPACT_PANEL_FLICKER
 
 	_background.call("set_palette_variant", palette)
 	_background.call("set_life_treatment", life)
@@ -259,17 +273,21 @@ func _update_variant_label() -> void:
 		TestVariant.A1_EXISTING_COMBINED:
 			_variant_label.text = "A1 DEPTH  /  EXISTING STRUCTURAL BAYS + WINDOWS"
 		TestVariant.A1_PANEL_CLUSTERS:
-			_variant_label.text = "A1 DEPTH  /  ORGANIZED RECTANGULAR PANEL CLUSTERS"
-		TestVariant.A1_PANEL_ENERGY_STATES:
-			_variant_label.text = "A1 DEPTH  /  PANEL CLUSTERS + MOVING ENERGY"
+			_variant_label.text = "A1 DEPTH  /  PREVIOUS LARGER PANEL CLUSTERS"
+		TestVariant.A1_COMPACT_STATIC:
+			_variant_label.text = "A1 DEPTH  /  TALL BAYS + COMPACT PANEL STATES"
+		TestVariant.A1_COMPACT_FLICKER:
+			_variant_label.text = "A1 DEPTH  /  COMPACT PANEL STATES + FLICKER"
 		TestVariant.A2_BASELINE:
 			_variant_label.text = "A2 INTEGRATED  /  BASELINE FAR SILHOUETTES"
 		TestVariant.A2_EXISTING_COMBINED:
 			_variant_label.text = "A2 INTEGRATED  /  EXISTING STRUCTURAL BAYS + WINDOWS"
 		TestVariant.A2_PANEL_CLUSTERS:
-			_variant_label.text = "A2 INTEGRATED  /  ORGANIZED RECTANGULAR PANEL CLUSTERS"
-		TestVariant.A2_PANEL_ENERGY_STATES:
-			_variant_label.text = "A2 INTEGRATED  /  PANEL CLUSTERS + MOVING ENERGY"
+			_variant_label.text = "A2 INTEGRATED  /  PREVIOUS LARGER PANEL CLUSTERS"
+		TestVariant.A2_COMPACT_STATIC:
+			_variant_label.text = "A2 INTEGRATED  /  TALL BAYS + COMPACT PANEL STATES"
+		TestVariant.A2_COMPACT_FLICKER:
+			_variant_label.text = "A2 INTEGRATED  /  COMPACT PANEL STATES + FLICKER"
 
 
 func _update_seed_label(value: int) -> void:
