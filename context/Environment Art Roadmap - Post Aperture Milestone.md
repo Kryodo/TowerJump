@@ -2,7 +2,7 @@
 
 Current reference branch: `experiment-abstract-energy-apertures`
 
-Current next experiment: `experiment-ambient-mote-parallax`
+Current active workstream: `experiment-ambient-mote-parallax` (mote depth approved; middle-layer study next)
 
 ## Locked baseline
 
@@ -16,15 +16,16 @@ Do not add more generic far-layer details at this stage. Preserve the current tr
 
 ## Work sequence
 
-### 1. Integrate ambient motes with environmental depth
+### 1. Ambient mote depth — APPROVED
 
-Use the isolated `Ambient Mote Parallax Test` to compare:
-- current single-depth/global-coordinate behavior
-- parallax values matched to the architecture layers
-- a subtler depth spread
-- a more pronounced depth spread
+Architecture-matched parallax is visually approved and locked as the common environment baseline:
+- Far motes: `0.18`
+- Middle motes: `0.46`
+- Near motes: `0.82`
 
-Keep all current mote aesthetics fixed during this comparison: particle counts, textures, gradients, colors, lifetimes, emission areas, velocities, and size ranges. Choose the depth behavior first; tune appearance only if the selected parallax exposes a specific problem.
+This gives the void a convincing sense of scale while integrating the particles into the same spatial model as the far, middle, and near architecture. The A/C/D alternatives remain in the comparison scene for reference, but B is now its startup/default mode.
+
+Keep the current mote appearance unchanged for now. Particle counts, textures, gradients, colors, lifetimes, emission areas, velocities, and size ranges were deliberately held fixed during the depth study.
 
 ### 2. Explore a distinct middle-layer detail language
 
@@ -64,7 +65,7 @@ The preview tool should load a zone profile into a dedicated environment test ro
 ## Current status
 
 - Far aperture treatment: visually approved reference; further generic detail deferred.
-- Ambient mote parallax: test harness added; awaiting runtime visual evaluation.
-- Middle-layer detail: scoped, not yet implemented.
+- Ambient mote parallax: architecture-matched depths 0.18 / 0.46 / 0.82 visually approved and locked; combined test defaults to B.
+- Middle-layer detail: next active experiment; current middle architecture remains the A/control reference.
 - Zone concepts: next design milestone after depth integration and the middle-layer detail study.
 - Art Library V1: schema and preview tooling follow those decisions, rather than preceding them.
