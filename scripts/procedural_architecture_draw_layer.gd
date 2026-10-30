@@ -40,9 +40,16 @@ enum LifeTreatment {
 	COMPACT_PANEL_FLICKER,
 }
 
+enum MidDetailTreatment {
+	BASELINE,
+	STEPPED_INSETS,
+	INSETS_AND_MECHANICAL_RECESSES,
+}
+
 @export var layer_type: LayerType = LayerType.FAR_SILHOUETTES
 @export var palette_variant: PaletteVariant = PaletteVariant.CURRENT_NAVY
 @export var life_treatment: LifeTreatment = LifeTreatment.BASELINE
+@export var mid_detail_treatment: MidDetailTreatment = MidDetailTreatment.BASELINE
 @export var environment_seed: int = 7319
 @export var world_width: float = 720.0
 @export var section_top_y: float = -10400.0
@@ -885,6 +892,13 @@ func _draw_support_module(side: float, top_y: float, index: int) -> void:
 			true
 		)
 
+	# The optional middle-detail study adds structural depth without duplicating
+	# the far layer's illuminated aperture language.
+	if mid_detail_treatment != MidDetailTreatment.BASELINE:
+		_draw_mid_stepped_inset(side, top_y, height, width, index)
+	if mid_detail_treatment == MidDetailTreatment.INSETS_AND_MECHANICAL_RECESSES:
+		_draw_mid_mechanical_recesses(side, top_y, height, width, index)
+
 	# Most modules stay unlit. Every fifth module gets a short HDR edge accent,
 	# enough to react to the game's glow pass without tracing every edge.
 	var accent_y: float = top_y + height * (0.13 if index % 5 == 0 else 0.64)
@@ -902,6 +916,120 @@ func _draw_support_module(side: float, top_y: float, index: int) -> void:
 			Vector2(inner_edge_x, accent_y + height * 0.07),
 			ACCENT_VIOLET,
 			2.0,
+			true
+		)
+
+
+# Middle-layer study B: recessed stepped plates. These are dark, non-emissive
+# structural inserts embedded in the broad support mass, not illuminated windows.
+func _draw_mid_stepped_inset(
+	side: float,
+	top_y: float,
+	height: float,
+	width: float,
+	index: int
+) -> void:
+	# Anchor to the inward-facing edge so the plate remains inside either side mass.
+	var plate_width: float = 38.0 + float(posmod(index, 3)) * 5.0
+	var plate_height: float = height * (0.31 if index % 2 == 0 else 0.27)
+	var plate_y: float = top_y + height * (0.22 if index % 2 == 0 else 0.27)
+	var inner_edge_x: float = 0.0 if side > 0.0 else world_width
+	var plate_x: float
+	if side > 0.0:
+		plate_x = inner_edge_x + width - 26.0 - plate_width
+	else:
+		plate_x = inner_edge_x - width + 26.0
+	var plate := Rect2(Vector2(plate_x, plate_y), Vector2(plate_width, plate_height))
+
+	# A shallow shadow pocket, stepped inner surface, and partial shoulder reveal
+	# create parallax-readable depth without tracing the full rectangle brightly.
+	draw_rect(plate, Color(0.0035, 0.009, 0.019, 0.74), true)
+	draw_rect(plate, Color(0.038, 0.076, 0.112, 0.38), false, 1.4)
+
+	var inner_plate := Rect2(
+		plate.position + Vector2(4.0, 7.0),
+		plate.size - Vector2(8.0, 14.0)
+	)
+	draw_rect(inner_plate, Color(0.012, 0.027, 0.047, 0.58), true)
+
+	var shoulder_x: float = plate.position.x + (
+		plate.size.x - 5.0 if side > 0.0 else 5.0
+	)
+	draw_line(
+		Vector2(shoulder_x, plate.position.y + 12.0),
+		Vector2(shoulder_x, plate.end.y - 12.0),
+		Color(0.070, 0.125, 0.164, 0.32),
+		1.3,
+		true
+	)
+
+	# Two interrupted horizontal divisions imply a segmented load-bearing plate.
+	for division in range(2):
+		var division_y: float = plate.position.y + plate.size.y * (0.38 + float(division) * 0.29)
+		var division_start_x: float = plate.position.x + 6.0
+		var division_end_x: float = plate.end.x - 6.0
+		if side > 0.0:
+			division_end_x -= 7.0
+		else:
+			division_start_x += 7.0
+		draw_line(
+			Vector2(division_start_x, division_y),
+			Vector2(division_end_x, division_y),
+			Color(0.043, 0.078, 0.108, 0.30),
+			1.0,
+			true
+		)
+
+	# A short offset foot makes the housing feel stepped into the support itself.
+	var foot_width: float = 16.0 + float(posmod(index, 2)) * 5.0
+	var foot_x: float = plate.end.x - foot_width if side > 0.0 else plate.position.x - 2.0
+	draw_rect(
+		Rect2(
+			Vector2(foot_x, plate.end.y - 28.0),
+			Vector2(foot_width, 28.0)
+		),
+		Color(0.018, 0.039, 0.060, 0.52),
+		true
+	)
+
+
+# Middle-layer study C adds a small number of recessed mechanical slots to B.
+# The slots stay dark and subdued: no neon, moving light, or residential window rhythm.
+func _draw_mid_mechanical_recesses(
+	side: float,
+	top_y: float,
+	height: float,
+	width: float,
+	index: int
+) -> void:
+	if index % 3 == 1:
+		return
+
+	var slot_width: float = 24.0 + float(index % 2) * 4.0
+	var slot_height: float = 54.0 + float(index % 3) * 8.0
+	var edge_x: float = 0.0 if side > 0.0 else world_width
+	var slot_anchor_x: float = edge_x + side * (width * 0.43)
+	var slot_x: float = slot_anchor_x if side > 0.0 else slot_anchor_x - slot_width
+	var slot_rows: Array[float] = [0.36, 0.66]
+	if index % 2 == 0:
+		slot_rows.reverse()
+
+	for row_index in range(slot_rows.size()):
+		var slot_y: float = top_y + height * slot_rows[row_index]
+		var slot := Rect2(
+			Vector2(slot_x, slot_y),
+			Vector2(slot_width, slot_height)
+		)
+		draw_rect(slot, Color(0.0025, 0.007, 0.015, 0.82), true)
+		draw_rect(slot, Color(0.032, 0.068, 0.096, 0.32), false, 1.1)
+
+		# A short inner shelf gives the recess a physical lip, not a lit indicator.
+		var shelf_y: float = slot.position.y + slot.size.y * 0.68
+		draw_line(
+			Vector2(slot.position.x + 4.0, shelf_y),
+			Vector2(slot.end.x - 4.0, shelf_y),
+			Color(0.052, 0.092, 0.124, 0.28),
+			1.0,
 			true
 		)
 
