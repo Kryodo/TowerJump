@@ -85,6 +85,7 @@ func _spawn_game() -> void:
 	_apply_locked_mote_parallax()
 	_set_middle_treatment(_middle_treatment)
 	_set_palette(_palette_variant)
+	_set_debug_contrast(_debug_contrast_enabled)
 	_update_seed_label(initial_seed)
 
 
