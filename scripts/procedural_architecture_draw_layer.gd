@@ -35,8 +35,6 @@ enum LifeTreatment {
 	STRUCTURED_CONTOURS,
 	WINDOW_STATES,
 	STRUCTURED_COMBINED,
-	ABSTRACT_APERTURES,
-	ABSTRACT_ENERGY,
 	PANEL_CLUSTERS,
 	PANEL_ENERGY_STATES,
 }
@@ -117,7 +115,7 @@ func _draw() -> void:
 
 func _process(delta: float) -> void:
 	# Only the abstract-energy study animates. All other treatments stay static.
-	if layer_type == LayerType.FAR_SILHOUETTES and (life_treatment == LifeTreatment.ABSTRACT_ENERGY or life_treatment == LifeTreatment.PANEL_ENERGY_STATES):
+	if layer_type == LayerType.FAR_SILHOUETTES and life_treatment == LifeTreatment.PANEL_ENERGY_STATES:
 		_energy_clock += delta
 		queue_redraw()
 
@@ -250,10 +248,6 @@ func _draw_far_mass(side: float, top_y: float, height: float, width: float, inde
 		LifeTreatment.STRUCTURED_COMBINED:
 			_draw_structured_far_contours(side, top_y, height, width, index)
 			_draw_far_window_states(side, top_y, height, width, index)
-		LifeTreatment.ABSTRACT_APERTURES:
-			_draw_abstract_far_apertures(side, top_y, height, width, index, false)
-		LifeTreatment.ABSTRACT_ENERGY:
-			_draw_abstract_far_apertures(side, top_y, height, width, index, true)
 		LifeTreatment.PANEL_CLUSTERS:
 			_draw_far_panel_clusters(side, top_y, height, width, index, false)
 		LifeTreatment.PANEL_ENERGY_STATES:
@@ -432,190 +426,6 @@ func _draw_far_window(window_rect: Rect2, state: int, detail: Dictionary) -> voi
 			1.0,
 			true
 		)
-
-
-
-# Abstract aperture treatment: openings are varied geometric voids rather than
-# aligned façade windows. Rare energy traces imply an unknown active system.
-func _abstract_aperture_palette() -> Dictionary:
-	match palette_variant:
-		PaletteVariant.CURRENT_NAVY_MID_CONTRAST, PaletteVariant.CURRENT_NAVY_A1_DARK_TINT_FAR, PaletteVariant.CURRENT_NAVY_A1_BRIGHT_TINT_FAR:
-			return {
-				"recess": Color(0.008, 0.010, 0.034, 0.82),
-				"edge": Color(0.075, 0.047, 0.142, 0.42),
-				"energy_dim": Color(0.070, 0.045, 0.125, 0.48),
-				"energy_core": Color(0.30, 0.15, 0.54, 0.72),
-				"energy_halo": Color(0.25, 0.10, 0.46, 0.12),
-			}
-		_:
-			# Blue-tinted cavities are darker than A2's mass, but not black holes.
-			return {
-				"recess": Color(0.006, 0.020, 0.044, 0.78),
-				"edge": Color(0.032, 0.078, 0.124, 0.40),
-				"energy_dim": Color(0.026, 0.095, 0.150, 0.46),
-				"energy_core": Color(0.10, 0.34, 0.50, 0.70),
-				"energy_halo": Color(0.05, 0.20, 0.34, 0.11),
-			}
-
-
-func _draw_abstract_far_apertures(
-	side: float,
-	top_y: float,
-	height: float,
-	width: float,
-	index: int,
-	animated: bool
-) -> void:
-	# Leave some modules untouched. Each remaining module gets a sparse,
-	# deterministic pattern with a different balance of slits, broad voids,
-	# tapered cavities, and asymmetrical notches.
-	if index % 3 == 1:
-		return
-
-	var edge_x: float = 0.0 if side > 0.0 else world_width
-	var detail: Dictionary = _abstract_aperture_palette()
-	var pattern_side: int = 1 if side < 0.0 else 0
-	var pattern: int = posmod(index * 3 + pattern_side, 5)
-	var base_x: float = _far_panel_left_x(side, edge_x, width, 72.0)
-	var specs: Array[Vector4] = []
-
-	match pattern:
-		0:
-			specs.append(Vector4(8.0, 0.23, 14.0, 0.060))
-			specs.append(Vector4(43.0, 0.56, 23.0, 0.043))
-		1:
-			specs.append(Vector4(18.0, 0.34, 31.0, 0.056))
-			specs.append(Vector4(3.0, 0.64, 16.0, 0.039))
-		2:
-			specs.append(Vector4(4.0, 0.21, 12.0, 0.049))
-			specs.append(Vector4(39.0, 0.43, 14.0, 0.071))
-			specs.append(Vector4(20.0, 0.69, 24.0, 0.042))
-		3:
-			specs.append(Vector4(28.0, 0.29, 18.0, 0.061))
-			specs.append(Vector4(3.0, 0.55, 32.0, 0.052))
-		_:
-			specs.append(Vector4(18.0, 0.44, 34.0, 0.064))
-			if index % 2 == 0:
-				specs.append(Vector4(2.0, 0.67, 16.0, 0.037))
-
-	for aperture_index in range(specs.size()):
-		var spec: Vector4 = specs[aperture_index]
-		var aperture_rect := Rect2(
-			Vector2(base_x + spec.x, top_y + height * spec.y),
-			Vector2(spec.z, height * spec.w)
-		)
-		var form_type: int = posmod(pattern + aperture_index * 2 + pattern_side, 4)
-		var state_seed: int = posmod(index * 7 + aperture_index * 5 + pattern_side, 9)
-		_draw_abstract_aperture(
-			aperture_rect,
-			form_type,
-			state_seed,
-			index,
-			aperture_index,
-			animated,
-			detail
-		)
-
-
-func _draw_abstract_aperture(
-	aperture_rect: Rect2,
-	form_type: int,
-	state_seed: int,
-	module_index: int,
-	aperture_index: int,
-	animated: bool,
-	detail: Dictionary
-) -> void:
-	var x: float = aperture_rect.position.x
-	var y: float = aperture_rect.position.y
-	var w: float = aperture_rect.size.x
-	var h: float = aperture_rect.size.y
-	var points := PackedVector2Array()
-
-	match form_type:
-		0:
-			# A narrow, slanted fissure.
-			points = PackedVector2Array([
-				Vector2(x + w * 0.34, y),
-				Vector2(x + w * 0.76, y + h * 0.04),
-				Vector2(x + w * 0.57, y + h),
-				Vector2(x + w * 0.16, y + h * 0.94),
-			])
-		1:
-			# A broad, skewed void with an off-centre point.
-			points = PackedVector2Array([
-				Vector2(x + w * 0.25, y),
-				Vector2(x + w * 0.80, y + h * 0.07),
-				Vector2(x + w, y + h * 0.56),
-				Vector2(x + w * 0.62, y + h),
-				Vector2(x + w * 0.08, y + h * 0.79),
-				Vector2(x, y + h * 0.28),
-			])
-		2:
-			# An irregular, softened-looking multi-plane cavity.
-			points = PackedVector2Array([
-				Vector2(x + w * 0.19, y + h * 0.12),
-				Vector2(x + w * 0.58, y),
-				Vector2(x + w * 0.91, y + h * 0.22),
-				Vector2(x + w * 0.74, y + h * 0.65),
-				Vector2(x + w * 0.43, y + h),
-				Vector2(x + w * 0.12, y + h * 0.81),
-				Vector2(x + w * 0.23, y + h * 0.45),
-			])
-		_:
-			# An elongated diamond-like aperture, deliberately offset rather than framed.
-			points = PackedVector2Array([
-				Vector2(x + w * 0.50, y),
-				Vector2(x + w, y + h * 0.36),
-				Vector2(x + w * 0.66, y + h * 0.90),
-				Vector2(x + w * 0.36, y + h),
-				Vector2(x, y + h * 0.61),
-			])
-
-	draw_colored_polygon(points, detail["recess"])
-	var outline := PackedVector2Array()
-	for point in points:
-		outline.append(point)
-	outline.append(points[0])
-	draw_polyline(outline, detail["edge"], 1.15, true)
-
-	# Most cavities remain dormant. A small, deterministic subset has a dim
-	# energy trace; in animated mode the trace glides through the opening and
-	# breathes slowly rather than blinking like a row of lights.
-	if state_seed > 1:
-		return
-
-	var pulse_fraction: float = float(posmod(module_index * 3 + aperture_index * 2, 7) + 1) / 8.0
-	var intensity: float = 0.58
-	if animated:
-		var wave: float = 0.5 + 0.5 * sin(_energy_clock * 0.42 + float(module_index) * 1.17 + float(aperture_index) * 2.31)
-		intensity = 0.16 + wave * 0.84
-		pulse_fraction = fposmod(
-			_energy_clock * (0.105 + float(posmod(module_index, 3)) * 0.022)
-			+ float(module_index) * 0.173
-			+ float(aperture_index) * 0.319,
-			1.0
-		)
-
-	var centre_x: float = x + w * 0.5
-	var spine_color: Color = detail["energy_dim"]
-	spine_color.a = spine_color.a * intensity
-	draw_line(
-		Vector2(centre_x, y + h * 0.13),
-		Vector2(centre_x, y + h * 0.87),
-		spine_color,
-		1.35,
-		true
-	)
-
-	var pulse_x: float = centre_x + sin(pulse_fraction * TAU + float(form_type) * 0.7) * w * 0.12
-	var pulse_y: float = y + h * (0.12 + pulse_fraction * 0.76)
-	var halo_color: Color = detail["energy_halo"]
-	halo_color.a = halo_color.a * intensity
-	var core_color: Color = detail["energy_core"]
-	core_color.a = core_color.a * intensity
-	draw_circle(Vector2(pulse_x, pulse_y), 7.0, halo_color)
-	draw_circle(Vector2(pulse_x, pulse_y), 2.8, core_color)
 
 
 
