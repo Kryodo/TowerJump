@@ -46,6 +46,8 @@ The follow-up pass refines the detail vocabulary into geometry-aligned recessed 
 
 The **Abstract Energy Treatment** pass retains the previous static combined treatment as a control, then compares irregular geometric apertures against the same apertures with rare, slow traveling energy pulses. The aperture patterns vary in form, position and density rather than aligning as conventional window grids. Scene: `scenes/environment_architecture_abstract_energy_test.tscn`; notes: `context/Architecture Abstract Energy Treatment.md`. This remains an isolated experiment; production gameplay and `scenes/main.tscn` are not modified.
 
+The **Panel Cluster Treatment** is the current far-detail direction after the irregular aperture experiment felt too arbitrary. It compares five organized rectangular cluster compositions (squares, broad panels, tall panels, separated pairs, and substantial charged slits), some placed in shallow recesses and others directly on the silhouette. Individual elements have dormant, active, and energized states; the animated variant adds slow charge travel while preserving the previous window treatment's visible neon character. Scene: `scenes/environment_architecture_panel_cluster_test.tscn`; notes: `context/Architecture Panel Cluster Treatment.md`.
+
 The mote depth/parallax idea and restrained architectural accent flicker remain separate future polish investigations. Neither is changed by these palette tests.
 
 ## Palette variants
