@@ -2,7 +2,7 @@
 
 Current reference branch: `experiment-abstract-energy-apertures`
 
-Current active workstream: `experiment-ambient-mote-parallax` (mote depth approved; middle-layer study next)
+Current active workstream: `experiment-middle-architecture-details` (mote depth approved; middle-layer A/B/C study prepared)
 
 ## Locked baseline
 
@@ -27,16 +27,14 @@ This gives the void a convincing sense of scale while integrating the particles 
 
 Keep the current mote appearance unchanged for now. Particle counts, textures, gradients, colors, lifetimes, emission areas, velocities, and size ranges were deliberately held fixed during the depth study.
 
-### 2. Explore a distinct middle-layer detail language
+### 2. Middle-layer structural detail — READY FOR VISUAL TESTING
 
-The middle layer can support some additional detail, but should not copy the far-layer apertures. Its larger forms already use broad fills, partial contour reveals, recessed vertical seams, sparse joints, and occasional cyan/violet edge accents. It also contains the Resonance Gate and Archive Recess landmarks.
+A dedicated A/B/C experiment is prepared on `experiment-middle-architecture-details` in `scenes/middle_architecture_detail_test.tscn`:
+- A: original middle architecture, unchanged control
+- B: sparse stepped inset plates with dark pockets and partial structural reveals
+- C: B plus a small number of dark mechanical recesses
 
-Run a dedicated, reversible A/B/C study:
-- A: current middle layer as the unchanged control
-- B: sparse structural depth cues, such as stepped inset plates, interrupted buttress joints, or small mechanical recesses
-- C: a restrained combination only if B proves useful
-
-Do not begin with extra neon windows, repeated bright accents, floating geometry, or dense panel grids. The test should answer whether these additions make the middle structures feel more constructed and monumental without competing with the player, platforms, or far-layer light sources.
+The far aperture treatment and approved mote parallax remain fixed. No extra neon windows, repeated bright accents, floating geometry, or dense panel grids are introduced. Only the middle support details change. The goal is to make the supports feel more constructed and monumental without competing with the player, platforms, or far-layer lighting.
 
 ### 3. Define the first zone concepts
 
@@ -66,6 +64,6 @@ The preview tool should load a zone profile into a dedicated environment test ro
 
 - Far aperture treatment: visually approved reference; further generic detail deferred.
 - Ambient mote parallax: architecture-matched depths 0.18 / 0.46 / 0.82 visually approved and locked; combined test defaults to B.
-- Middle-layer detail: next active experiment; current middle architecture remains the A/control reference.
+- Middle-layer detail: A/B/C test harness prepared; awaiting runtime visual evaluation.
 - Zone concepts: next design milestone after depth integration and the middle-layer detail study.
 - Art Library V1: schema and preview tooling follow those decisions, rather than preceding them.
