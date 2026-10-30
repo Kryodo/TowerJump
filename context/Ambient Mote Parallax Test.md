@@ -17,7 +17,7 @@ Run the scene with **F6**.
 | Key | Mode |
 |---|---|
 | **A** | Current single-depth/global-space particle behavior |
-| **B** | Architecture-matched parallax: far 0.18 / mid 0.46 / near 0.82 |
+| **B** | <strong>APPROVED DEFAULT</strong> — architecture-matched parallax: far 0.18 / mid 0.46 / near 0.82 |
 | **C** | Subtle depth separation: far 0.10 / mid 0.30 / near 0.55 |
 | **D** | Pronounced depth separation: far 0.28 / mid 0.62 / near 0.92 |
 | **5** | A1 Depth architecture palette |
@@ -26,27 +26,26 @@ Run the scene with **F6**.
 | **R** | Random run seed |
 | **Space / Enter** | Restart |
 
-Switch A–D during the same run to compare the depth behavior at the same climb height. Particle systems restart when switching, so allow their fields to repopulate before judging density.
+**B is now the approved mote-depth baseline and the scene's startup mode.** Switch to A, C, or D only when you want to compare the alternatives. Particle systems restart when switching, so allow their fields to repopulate before judging density.
 
 ## What stays fixed
 
 All variants preserve the three existing emitters' particle counts, textures, gradients, emission extents, lifetimes, velocities, scale ranges, and z-order. Mode A preserves their current global-coordinate behavior. The parallax modes set particle local coordinates so existing particles move with their own parallax layer; only coordinate behavior and scroll scales change.
 
-The approved architecture is always present. Keys 5 and 6 switch between the A1 and A2 palette treatments without changing the mote depth variant. The default is A2 with compact far-aperture states and switch/shimmer flicker enabled.
+The approved architecture is always present. Keys 5 and 6 switch between the A1 and A2 palette treatments without changing the mote depth variant. The default is A2 with compact far-aperture states and switch/shimmer flicker enabled. The approved mote-depth values are the same as the architecture parallax values: far 0.18, middle 0.46, and near 0.82.
 
-The parallax variants set particle local coordinates so existing particles move with their parallax layer. Each layer repeats vertically to keep the ambient field present as the camera climbs.
+Each parallax layer repeats vertically to keep the ambient field present as the camera climbs.
 
 ## Evaluation
 
-1. Does B integrate motes into the established far / middle / near architecture depth?
-3. Does C feel more atmospheric and distant, or too static?
-4. Does D create convincing foreground movement, or distract from the ball and platforms?
-5. Do the motes move at a useful speed relative to the architecture while the camera climbs?
-6. Does the particle field remain continuous across longer runs without obvious repetition?
-7. Do the current mote sizes, brightness, and density still feel balanced once depth is introduced?
-8. Does A1 or A2 provide the better combined architecture-and-void relationship?
-9. Does the far aperture flicker remain readable through the mote field without losing its impact?
-10. Does the effect remain subtle during camera landing response and streak zoom?
+1. Is B still the best balance of spatial depth and visual restraint?
+2. Does C feel too static compared with the approved B configuration?
+3. Does D create convincing foreground movement, or distract from the ball and platforms?
+4. Does the particle field remain continuous across longer runs without obvious repetition?
+5. Do the current mote sizes, brightness, and density remain balanced with the architecture?
+6. Does A1 or A2 provide the better combined architecture-and-void relationship?
+7. Does the far-aperture flicker remain readable through the mote field without losing its impact?
+8. Does the effect remain subtle during camera landing response and streak zoom?
 
 ## Validation
 
