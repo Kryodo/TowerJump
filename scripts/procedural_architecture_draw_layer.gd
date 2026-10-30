@@ -49,7 +49,7 @@ enum LifeTreatment {
 @export var section_bottom_y: float = 1600.0
 
 var _rng := RandomNumberGenerator.new()
-var _energy_clock: float = 0.0
+var _flicker_clock: float = 0.0
 
 const FAR_MASS_A := Color(0.004, 0.012, 0.026, 0.98)
 const FAR_MASS_B := Color(0.006, 0.016, 0.032, 0.98)
@@ -115,9 +115,9 @@ func _draw() -> void:
 
 
 func _process(delta: float) -> void:
-	# Only the abstract-energy study animates. All other treatments stay static.
+	# Only the compact panel-flicker treatment animates. All other treatments stay static.
 	if layer_type == LayerType.FAR_SILHOUETTES and life_treatment == LifeTreatment.COMPACT_PANEL_FLICKER:
-		_energy_clock += delta
+		_flicker_clock += delta
 		queue_redraw()
 
 
