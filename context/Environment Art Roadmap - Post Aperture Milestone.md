@@ -35,7 +35,7 @@ A dedicated A/B/C experiment is running on `experiment-middle-architecture-detai
 - C: B plus four varied mechanical-cavity arrangements, positioned separately from the inset plates
 - D: high-contrast diagnostic view, strictly for inspecting the geometry
 
-The latest refinement replaces black middle recesses with palette-aware dark-indigo values and increases normal-mode plate separation. The diagnostic colors unexpectedly resemble a bright neon tower; preserve that as a possible intentional zone-art direction, not as a generic generator default. The far aperture treatment and approved mote parallax remain fixed while middle details are evaluated.
+The latest refinement gives every middle-fill variant the same dark-indigo recess material, including the brighter purple-tinted fill. Inset plates are biased toward the inner side of each support; the C treatment calculates its mechanical service-lane width from the actual inset layout and preserves a 15 px minimum gap. The diagnostic colors unexpectedly resemble a bright neon tower; preserve that as a possible intentional zone-art direction, not as a generic generator default. The far aperture treatment and approved mote parallax remain fixed while middle details receive their final visual check.
 
 ### 3. Define the first zone concepts
 
@@ -65,6 +65,6 @@ The preview tool should load a zone profile into a dedicated environment test ro
 
 - Far aperture treatment: visually approved reference; further generic detail deferred.
 - Ambient mote parallax: architecture-matched depths 0.18 / 0.46 / 0.82 visually approved and locked; combined test defaults to B.
-- Middle-layer detail: four inset patterns, four cavity patterns, separated spatial placement, dark-indigo recess values, stronger plate separation, and D-key diagnostic contrast refined; awaiting another runtime visual evaluation.
+- Middle-layer detail: four inset patterns, four cavity patterns, one shared dark-indigo recess material across blue/purple fills, and a computed 15 px minimum gap between inset plates and mechanical service cavities. D-key diagnostic contrast remains available; awaiting final runtime visual evaluation.
 - Zone concepts: next design milestone after depth integration and the middle-layer detail study.
 - Art Library V1: schema and preview tooling follow those decisions, rather than preceding them.
