@@ -947,28 +947,30 @@ func _mid_detail_colors() -> Dictionary:
 	var very_dark_middle: bool = middle_fill_peak <= 0.055
 	if very_dark_middle:
 		return {
-			# Lift graphite surfaces above the near-black fill so the recess reads
-			# as geometry instead of disappearing into the surrounding support.
-			"cavity": Color(0.026, 0.035, 0.050, 0.88),
-			"edge": Color(0.090, 0.119, 0.153, 0.58),
-			"inner": Color(0.016, 0.025, 0.040, 0.90),
-			"division": Color(0.064, 0.087, 0.113, 0.48),
-			"foot": Color(0.025, 0.036, 0.052, 0.82),
-			"slot": Color(0.018, 0.028, 0.043, 0.94),
-			"slot_edge": Color(0.090, 0.119, 0.153, 0.52),
-			"shelf": Color(0.105, 0.139, 0.174, 0.46),
+			# Dark indigo rather than graphite-black keeps the recesses integrated
+			# with the blue/purple mass while preserving a clear value separation.
+			"cavity": Color(0.020, 0.014, 0.060, 0.92),
+			"edge": Color(0.105, 0.080, 0.178, 0.66),
+			"inner": Color(0.013, 0.010, 0.044, 0.94),
+			"inner_edge": Color(0.090, 0.070, 0.155, 0.62),
+			"division": Color(0.125, 0.096, 0.195, 0.66),
+			"foot": Color(0.018, 0.013, 0.052, 0.88),
+			"slot": Color(0.014, 0.010, 0.046, 0.96),
+			"slot_edge": Color(0.105, 0.080, 0.176, 0.62),
+			"shelf": Color(0.135, 0.105, 0.205, 0.60),
 		}
 
 	return {
-		# Deeper shadow recesses remain useful against the slightly brighter middle fills.
-		"cavity": Color(0.004, 0.010, 0.021, 0.86),
-		"edge": Color(0.065, 0.094, 0.132, 0.48),
-		"inner": Color(0.008, 0.016, 0.029, 0.88),
-		"division": Color(0.050, 0.078, 0.108, 0.38),
-		"foot": Color(0.009, 0.019, 0.033, 0.76),
-		"slot": Color(0.004, 0.011, 0.023, 0.90),
-		"slot_edge": Color(0.060, 0.090, 0.125, 0.44),
-		"shelf": Color(0.075, 0.110, 0.145, 0.34),
+		# The brighter middle fill still uses a blue-indigo shadow, not a black hole.
+		"cavity": Color(0.012, 0.010, 0.043, 0.90),
+		"edge": Color(0.090, 0.075, 0.158, 0.62),
+		"inner": Color(0.009, 0.008, 0.034, 0.92),
+		"inner_edge": Color(0.080, 0.067, 0.142, 0.58),
+		"division": Color(0.108, 0.087, 0.176, 0.62),
+		"foot": Color(0.011, 0.009, 0.040, 0.86),
+		"slot": Color(0.009, 0.008, 0.036, 0.94),
+		"slot_edge": Color(0.088, 0.072, 0.152, 0.58),
+		"shelf": Color(0.112, 0.091, 0.182, 0.54),
 	}
 
 
@@ -1062,6 +1064,12 @@ func _draw_mid_inset_plate(
 		plate.size - Vector2(8.0, 14.0)
 	)
 	draw_rect(inner_plate, colors["inner"], true)
+	draw_rect(
+		inner_plate,
+		colors["inner_edge"],
+		false,
+		1.25 if mid_detail_debug else 1.1
+	)
 
 	# A broken shoulder reveal is offset to one side, rather than a complete bright frame.
 	var shoulder_x: float = plate.position.x + (
@@ -1085,7 +1093,7 @@ func _draw_mid_inset_plate(
 					Vector2(plate.position.x + 6.0, division_y),
 					Vector2(plate.end.x - 8.0, division_y),
 					colors["division"],
-					1.1,
+					1.45,
 					true
 				)
 			var foot_width: float = 15.0 + float(plate_index) * 3.0
@@ -1101,7 +1109,7 @@ func _draw_mid_inset_plate(
 				Vector2(plate.position.x + 5.0, cross_y),
 				Vector2(plate.end.x - 5.0, cross_y),
 				colors["division"],
-				1.1,
+				1.45,
 				true
 			)
 		2:
@@ -1110,7 +1118,7 @@ func _draw_mid_inset_plate(
 				Vector2(plate.position.x + 6.0, shelf_y),
 				Vector2(plate.end.x - 6.0, shelf_y),
 				colors["division"],
-				1.2,
+				1.5,
 				true
 			)
 			var vertical_x: float = plate.position.x + (
@@ -1184,7 +1192,11 @@ func _draw_mid_mechanical_recesses(
 		var slot_width_actual: float = spec.size.x
 		var slot_height_actual: float = spec.size.y
 		var slot_y: float = spec.position.y + float(posmod(index + slot_index, 2)) * 5.0
-		var slot_anchor_x: float = edge_x + side * (width * 0.40 + float(slot_index) * 5.0)
+		# Inset plates occupy the inward-facing side of each support. Put
+		# these small service cavities toward the outer edge, keeping the two
+		# detail families spatially separate instead of layering over one another.
+		var outer_offset: float = width * 0.12 + float(slot_index) * 4.0
+		var slot_anchor_x: float = edge_x + side * outer_offset
 		var slot_x: float = slot_anchor_x if side > 0.0 else slot_anchor_x - slot_width_actual
 		var slot := Rect2(Vector2(slot_x, slot_y), Vector2(slot_width_actual, slot_height_actual))
 		draw_rect(slot, colors["slot"], true)
