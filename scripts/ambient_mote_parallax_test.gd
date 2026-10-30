@@ -75,7 +75,7 @@ func _spawn_game() -> void:
 		_initial_local_coords.append(emitter.local_coords)
 
 	_start_y = _ball.global_position.y
-	_apply_variant()
+	_set_variant(_variant)
 	_update_seed_label(initial_seed)
 
 
