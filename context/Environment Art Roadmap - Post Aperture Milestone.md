@@ -19,7 +19,7 @@ Do not add more generic far-layer details at this stage. Preserve the current tr
 ### 1. Integrate ambient motes with environmental depth
 
 Use the isolated `Ambient Mote Parallax Test` to compare:
-- current camera-attached behavior
+- current single-depth/global-coordinate behavior
 - parallax values matched to the architecture layers
 - a subtler depth spread
 - a more pronounced depth spread
