@@ -44,6 +44,8 @@ The next long-form pass is now available as a separate sequence scene: it holds 
 The isolated **Architecture Life Treatment** branch keeps that work as its starting point and adds a bounded static-detail comparison to the far silhouettes. It tests no extra detail, subtle contours/joints, and contours with sparse dim windows under both A1 and A2. Flicker and mote behavior remain out of scope until the static-detail balance is chosen.
 The follow-up pass refines the detail vocabulary into geometry-aligned recessed bays and static window states (mostly dark, some subtly lit, rare low-strength neon), with separate contour-only, window-only, and combined variants. The first life-treatment scene is retained as the baseline reference. Flicker and mote behavior remain out of scope until these static treatments are visually approved.
 
+The **Abstract Energy Treatment** pass retains the previous static combined treatment as a control, then compares irregular geometric apertures against the same apertures with rare, slow traveling energy pulses. The aperture patterns vary in form, position and density rather than aligning as conventional window grids. Scene: `scenes/environment_architecture_abstract_energy_test.tscn`; notes: `context/Architecture Abstract Energy Treatment.md`. This remains an isolated experiment; production gameplay and `scenes/main.tscn` are not modified.
+
 The mote depth/parallax idea and restrained architectural accent flicker remain separate future polish investigations. Neither is changed by these palette tests.
 
 ## Palette variants
