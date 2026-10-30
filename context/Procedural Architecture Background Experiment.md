@@ -46,7 +46,7 @@ The follow-up pass refines the detail vocabulary into geometry-aligned recessed 
 
 The earlier irregular **Abstract Energy** aperture trial was rejected because its free-form shapes and small circular energy marks felt arbitrary. Its active renderer modes have been replaced by the organized **Panel Cluster Treatment** below; the old scene entry point now opens the corrected test for compatibility.
 
-The **Panel Cluster Treatment** established intentional rectangular groups as the far-detail language. Its next refinement keeps the larger cluster version as a comparison, while introducing taller recessed bays, compact illuminated squares/rectangles/slits, and restrained stationary-source flicker instead of moving charge pulses. Broader panels are more likely to remain dormant, keeping the cozy visible light concentrated in compact elements. Scene: `scenes/environment_architecture_panel_cluster_test.tscn`; notes: `context/Architecture Panel Cluster Treatment.md`.
+The **Panel Cluster Treatment** established intentional rectangular groups as the far-detail language. The current refinement retains the previous window and larger-cluster comparisons while varying recess and aperture dimensions, anchoring every recess/isolated group inside the far silhouette, and softening A2's dark recess treatment. Lighting keeps three states (dormant, mid, strong neon); some stationary sources use a switch-like on / nearly-off cycle while others shimmer gently. Scene: `scenes/environment_architecture_panel_cluster_test.tscn`; notes: `context/Architecture Panel Cluster Treatment.md`.
 
 The mote depth/parallax idea and restrained architectural accent flicker remain separate future polish investigations. Neither is changed by these palette tests.
 
