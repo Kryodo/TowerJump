@@ -565,7 +565,7 @@ func _draw_panel_aperture(
 	if state == 2:
 		# A brighter inset rail keeps energized apertures readable at small display size.
 		var rail_color: Color = detail["window_neon"]
-		rail_color.a = minf(1.0, rail_color.a * intensity)
+
 		if inner.size.x >= inner.size.y:
 			draw_rect(
 				Rect2(inner.position + Vector2(2.0, 2.0), Vector2(2.5, inner.size.y - 4.0)),
