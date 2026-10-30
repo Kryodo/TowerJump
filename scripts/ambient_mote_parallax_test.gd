@@ -45,7 +45,7 @@ var _seed_label: Label
 var _variant_label: Label
 var _palette_label: Label
 var _height_label: Label
-var _variant: TestVariant = TestVariant.CURRENT_SINGLE_DEPTH
+var _variant: TestVariant = TestVariant.ARCHITECTURE_MATCHED
 var _start_y: float
 var _seed_rng := RandomNumberGenerator.new()
 
