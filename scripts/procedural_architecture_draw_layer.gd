@@ -757,8 +757,8 @@ func _draw_compact_panel_light(
 			# A subset of sources behave like small powered apertures switching
 			# between on and nearly-off states. Individual periods and phases differ.
 			var cycle_duration: float = 2.45 + float(posmod(module_index + element_index, 4)) * 0.58
-			var phase: float = float(posmod(module_index * 19 + element_index * 23, 17)) / 17.0
-			var cycle_position: float = fposmod(_flicker_clock / cycle_duration + phase, 1.0)
+			var switch_phase: float = float(posmod(module_index * 19 + element_index * 23, 17)) / 17.0
+			var cycle_position: float = fposmod(_flicker_clock / cycle_duration + switch_phase, 1.0)
 			var off_start: float = 0.70 + float(posmod(module_index * 3 + element_index, 3)) * 0.055
 			var fade_end: float = minf(0.99, off_start + 0.045)
 			var switch_level: float = 1.0
@@ -769,11 +769,11 @@ func _draw_compact_panel_light(
 			intensity = 0.045 + switch_level * 0.955
 		else:
 			# The rest retain a gentler, irregular shimmer rather than blinking together.
-			var phase: float = float(module_index) * 0.93 + float(element_index) * 1.71
+			var shimmer_phase: float = float(module_index) * 0.93 + float(element_index) * 1.71
 			var flicker_signal: float = (
-				sin(_flicker_clock * 4.4 + phase) * 0.52
-				+ sin(_flicker_clock * 7.9 + phase * 1.83) * 0.31
-				+ sin(_flicker_clock * 12.7 + phase * 2.41) * 0.17
+				sin(_flicker_clock * 4.4 + shimmer_phase) * 0.52
+				+ sin(_flicker_clock * 7.9 + shimmer_phase * 1.83) * 0.31
+				+ sin(_flicker_clock * 12.7 + shimmer_phase * 2.41) * 0.17
 			)
 			intensity = 0.86 + flicker_signal * 0.22
 
