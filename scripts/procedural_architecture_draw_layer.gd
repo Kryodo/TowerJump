@@ -937,11 +937,14 @@ func _mid_detail_colors() -> Dictionary:
 			"shelf": Color(0.92, 0.96, 1.0, 0.95),
 		}
 
-	var very_dark_middle: bool = (
-		palette_variant == PaletteVariant.CURRENT_NAVY_A2_DARK_BLUE_MID
-		or palette_variant == PaletteVariant.CURRENT_NAVY_A2_DARK_PURPLE_MID
-		or palette_variant == PaletteVariant.CURRENT_NAVY_PURPLE_FAR_BLUE_MID
+	var middle_fill: Color = _mid_mass_color()
+	var middle_fill_peak: float = maxf(
+		middle_fill.r,
+		maxf(middle_fill.g, middle_fill.b)
 	)
+	# Use the actual resolved fill value rather than hard-coding palette IDs, so
+	# future dark-zone profiles automatically receive the more visible graphite treatment.
+	var very_dark_middle: bool = middle_fill_peak <= 0.055
 	if very_dark_middle:
 		return {
 			# Lift graphite surfaces above the near-black fill so the recess reads
