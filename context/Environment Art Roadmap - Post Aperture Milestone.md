@@ -2,7 +2,7 @@
 
 Current reference branch: `experiment-abstract-energy-apertures`
 
-Current active workstream: `experiment-middle-architecture-details` (mote depth approved; middle-layer A/B/C study prepared)
+Current active workstream: `experiment-middle-architecture-details` (mote depth approved; middle-layer detail refinement under final evaluation)
 
 ## Locked baseline
 
@@ -29,12 +29,13 @@ Keep the current mote appearance unchanged for now. Particle counts, textures, g
 
 ### 2. Middle-layer structural detail — READY FOR VISUAL TESTING
 
-A dedicated A/B/C experiment is prepared on `experiment-middle-architecture-details` in `scenes/middle_architecture_detail_test.tscn`:
+A dedicated A/B/C experiment is running on `experiment-middle-architecture-details` in `scenes/middle_architecture_detail_test.tscn`:
 - A: original middle architecture, unchanged control
-- B: sparse stepped inset plates with dark pockets and partial structural reveals
-- C: B plus a small number of dark mechanical recesses
+- B: four varied stepped inset compositions
+- C: B plus four varied mechanical-cavity arrangements, positioned separately from the inset plates
+- D: high-contrast diagnostic view, strictly for inspecting the geometry
 
-The far aperture treatment and approved mote parallax remain fixed. No extra neon windows, repeated bright accents, floating geometry, or dense panel grids are introduced. Only the middle support details change. The goal is to make the supports feel more constructed and monumental without competing with the player, platforms, or far-layer lighting.
+The latest refinement replaces black middle recesses with palette-aware dark-indigo values and increases normal-mode plate separation. The diagnostic colors unexpectedly resemble a bright neon tower; preserve that as a possible intentional zone-art direction, not as a generic generator default. The far aperture treatment and approved mote parallax remain fixed while middle details are evaluated.
 
 ### 3. Define the first zone concepts
 
@@ -64,6 +65,6 @@ The preview tool should load a zone profile into a dedicated environment test ro
 
 - Far aperture treatment: visually approved reference; further generic detail deferred.
 - Ambient mote parallax: architecture-matched depths 0.18 / 0.46 / 0.82 visually approved and locked; combined test defaults to B.
-- Middle-layer detail: four inset patterns, varied cavity layouts, value-aware recess colors, and D-key diagnostic contrast added; awaiting runtime visual evaluation.
+- Middle-layer detail: four inset patterns, four cavity patterns, separated spatial placement, dark-indigo recess values, stronger plate separation, and D-key diagnostic contrast refined; awaiting another runtime visual evaluation.
 - Zone concepts: next design milestone after depth integration and the middle-layer detail study.
 - Art Library V1: schema and preview tooling follow those decisions, rather than preceding them.
