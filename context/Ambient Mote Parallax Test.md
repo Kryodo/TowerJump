@@ -6,7 +6,7 @@ Scene: `scenes/ambient_mote_parallax_test.tscn`
 
 ## Purpose
 
-The current three mote emitters live under `GameCamera`, so their particles do not share the same depth model as the far, middle, and near architecture. This test compares the current setup with three actual parallax depth distributions.
+The current three mote emitters live under `GameCamera`, but their existing particle setup uses global coordinates: already-emitted particles stay in world space after they spawn. That means the current three sets effectively share one world-space scroll speed instead of receiving distinct far, middle, and near depth behavior. This test compares that exact baseline with three actual parallax depth distributions.
 
 The test instantiates the real `scenes/main.tscn` as its gameplay reference. It does not modify production scenes, particle settings, camera behavior, architecture, or gameplay scripts.
 
@@ -16,7 +16,7 @@ Run the scene with **F6**.
 
 | Key | Mode |
 |---|---|
-| **A** | Current camera-attached emitter setup |
+| **A** | Current single-depth/global-space particle behavior |
 | **B** | Architecture-matched parallax: far 0.18 / mid 0.46 / near 0.82 |
 | **C** | Subtle depth separation: far 0.10 / mid 0.30 / near 0.55 |
 | **D** | Pronounced depth separation: far 0.28 / mid 0.62 / near 0.92 |
@@ -28,7 +28,7 @@ Switch A–D during the same run to compare the depth behavior at the same climb
 
 ## What stays fixed
 
-All variants preserve the three existing emitters' particle counts, textures, gradients, emission extents, lifetimes, velocities, scale ranges, and z-order. Only the coordinate behavior and parallax scroll scales change.
+All variants preserve the three existing emitters' particle counts, textures, gradients, emission extents, lifetimes, velocities, scale ranges, and z-order. Mode A preserves their current global-coordinate behavior. The parallax modes set particle local coordinates so existing particles move with their own parallax layer; only coordinate behavior and scroll scales change.
 
 The parallax variants set particle local coordinates so existing particles move with their parallax layer. Each layer repeats vertically to keep the ambient field present as the camera climbs.
 
