@@ -930,6 +930,7 @@ func _mid_detail_colors() -> Dictionary:
 			"cavity": Color(0.16, 0.21, 0.29, 0.98),
 			"edge": Color(0.74, 0.86, 1.0, 0.96),
 			"inner": Color(0.32, 0.42, 0.55, 0.98),
+			"inner_edge": Color(0.62, 0.77, 0.94, 0.94),
 			"division": Color(0.88, 0.94, 1.0, 0.96),
 			"foot": Color(0.40, 0.51, 0.65, 0.98),
 			"slot": Color(0.085, 0.13, 0.20, 0.98),
@@ -943,7 +944,7 @@ func _mid_detail_colors() -> Dictionary:
 		maxf(middle_fill.g, middle_fill.b)
 	)
 	# Use the actual resolved fill value rather than hard-coding palette IDs, so
-	# future dark-zone profiles automatically receive the more visible graphite treatment.
+	# future dark-zone profiles automatically receive the more visible indigo treatment.
 	var very_dark_middle: bool = middle_fill_peak <= 0.055
 	if very_dark_middle:
 		return {
@@ -1141,7 +1142,7 @@ func _draw_mid_inset_plate(
 					Vector2(rib_start_x, rib_y),
 					Vector2(plate.end.x - 7.0, rib_y),
 					colors["division"],
-					1.0,
+					1.35,
 					true
 				)
 
