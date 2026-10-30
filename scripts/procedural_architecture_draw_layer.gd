@@ -50,6 +50,7 @@ enum MidDetailTreatment {
 @export var palette_variant: PaletteVariant = PaletteVariant.CURRENT_NAVY
 @export var life_treatment: LifeTreatment = LifeTreatment.BASELINE
 @export var mid_detail_treatment: MidDetailTreatment = MidDetailTreatment.BASELINE
+@export var mid_detail_debug: bool = false
 @export var environment_seed: int = 7319
 @export var world_width: float = 720.0
 @export var section_top_y: float = -10400.0
@@ -920,8 +921,57 @@ func _draw_support_module(side: float, top_y: float, index: int) -> void:
 		)
 
 
-# Middle-layer study B: recessed stepped plates. These are dark, non-emissive
-# structural inserts embedded in the broad support mass, not illuminated windows.
+# Middle-layer detail colors respond to the underlying fill. Very dark middle
+# profiles use lifted graphite recesses; brighter middle profiles can retain deeper
+# shadow cavities. Diagnostic mode deliberately exaggerates contrast for inspection.
+func _mid_detail_colors() -> Dictionary:
+	if mid_detail_debug:
+		return {
+			"cavity": Color(0.16, 0.21, 0.29, 0.98),
+			"edge": Color(0.74, 0.86, 1.0, 0.96),
+			"inner": Color(0.32, 0.42, 0.55, 0.98),
+			"division": Color(0.88, 0.94, 1.0, 0.96),
+			"foot": Color(0.40, 0.51, 0.65, 0.98),
+			"slot": Color(0.085, 0.13, 0.20, 0.98),
+			"slot_edge": Color(0.72, 0.84, 0.98, 0.92),
+			"shelf": Color(0.92, 0.96, 1.0, 0.95),
+		}
+
+	var very_dark_middle: bool = (
+		palette_variant == PaletteVariant.CURRENT_NAVY_A2_DARK_BLUE_MID
+		or palette_variant == PaletteVariant.CURRENT_NAVY_A2_DARK_PURPLE_MID
+		or palette_variant == PaletteVariant.CURRENT_NAVY_PURPLE_FAR_BLUE_MID
+	)
+	if very_dark_middle:
+		return {
+			# Lift graphite surfaces above the near-black fill so the recess reads
+			# as geometry instead of disappearing into the surrounding support.
+			"cavity": Color(0.026, 0.035, 0.050, 0.88),
+			"edge": Color(0.090, 0.119, 0.153, 0.58),
+			"inner": Color(0.016, 0.025, 0.040, 0.90),
+			"division": Color(0.064, 0.087, 0.113, 0.48),
+			"foot": Color(0.025, 0.036, 0.052, 0.82),
+			"slot": Color(0.018, 0.028, 0.043, 0.94),
+			"slot_edge": Color(0.090, 0.119, 0.153, 0.52),
+			"shelf": Color(0.105, 0.139, 0.174, 0.46),
+		}
+
+	return {
+		# Deeper shadow recesses remain useful against the slightly brighter middle fills.
+		"cavity": Color(0.004, 0.010, 0.021, 0.86),
+		"edge": Color(0.065, 0.094, 0.132, 0.48),
+		"inner": Color(0.008, 0.016, 0.029, 0.88),
+		"division": Color(0.050, 0.078, 0.108, 0.38),
+		"foot": Color(0.009, 0.019, 0.033, 0.76),
+		"slot": Color(0.004, 0.011, 0.023, 0.90),
+		"slot_edge": Color(0.060, 0.090, 0.125, 0.44),
+		"shelf": Color(0.075, 0.110, 0.145, 0.34),
+	}
+
+
+# Middle-layer study B: a small composition library of inset plates. The plates
+# are deliberately not identical: one tall cavity, stacked recesses, a broad
+# horizontal housing, or a paired vertical arrangement.
 func _draw_mid_stepped_inset(
 	side: float,
 	top_y: float,
@@ -929,72 +979,164 @@ func _draw_mid_stepped_inset(
 	width: float,
 	index: int
 ) -> void:
-	# Anchor to the inward-facing edge so the plate remains inside either side mass.
-	var plate_width: float = 38.0 + float(posmod(index, 3)) * 5.0
-	var plate_height: float = height * (0.31 if index % 2 == 0 else 0.27)
-	var plate_y: float = top_y + height * (0.22 if index % 2 == 0 else 0.27)
+	var colors: Dictionary = _mid_detail_colors()
+	var side_index: int = 1 if side < 0.0 else 0
+	var pattern: int = posmod(index * 3 + side_index, 4)
 	var inner_edge_x: float = 0.0 if side > 0.0 else world_width
-	var plate_x: float
-	if side > 0.0:
-		plate_x = inner_edge_x + width - 26.0 - plate_width
-	else:
-		plate_x = inner_edge_x - width + 26.0
-	var plate := Rect2(Vector2(plate_x, plate_y), Vector2(plate_width, plate_height))
+	var base_width: float = 39.0 + float(posmod(index * 5, 4)) * 4.0
+	var plates: Array[Rect2] = []
 
-	# A shallow shadow pocket, stepped inner surface, and partial shoulder reveal
-	# create parallax-readable depth without tracing the full rectangle brightly.
-	draw_rect(plate, Color(0.0035, 0.009, 0.019, 0.74), true)
-	draw_rect(plate, Color(0.038, 0.076, 0.112, 0.38), false, 1.4)
+	match pattern:
+		0:
+			# Single long inset with a visible lower step.
+			var pw: float = base_width + 6.0
+			plates.append(Rect2(
+				Vector2(0.0, top_y + height * 0.21),
+				Vector2(pw, height * 0.34)
+			))
+		1:
+			# Two separated, offset recesses of unequal height.
+			var upper_width: float = base_width - 4.0
+			var lower_width: float = base_width - 12.0
+			plates.append(Rect2(
+				Vector2(0.0, top_y + height * 0.18),
+				Vector2(upper_width, height * 0.16)
+			))
+			plates.append(Rect2(
+				Vector2(0.0, top_y + height * 0.53),
+				Vector2(lower_width, height * 0.13)
+			))
+		2:
+			# Broad horizontal housing with a compact lower inset.
+			plates.append(Rect2(
+				Vector2(0.0, top_y + height * 0.36),
+				Vector2(base_width + 15.0, height * 0.17)
+			))
+			plates.append(Rect2(
+				Vector2(0.0, top_y + height * 0.64),
+				Vector2(base_width - 13.0, height * 0.11)
+			))
+		_:
+			# Paired vertical plates with deliberately unequal proportions.
+			plates.append(Rect2(
+				Vector2(0.0, top_y + height * 0.25),
+				Vector2(base_width - 9.0, height * 0.22)
+			))
+			plates.append(Rect2(
+				Vector2(0.0, top_y + height * 0.57),
+				Vector2(base_width + 1.0, height * 0.18)
+			))
+
+	for plate_index in range(plates.size()):
+		var spec: Rect2 = plates[plate_index]
+		var plate_width: float = spec.size.x
+		var plate_height: float = spec.size.y
+		var inward_offset: float = float(posmod(index + plate_index * 2, 3)) * 5.0
+		var plate_x: float
+		if side > 0.0:
+			plate_x = inner_edge_x + width - 27.0 - plate_width - inward_offset
+		else:
+			plate_x = inner_edge_x - width + 27.0 + inward_offset
+		var plate_y: float = spec.position.y + (
+			float(posmod(index * 7 + plate_index * 3, 3)) - 1.0
+		) * 7.0
+		var plate := Rect2(Vector2(plate_x, plate_y), Vector2(plate_width, plate_height))
+		_draw_mid_inset_plate(plate, side, pattern, plate_index, colors)
+
+
+func _draw_mid_inset_plate(
+	plate: Rect2,
+	side: float,
+	pattern: int,
+	plate_index: int,
+	colors: Dictionary
+) -> void:
+	draw_rect(plate, colors["cavity"], true)
+	draw_rect(plate, colors["edge"], false, 1.4)
 
 	var inner_plate := Rect2(
 		plate.position + Vector2(4.0, 7.0),
 		plate.size - Vector2(8.0, 14.0)
 	)
-	draw_rect(inner_plate, Color(0.012, 0.027, 0.047, 0.58), true)
+	draw_rect(inner_plate, colors["inner"], true)
 
+	# A broken shoulder reveal is offset to one side, rather than a complete bright frame.
 	var shoulder_x: float = plate.position.x + (
 		plate.size.x - 5.0 if side > 0.0 else 5.0
 	)
 	draw_line(
 		Vector2(shoulder_x, plate.position.y + 12.0),
 		Vector2(shoulder_x, plate.end.y - 12.0),
-		Color(0.070, 0.125, 0.164, 0.32),
-		1.3,
+		colors["edge"],
+		1.5 if mid_detail_debug else 1.1,
 		true
 	)
 
-	# Two interrupted horizontal divisions imply a segmented load-bearing plate.
-	for division in range(2):
-		var division_y: float = plate.position.y + plate.size.y * (0.38 + float(division) * 0.29)
-		var division_start_x: float = plate.position.x + 6.0
-		var division_end_x: float = plate.end.x - 6.0
-		if side > 0.0:
-			division_end_x -= 7.0
-		else:
-			division_start_x += 7.0
-		draw_line(
-			Vector2(division_start_x, division_y),
-			Vector2(division_end_x, division_y),
-			Color(0.043, 0.078, 0.108, 0.30),
-			1.0,
-			true
-		)
+	match pattern:
+		0:
+			for division in range(2):
+				var division_y: float = plate.position.y + plate.size.y * (
+					0.38 + float(division) * 0.29
+				)
+				draw_line(
+					Vector2(plate.position.x + 6.0, division_y),
+					Vector2(plate.end.x - 8.0, division_y),
+					colors["division"],
+					1.1,
+					true
+				)
+			var foot_width: float = 15.0 + float(plate_index) * 3.0
+			var foot_x: float = plate.end.x - foot_width if side > 0.0 else plate.position.x - 2.0
+			draw_rect(
+				Rect2(Vector2(foot_x, plate.end.y - 24.0), Vector2(foot_width, 24.0)),
+				colors["foot"],
+				true
+			)
+		1:
+			var cross_y: float = plate.position.y + plate.size.y * 0.62
+			draw_line(
+				Vector2(plate.position.x + 5.0, cross_y),
+				Vector2(plate.end.x - 5.0, cross_y),
+				colors["division"],
+				1.1,
+				true
+			)
+		2:
+			var shelf_y: float = plate.position.y + plate.size.y * 0.72
+			draw_line(
+				Vector2(plate.position.x + 6.0, shelf_y),
+				Vector2(plate.end.x - 6.0, shelf_y),
+				colors["division"],
+				1.2,
+				true
+			)
+			var vertical_x: float = plate.position.x + (
+				plate.size.x * 0.68 if side > 0.0 else plate.size.x * 0.32
+			)
+			draw_line(
+				Vector2(vertical_x, plate.position.y + 5.0),
+				Vector2(vertical_x, plate.end.y - 5.0),
+				colors["division"],
+				1.0,
+				true
+			)
+		_:
+			# A staggered pair of short interior ribs gives the double-plate pattern
+			# a different internal rhythm from the tall and broad variants.
+			for rib in range(2):
+				var rib_y: float = plate.position.y + plate.size.y * (0.34 + float(rib) * 0.38)
+				var rib_start_x: float = plate.position.x + 5.0 + float(rib) * 4.0
+				draw_line(
+					Vector2(rib_start_x, rib_y),
+					Vector2(plate.end.x - 7.0, rib_y),
+					colors["division"],
+					1.0,
+					true
+				)
 
-	# A short offset foot makes the housing feel stepped into the support itself.
-	var foot_width: float = 16.0 + float(posmod(index, 2)) * 5.0
-	var foot_x: float = plate.end.x - foot_width if side > 0.0 else plate.position.x - 2.0
-	draw_rect(
-		Rect2(
-			Vector2(foot_x, plate.end.y - 28.0),
-			Vector2(foot_width, 28.0)
-		),
-		Color(0.018, 0.039, 0.060, 0.52),
-		true
-	)
 
-
-# Middle-layer study C adds a small number of recessed mechanical slots to B.
-# The slots stay dark and subdued: no neon, moving light, or residential window rhythm.
+# Middle-layer study C adds different mechanical cavity arrangements to B.
+# The recesses remain non-emissive and use a value-aware palette.
 func _draw_mid_mechanical_recesses(
 	side: float,
 	top_y: float,
@@ -1005,31 +1147,53 @@ func _draw_mid_mechanical_recesses(
 	if index % 3 == 1:
 		return
 
-	var slot_width: float = 24.0 + float(index % 2) * 4.0
-	var slot_height: float = 54.0 + float(index % 3) * 8.0
+	var colors: Dictionary = _mid_detail_colors()
+	var side_index: int = 1 if side < 0.0 else 0
+	var pattern: int = posmod(index * 5 + side_index, 4)
 	var edge_x: float = 0.0 if side > 0.0 else world_width
-	var slot_anchor_x: float = edge_x + side * (width * 0.43)
-	var slot_x: float = slot_anchor_x if side > 0.0 else slot_anchor_x - slot_width
-	var slot_rows: Array[float] = [0.36, 0.66]
-	if index % 2 == 0:
-		slot_rows.reverse()
+	var slot_width: float = 19.0 + float(posmod(index, 3)) * 4.0
+	var slot_height: float = 48.0 + float(posmod(index * 2, 3)) * 12.0
+	var slots: Array[Rect2] = []
 
-	for row_index in range(slot_rows.size()):
-		var slot_y: float = top_y + height * slot_rows[row_index]
-		var slot := Rect2(
-			Vector2(slot_x, slot_y),
-			Vector2(slot_width, slot_height)
-		)
-		draw_rect(slot, Color(0.0025, 0.007, 0.015, 0.82), true)
-		draw_rect(slot, Color(0.032, 0.068, 0.096, 0.32), false, 1.1)
+	match pattern:
+		0:
+			# Two vertical cavities at different heights.
+			slots.append(Rect2(Vector2(0.0, top_y + height * 0.34), Vector2(slot_width, slot_height)))
+			slots.append(Rect2(Vector2(0.0, top_y + height * 0.62), Vector2(slot_width - 3.0, slot_height * 0.82)))
+		1:
+			# One broad horizontal recess with a smaller offset companion.
+			slots.append(Rect2(Vector2(0.0, top_y + height * 0.43), Vector2(slot_width + 18.0, slot_height * 0.55)))
+			slots.append(Rect2(Vector2(0.0, top_y + height * 0.61), Vector2(slot_width - 2.0, slot_height * 0.42)))
+		2:
+			# A staggered vertical / horizontal pair.
+			slots.append(Rect2(Vector2(0.0, top_y + height * 0.29), Vector2(slot_width - 4.0, slot_height * 0.92)))
+			slots.append(Rect2(Vector2(0.0, top_y + height * 0.68), Vector2(slot_width + 13.0, slot_height * 0.44)))
+		_:
+			# Three short, unevenly spaced service cuts.
+			for cut in range(3):
+				slots.append(Rect2(
+					Vector2(0.0, top_y + height * (0.33 + float(cut) * 0.15)),
+					Vector2(slot_width - float(cut % 2) * 3.0, slot_height * 0.38)
+				))
 
-		# A short inner shelf gives the recess a physical lip, not a lit indicator.
+	for slot_index in range(slots.size()):
+		var spec: Rect2 = slots[slot_index]
+		var slot_width_actual: float = spec.size.x
+		var slot_height_actual: float = spec.size.y
+		var slot_y: float = spec.position.y + float(posmod(index + slot_index, 2)) * 5.0
+		var slot_anchor_x: float = edge_x + side * (width * 0.40 + float(slot_index) * 5.0)
+		var slot_x: float = slot_anchor_x if side > 0.0 else slot_anchor_x - slot_width_actual
+		var slot := Rect2(Vector2(slot_x, slot_y), Vector2(slot_width_actual, slot_height_actual))
+		draw_rect(slot, colors["slot"], true)
+		draw_rect(slot, colors["slot_edge"], false, 1.2)
+
+		# A short shelf is the only interior highlight, so these stay structural cavities.
 		var shelf_y: float = slot.position.y + slot.size.y * 0.68
 		draw_line(
 			Vector2(slot.position.x + 4.0, shelf_y),
 			Vector2(slot.end.x - 4.0, shelf_y),
-			Color(0.052, 0.092, 0.124, 0.28),
-			1.0,
+			colors["shelf"],
+			1.1,
 			true
 		)
 
