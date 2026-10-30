@@ -2,5 +2,5 @@
 
 [ext_resource type="Script" path="res://scripts/environment_architecture_abstract_energy_test.gd" id="1_test"]
 
-[node name="EnvironmentArchitectureAbstractEnergyTest" type="Node2D"]
+[node name="EnvironmentArchitecturePanelClusterTest" type="Node2D"]
 script = ExtResource("1_test")
