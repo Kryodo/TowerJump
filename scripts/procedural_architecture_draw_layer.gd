@@ -921,9 +921,9 @@ func _draw_support_module(side: float, top_y: float, index: int) -> void:
 		)
 
 
-# Middle-layer detail colors respond to the underlying fill. Very dark middle
-# profiles use lifted graphite recesses; brighter middle profiles can retain deeper
-# shadow cavities. Diagnostic mode deliberately exaggerates contrast for inspection.
+# One shared dark-indigo palette keeps recesses visually consistent across blue and
+# purple middle fills. The fill behind them changes; their material identity does not.
+# Diagnostic mode deliberately exaggerates contrast for inspection.
 func _mid_detail_colors() -> Dictionary:
 	if mid_detail_debug:
 		return {
@@ -938,46 +938,69 @@ func _mid_detail_colors() -> Dictionary:
 			"shelf": Color(0.92, 0.96, 1.0, 0.95),
 		}
 
-	var middle_fill: Color = _mid_mass_color()
-	var middle_fill_peak: float = maxf(
-		middle_fill.r,
-		maxf(middle_fill.g, middle_fill.b)
-	)
-	# Use the actual resolved fill value rather than hard-coding palette IDs, so
-	# future dark-zone profiles automatically receive the more visible indigo treatment.
-	var very_dark_middle: bool = middle_fill_peak <= 0.055
-	if very_dark_middle:
-		return {
-			# Dark indigo rather than graphite-black keeps the recesses integrated
-			# with the blue/purple mass while preserving a clear value separation.
-			"cavity": Color(0.020, 0.014, 0.060, 0.92),
-			"edge": Color(0.105, 0.080, 0.178, 0.66),
-			"inner": Color(0.013, 0.010, 0.044, 0.94),
-			"inner_edge": Color(0.090, 0.070, 0.155, 0.62),
-			"division": Color(0.125, 0.096, 0.195, 0.66),
-			"foot": Color(0.018, 0.013, 0.052, 0.88),
-			"slot": Color(0.014, 0.010, 0.046, 0.96),
-			"slot_edge": Color(0.105, 0.080, 0.176, 0.62),
-			"shelf": Color(0.135, 0.105, 0.205, 0.60),
-		}
-
 	return {
-		# The brighter middle fill still uses a blue-indigo shadow, not a black hole.
-		"cavity": Color(0.012, 0.010, 0.043, 0.90),
-		"edge": Color(0.090, 0.075, 0.158, 0.62),
-		"inner": Color(0.009, 0.008, 0.034, 0.92),
-		"inner_edge": Color(0.080, 0.067, 0.142, 0.58),
-		"division": Color(0.108, 0.087, 0.176, 0.62),
-		"foot": Color(0.011, 0.009, 0.040, 0.86),
-		"slot": Color(0.009, 0.008, 0.036, 0.94),
-		"slot_edge": Color(0.088, 0.072, 0.152, 0.58),
-		"shelf": Color(0.112, 0.091, 0.182, 0.54),
+		"cavity": Color(0.020, 0.014, 0.060, 0.92),
+		"edge": Color(0.105, 0.080, 0.178, 0.66),
+		"inner": Color(0.013, 0.010, 0.044, 0.94),
+		"inner_edge": Color(0.090, 0.070, 0.155, 0.62),
+		"division": Color(0.125, 0.096, 0.195, 0.66),
+		"foot": Color(0.018, 0.013, 0.052, 0.88),
+		"slot": Color(0.014, 0.010, 0.046, 0.96),
+		"slot_edge": Color(0.105, 0.080, 0.176, 0.62),
+		"shelf": Color(0.135, 0.105, 0.205, 0.60),
 	}
 
 
-# Middle-layer study B: a small composition library of inset plates. The plates
-# are deliberately not identical: one tall cavity, stacked recesses, a broad
-# horizontal housing, or a paired vertical arrangement.
+# Middle-layer study B: a small composition library of inset plates.
+# The same deterministic specifications are also used by C to calculate a clear
+# service lane for the smaller mechanical cavities.
+func _mid_inset_plate_specs(height: float, index: int, side_index: int) -> Array[Rect2]:
+	var pattern: int = posmod(index * 3 + side_index, 4)
+	var base_width: float = 39.0 + float(posmod(index * 5, 4)) * 4.0
+	var plates: Array[Rect2] = []
+
+	match pattern:
+		0:
+			# Single long inset with a visible lower step.
+			var pw: float = base_width + 6.0
+			plates.append(Rect2(
+				Vector2(0.0, height * 0.21),
+				Vector2(pw, height * 0.34)
+			))
+		1:
+			# Two separated, offset recesses of unequal height.
+			plates.append(Rect2(
+				Vector2(0.0, height * 0.18),
+				Vector2(base_width - 4.0, height * 0.16)
+			))
+			plates.append(Rect2(
+				Vector2(0.0, height * 0.53),
+				Vector2(base_width - 12.0, height * 0.13)
+			))
+		2:
+			# Broad horizontal housing with a compact lower inset.
+			plates.append(Rect2(
+				Vector2(0.0, height * 0.36),
+				Vector2(base_width + 15.0, height * 0.17)
+			))
+			plates.append(Rect2(
+				Vector2(0.0, height * 0.64),
+				Vector2(base_width - 13.0, height * 0.11)
+			))
+		_:
+			# Paired vertical plates with deliberately unequal proportions.
+			plates.append(Rect2(
+				Vector2(0.0, height * 0.25),
+				Vector2(base_width - 9.0, height * 0.22)
+			))
+			plates.append(Rect2(
+				Vector2(0.0, height * 0.57),
+				Vector2(base_width + 1.0, height * 0.18)
+			))
+
+	return plates
+
+
 func _draw_mid_stepped_inset(
 	side: float,
 	top_y: float,
@@ -989,61 +1012,21 @@ func _draw_mid_stepped_inset(
 	var side_index: int = 1 if side < 0.0 else 0
 	var pattern: int = posmod(index * 3 + side_index, 4)
 	var inner_edge_x: float = 0.0 if side > 0.0 else world_width
-	var base_width: float = 39.0 + float(posmod(index * 5, 4)) * 4.0
-	var plates: Array[Rect2] = []
-
-	match pattern:
-		0:
-			# Single long inset with a visible lower step.
-			var pw: float = base_width + 6.0
-			plates.append(Rect2(
-				Vector2(0.0, top_y + height * 0.21),
-				Vector2(pw, height * 0.34)
-			))
-		1:
-			# Two separated, offset recesses of unequal height.
-			var upper_width: float = base_width - 4.0
-			var lower_width: float = base_width - 12.0
-			plates.append(Rect2(
-				Vector2(0.0, top_y + height * 0.18),
-				Vector2(upper_width, height * 0.16)
-			))
-			plates.append(Rect2(
-				Vector2(0.0, top_y + height * 0.53),
-				Vector2(lower_width, height * 0.13)
-			))
-		2:
-			# Broad horizontal housing with a compact lower inset.
-			plates.append(Rect2(
-				Vector2(0.0, top_y + height * 0.36),
-				Vector2(base_width + 15.0, height * 0.17)
-			))
-			plates.append(Rect2(
-				Vector2(0.0, top_y + height * 0.64),
-				Vector2(base_width - 13.0, height * 0.11)
-			))
-		_:
-			# Paired vertical plates with deliberately unequal proportions.
-			plates.append(Rect2(
-				Vector2(0.0, top_y + height * 0.25),
-				Vector2(base_width - 9.0, height * 0.22)
-			))
-			plates.append(Rect2(
-				Vector2(0.0, top_y + height * 0.57),
-				Vector2(base_width + 1.0, height * 0.18)
-			))
+	var plates: Array[Rect2] = _mid_inset_plate_specs(height, index, side_index)
 
 	for plate_index in range(plates.size()):
 		var spec: Rect2 = plates[plate_index]
 		var plate_width: float = spec.size.x
 		var plate_height: float = spec.size.y
-		var inward_offset: float = float(posmod(index + plate_index * 2, 3)) * 5.0
+		# Bias the plates inward to create a deliberate buffer for the outer
+		# mechanical-service lane, while keeping them embedded in the support.
+		var inward_offset: float = float(posmod(index + plate_index * 2, 3)) * 5.0 - 18.0
 		var plate_x: float
 		if side > 0.0:
 			plate_x = inner_edge_x + width - 27.0 - plate_width - inward_offset
 		else:
 			plate_x = inner_edge_x - width + 27.0 + inward_offset
-		var plate_y: float = spec.position.y + (
+		var plate_y: float = top_y + spec.position.y + (
 			float(posmod(index * 7 + plate_index * 3, 3)) - 1.0
 		) * 7.0
 		var plate := Rect2(Vector2(plate_x, plate_y), Vector2(plate_width, plate_height))
@@ -1188,15 +1171,23 @@ func _draw_mid_mechanical_recesses(
 					Vector2(slot_width - float(cut % 2) * 3.0, slot_height * 0.38)
 				))
 
+	# Calculate the closest inset edge from the exact same layout specifications
+	# used by B. C then reserves a fixed 15px separation instead of guessing a
+	# second X-position independently.
+	var inset_specs: Array[Rect2] = _mid_inset_plate_specs(height, index, side_index)
+	var nearest_inset_edge: float = INF
+	for plate_index in range(inset_specs.size()):
+		var inward_offset: float = float(posmod(index + plate_index * 2, 3)) * 5.0 - 18.0
+		var plate_outer_edge: float = width - 27.0 - inset_specs[plate_index].size.x - inward_offset
+		nearest_inset_edge = minf(nearest_inset_edge, plate_outer_edge)
+
 	for slot_index in range(slots.size()):
 		var spec: Rect2 = slots[slot_index]
-		var slot_width_actual: float = spec.size.x
+		var outer_offset: float = 6.0 + float(slot_index) * 3.0
+		var maximum_slot_width: float = nearest_inset_edge - outer_offset - 15.0
+		var slot_width_actual: float = minf(spec.size.x, maxf(14.0, maximum_slot_width))
 		var slot_height_actual: float = spec.size.y
 		var slot_y: float = spec.position.y + float(posmod(index + slot_index, 2)) * 5.0
-		# Inset plates occupy the inward-facing side of each support. Put
-		# these small service cavities toward the outer edge, keeping the two
-		# detail families spatially separate instead of layering over one another.
-		var outer_offset: float = width * 0.12 + float(slot_index) * 4.0
 		var slot_anchor_x: float = edge_x + side * outer_offset
 		var slot_x: float = slot_anchor_x if side > 0.0 else slot_anchor_x - slot_width_actual
 		var slot := Rect2(Vector2(slot_x, slot_y), Vector2(slot_width_actual, slot_height_actual))
