@@ -64,6 +64,6 @@ The preview tool should load a zone profile into a dedicated environment test ro
 
 - Far aperture treatment: visually approved reference; further generic detail deferred.
 - Ambient mote parallax: architecture-matched depths 0.18 / 0.46 / 0.82 visually approved and locked; combined test defaults to B.
-- Middle-layer detail: A/B/C test harness prepared; awaiting runtime visual evaluation.
+- Middle-layer detail: four inset patterns, varied cavity layouts, value-aware recess colors, and D-key diagnostic contrast added; awaiting runtime visual evaluation.
 - Zone concepts: next design milestone after depth integration and the middle-layer detail study.
 - Art Library V1: schema and preview tooling follow those decisions, rather than preceding them.
