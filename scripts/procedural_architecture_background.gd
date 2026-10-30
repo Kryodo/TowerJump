@@ -32,6 +32,8 @@ enum LifeTreatment {
 	STRUCTURED_COMBINED,
 	ABSTRACT_APERTURES,
 	ABSTRACT_ENERGY,
+	PANEL_CLUSTERS,
+	PANEL_ENERGY_STATES,
 }
 
 @export var environment_seed: int = 7319
@@ -107,7 +109,7 @@ func set_palette_variant(value: int) -> void:
 
 
 func set_life_treatment(value: int) -> void:
-	life_treatment = clampi(value, LifeTreatment.BASELINE, LifeTreatment.ABSTRACT_ENERGY)
+	life_treatment = clampi(value, LifeTreatment.BASELINE, LifeTreatment.PANEL_ENERGY_STATES)
 	for layer in _layers:
 		layer.set("life_treatment", life_treatment)
 		layer.queue_redraw()
