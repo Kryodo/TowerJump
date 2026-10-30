@@ -716,10 +716,19 @@ func _draw_far_compact_panel_clusters(
 		)
 		var state_roll: int = posmod(index * 3 + element_index * 5 + pattern * 2 + side_index, 10)
 		var state: int = 0
-		if state_roll >= 8:
-			state = 2 # energized
-		elif state_roll >= 5:
-			state = 1 # active
+		# Broad panels are more likely to remain dormant. Compact square and slit
+		# apertures carry most of the visible activity and energized light.
+		var is_broad_panel: bool = spec.z >= 40.0 and spec.w <= 90.0
+		if is_broad_panel:
+			if state_roll >= 9:
+				state = 2
+			elif state_roll >= 7:
+				state = 1
+		else:
+			if state_roll >= 8:
+				state = 2
+			elif state_roll >= 5:
+				state = 1
 		_draw_compact_panel_light(aperture_rect, state, flicker_enabled, index, element_index, detail)
 
 
