@@ -49,9 +49,11 @@ Adds a small number of mechanical cavity groups to selected modules on top of B.
 
 ## Value treatment and diagnostic mode
 
-Normal recess colors respond to the resolved middle fill value. Very dark middle fills use lifted graphite/charcoal surfaces and slightly clearer edges so recesses remain visible without becoming bright accents. Slightly brighter middle fills retain deeper shadow cavities where that contrast works better.
+Normal recess colors respond to the resolved middle fill value, but all middle-layer recesses now stay within a dark blue/indigo family rather than using near-black. Very dark blue/purple fills receive dark-indigo cavities with more visible indigo edges and separation lines. Slightly brighter fills use deeper indigo shadows. This keeps the middle structures from reading as hollow black cutouts; the far layer remains the place where black apertures pair with their internal ambient lights.
 
-Press **D** to toggle diagnostic contrast. The same B/C geometry is recolored with much brighter slate-blue surfaces and pale edges so the plate silhouettes, inner steps, divisions, and mechanical cavity layouts can be inspected clearly. This is an inspection aid only, not the intended final color treatment. Press **D** again to return to palette-aware production colors.
+Press **D** to toggle diagnostic contrast. The same B/C geometry is recolored with much brighter slate-blue surfaces and pale edges so the plate silhouettes, inner steps, divisions, and mechanical cavity layouts can be inspected clearly. The normal-value separation lines have also been lifted and slightly thickened so they remain detectable without diagnostic colors.
+
+The diagnostic treatment unexpectedly creates a striking bright-neon-tower atmosphere. Preserve that as a future intentional zone-art direction to explore, not as a generic generator setting or a default middle-layer treatment. Press **D** again to return to the intended dark-indigo colors.
 
 ## What stays fixed
 
