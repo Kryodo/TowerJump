@@ -1,6 +1,6 @@
 extends Node2D
-## Abstract far-detail study: compares the existing static treatment with irregular
-## aperture forms and a restrained, slowly traveling energy state.
+## Organized far-detail study: compares the existing treatment with deliberate
+## rectangular panel clusters and their dormant, active, and energized states.
 ## The actual main scene is used; production gameplay files remain untouched.
 
 const MAIN_GAME_SCENE: PackedScene = preload("res://scenes/main.tscn")
@@ -16,18 +16,18 @@ const PALETTE_A2_INTEGRATED: int = 11
 # LifeTreatment IDs are appended after the existing static treatment mappings.
 const LIFE_BASELINE: int = 0
 const LIFE_STRUCTURED_COMBINED: int = 5
-const LIFE_ABSTRACT_APERTURES: int = 6
-const LIFE_ABSTRACT_ENERGY: int = 7
+const LIFE_PANEL_CLUSTERS: int = 6
+const LIFE_PANEL_ENERGY_STATES: int = 7
 
 enum TestVariant {
 	A1_BASELINE,
 	A1_EXISTING_COMBINED,
-	A1_ABSTRACT_APERTURES,
-	A1_ABSTRACT_ENERGY,
+	A1_PANEL_CLUSTERS,
+	A1_PANEL_ENERGY_STATES,
 	A2_BASELINE,
 	A2_EXISTING_COMBINED,
-	A2_ABSTRACT_APERTURES,
-	A2_ABSTRACT_ENERGY,
+	A2_PANEL_CLUSTERS,
+	A2_PANEL_ENERGY_STATES,
 }
 
 @export var initial_seed: int = 7319
@@ -57,7 +57,7 @@ func _spawn_game() -> void:
 	seed(initial_seed)
 	_game = MAIN_GAME_SCENE.instantiate() as Node2D
 	if _game == null:
-		push_error("Architecture Abstract Energy: Could not instantiate scenes/main.tscn.")
+		push_error("Architecture Panel Clusters: Could not instantiate scenes/main.tscn.")
 		return
 	_game.name = "TowerJumpMain"
 	add_child(_game)
@@ -66,7 +66,7 @@ func _spawn_game() -> void:
 	_ball = _game.get_node_or_null("Ball") as CharacterBody2D
 	_base_background = _game.get_node_or_null("GameCamera/Background") as ColorRect
 	if _camera == null or _ball == null or _base_background == null:
-		push_error("Architecture Abstract Energy: Main scene is missing GameCamera, Ball, or Background.")
+		push_error("Architecture Panel Clusters: Main scene is missing GameCamera, Ball, or Background.")
 		return
 
 	_base_background.color = BACKGROUND_NAVY
@@ -94,17 +94,17 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		KEY_B:
 			_set_variant(TestVariant.A1_EXISTING_COMBINED)
 		KEY_C:
-			_set_variant(TestVariant.A1_ABSTRACT_APERTURES)
+			_set_variant(TestVariant.A1_PANEL_CLUSTERS)
 		KEY_D:
-			_set_variant(TestVariant.A1_ABSTRACT_ENERGY)
+			_set_variant(TestVariant.A1_PANEL_ENERGY_STATES)
 		KEY_E:
 			_set_variant(TestVariant.A2_BASELINE)
 		KEY_F:
 			_set_variant(TestVariant.A2_EXISTING_COMBINED)
 		KEY_G:
-			_set_variant(TestVariant.A2_ABSTRACT_APERTURES)
+			_set_variant(TestVariant.A2_PANEL_CLUSTERS)
 		KEY_H:
-			_set_variant(TestVariant.A2_ABSTRACT_ENERGY)
+			_set_variant(TestVariant.A2_PANEL_ENERGY_STATES)
 		KEY_1:
 			_set_seed(7319)
 		KEY_2:
@@ -119,7 +119,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 func _create_architecture() -> void:
 	_background = Node2D.new()
-	_background.name = "AbstractEnergyArchitecture"
+	_background.name = "PanelClusterArchitecture"
 	_background.set_script(BACKGROUND_SCRIPT)
 	_background.set("environment_seed", initial_seed)
 	_background.set("palette_variant", PALETTE_A1_DEPTH)
@@ -136,18 +136,18 @@ func _create_architecture() -> void:
 
 func _create_overlay() -> void:
 	var canvas := CanvasLayer.new()
-	canvas.name = "ArchitectureAbstractEnergyOverlay"
+	canvas.name = "ArchitecturePanelClusterOverlay"
 	canvas.layer = 10
 	add_child(canvas)
 
 	_add_label(canvas, Vector2(22.0, 110.0),
-		"ABSTRACT LIFE  /  GEOMETRIC APERTURES + ENERGY STATES",
+		"ORGANIZED LIFE  /  RECTANGULAR PANEL CLUSTERS + ENERGY STATES",
 		15, Color(0.43, 0.75, 0.85, 0.95))
 	_add_label(canvas, Vector2(22.0, 133.0),
-		"A: A1 BASE   B: EXISTING COMBINED   C: ABSTRACT FORMS   D: ENERGY STATES",
+		"A: A1 BASE   B: EXISTING COMBINED   C: PANEL CLUSTERS   D: MOVING ENERGY",
 		10, Color(0.36, 0.54, 0.64, 0.95))
 	_add_label(canvas, Vector2(22.0, 149.0),
-		"E: A2 BASE   F: EXISTING COMBINED   G: ABSTRACT FORMS   H: ENERGY STATES",
+		"E: A2 BASE   F: EXISTING COMBINED   G: PANEL CLUSTERS   H: MOVING ENERGY",
 		10, Color(0.36, 0.54, 0.64, 0.95))
 
 	_seed_label = Label.new()
@@ -169,7 +169,7 @@ func _create_overlay() -> void:
 		"1 / 2 / 3: FIXED SEED   R: RANDOM   SPACE / ENTER: RESTART",
 		10, Color(0.36, 0.54, 0.64, 0.90))
 	_add_label(canvas, Vector2(22.0, 253.0),
-		"RARE, SLOW TRAVELING PULSES   |   MOST APERTURES REMAIN DORMANT",
+		"DORMANT / ACTIVE / ENERGIZED PANELS   |   SLOW CHARGE TRAVEL IN D / H",
 		10, Color(0.36, 0.54, 0.64, 0.90))
 	_update_seed_label(initial_seed)
 
@@ -207,24 +207,24 @@ func _apply_variant() -> void:
 		TestVariant.A1_EXISTING_COMBINED:
 			palette = PALETTE_A1_DEPTH
 			life = LIFE_STRUCTURED_COMBINED
-		TestVariant.A1_ABSTRACT_APERTURES:
+		TestVariant.A1_PANEL_CLUSTERS:
 			palette = PALETTE_A1_DEPTH
-			life = LIFE_ABSTRACT_APERTURES
-		TestVariant.A1_ABSTRACT_ENERGY:
+			life = LIFE_PANEL_CLUSTERS
+		TestVariant.A1_PANEL_ENERGY_STATES:
 			palette = PALETTE_A1_DEPTH
-			life = LIFE_ABSTRACT_ENERGY
+			life = LIFE_PANEL_ENERGY_STATES
 		TestVariant.A2_BASELINE:
 			palette = PALETTE_A2_INTEGRATED
 			life = LIFE_BASELINE
 		TestVariant.A2_EXISTING_COMBINED:
 			palette = PALETTE_A2_INTEGRATED
 			life = LIFE_STRUCTURED_COMBINED
-		TestVariant.A2_ABSTRACT_APERTURES:
+		TestVariant.A2_PANEL_CLUSTERS:
 			palette = PALETTE_A2_INTEGRATED
-			life = LIFE_ABSTRACT_APERTURES
-		TestVariant.A2_ABSTRACT_ENERGY:
+			life = LIFE_PANEL_CLUSTERS
+		TestVariant.A2_PANEL_ENERGY_STATES:
 			palette = PALETTE_A2_INTEGRATED
-			life = LIFE_ABSTRACT_ENERGY
+			life = LIFE_PANEL_ENERGY_STATES
 
 	_background.call("set_palette_variant", palette)
 	_background.call("set_life_treatment", life)
@@ -258,18 +258,18 @@ func _update_variant_label() -> void:
 			_variant_label.text = "A1 DEPTH  /  BASELINE FAR SILHOUETTES"
 		TestVariant.A1_EXISTING_COMBINED:
 			_variant_label.text = "A1 DEPTH  /  EXISTING STRUCTURAL BAYS + WINDOWS"
-		TestVariant.A1_ABSTRACT_APERTURES:
-			_variant_label.text = "A1 DEPTH  /  IRREGULAR ABSTRACT APERTURES"
-		TestVariant.A1_ABSTRACT_ENERGY:
-			_variant_label.text = "A1 DEPTH  /  ABSTRACT APERTURES + MOVING ENERGY"
+		TestVariant.A1_PANEL_CLUSTERS:
+			_variant_label.text = "A1 DEPTH  /  ORGANIZED RECTANGULAR PANEL CLUSTERS"
+		TestVariant.A1_PANEL_ENERGY_STATES:
+			_variant_label.text = "A1 DEPTH  /  PANEL CLUSTERS + MOVING ENERGY"
 		TestVariant.A2_BASELINE:
 			_variant_label.text = "A2 INTEGRATED  /  BASELINE FAR SILHOUETTES"
 		TestVariant.A2_EXISTING_COMBINED:
 			_variant_label.text = "A2 INTEGRATED  /  EXISTING STRUCTURAL BAYS + WINDOWS"
-		TestVariant.A2_ABSTRACT_APERTURES:
-			_variant_label.text = "A2 INTEGRATED  /  IRREGULAR ABSTRACT APERTURES"
-		TestVariant.A2_ABSTRACT_ENERGY:
-			_variant_label.text = "A2 INTEGRATED  /  ABSTRACT APERTURES + MOVING ENERGY"
+		TestVariant.A2_PANEL_CLUSTERS:
+			_variant_label.text = "A2 INTEGRATED  /  ORGANIZED RECTANGULAR PANEL CLUSTERS"
+		TestVariant.A2_PANEL_ENERGY_STATES:
+			_variant_label.text = "A2 INTEGRATED  /  PANEL CLUSTERS + MOVING ENERGY"
 
 
 func _update_seed_label(value: int) -> void:
