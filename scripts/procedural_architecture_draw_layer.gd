@@ -723,9 +723,9 @@ func _draw_compact_panel_light(
 		# The light never switches off completely or travels through the aperture.
 		var phase: float = float(module_index) * 0.93 + float(element_index) * 1.71
 		var flicker_signal: float = (
-			sin(_energy_clock * 4.4 + phase) * 0.52
-			+ sin(_energy_clock * 7.9 + phase * 1.83) * 0.31
-			+ sin(_energy_clock * 12.7 + phase * 2.41) * 0.17
+			sin(_flicker_clock * 4.4 + phase) * 0.52
+			+ sin(_flicker_clock * 7.9 + phase * 1.83) * 0.31
+			+ sin(_flicker_clock * 12.7 + phase * 2.41) * 0.17
 		)
 		intensity = 0.82 + flicker_signal * (0.10 if state == 1 else 0.18)
 
