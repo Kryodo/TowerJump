@@ -1,8 +1,8 @@
 # Compact Panel and Flicker Refinement
 
-Branch: \`experiment-abstract-energy-apertures\`
+Branch: `experiment-abstract-energy-apertures`
 
-Scene: \`scenes/environment_architecture_panel_cluster_test.tscn\`
+Scene: `scenes/environment_architecture_panel_cluster_test.tscn`
 
 This is the next refinement of the organized panel-cluster direction. The previous larger cluster treatment remains available as a direct comparison in the test scene.
 
@@ -16,7 +16,7 @@ This pass changes three things:
 2. Most illuminated elements become compact squares, short rectangles, and readable slits. Broader panels remain part of the cluster language but are more likely to stay dormant.
 3. Moving charge pulses are replaced by subtle flicker in stationary light sources. No illuminated element has a traveling light segment.
 
-The actual \`scenes/main.tscn\` is used as the gameplay reference. The architecture silhouette grammar, A1/A2 palette recipes, #02060D void, parallax, camera, player, platforms, and environment setup remain fixed.
+The actual `scenes/main.tscn` is used as the gameplay reference. The architecture silhouette grammar, A1/A2 palette recipes, #02060D void, parallax, camera, player, platforms, and environment setup remain fixed.
 
 ## Comparison variants
 
@@ -37,11 +37,11 @@ A1 is the near-black far layer paired with the lifted blue-purple middle layer. 
 
 ## Run it
 
-1. Switch to \`experiment-abstract-energy-apertures\` in GitHub Desktop and fetch/pull.
-2. Open \`scenes/environment_architecture_panel_cluster_test.tscn\` in Godot.
+1. Switch to `experiment-abstract-energy-apertures` in GitHub Desktop and fetch/pull.
+2. Open `scenes/environment_architecture_panel_cluster_test.tscn` in Godot.
 3. Run **Run Current Scene (F6)**.
 4. Compare A–E with seed 7319, then F–J. Use the same seed for each direct comparison.
-5. Repeat with seeds 24017 and 91207. \`R\` selects a random seed; Space/Enter restarts the game scene.
+5. Repeat with seeds 24017 and 91207. `R` selects a random seed; Space/Enter restarts the game scene.
 
 ## Recess and cluster layout
 
@@ -86,6 +86,6 @@ The A1 and A2 detail colors reuse the established structured-detail palettes. Re
 
 The previous window treatment and larger panel cluster treatment remain available as comparison variants. Earlier palette and architecture scenes are retained.
 
-Production gameplay, \`scenes/main.tscn\`, \`scripts/ball.gd\`, platform generation, camera behavior, middle architecture, near frames, and mote behavior are not modified.
+Production gameplay, `scenes/main.tscn`, `scripts/ball.gd`, platform generation, camera behavior, middle architecture, near frames, and mote behavior are not modified.
 
 Source-level validation is performed after implementation. Godot 4.7.x runtime parsing and actual visual evaluation are still required; no runtime result is assumed.
