@@ -16,7 +16,7 @@ const MOTE_LAYER_NAMES: Array[String] = [
 const REPEAT_HEIGHT: float = 1520.0
 
 enum TestVariant {
-	CAMERA_ATTACHED,
+	CURRENT_SINGLE_DEPTH,
 	ARCHITECTURE_MATCHED,
 	SUBTLE_DEPTH,
 	PRONOUNCED_DEPTH,
@@ -34,7 +34,7 @@ var _parallax_layers: Array[Parallax2D] = []
 var _seed_label: Label
 var _variant_label: Label
 var _height_label: Label
-var _variant: TestVariant = TestVariant.CAMERA_ATTACHED
+var _variant: TestVariant = TestVariant.CURRENT_SINGLE_DEPTH
 var _start_y: float
 var _seed_rng := RandomNumberGenerator.new()
 
@@ -93,7 +93,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 	match key_event.keycode:
 		KEY_A:
-			_set_variant(TestVariant.CAMERA_ATTACHED)
+			_set_variant(TestVariant.CURRENT_SINGLE_DEPTH)
 		KEY_B:
 			_set_variant(TestVariant.ARCHITECTURE_MATCHED)
 		KEY_C:
@@ -114,10 +114,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 func _set_variant(value: TestVariant) -> void:
 	_variant = value
-	_restore_camera_attached_emitters()
+	_restore_current_emitters()
 
 	match _variant:
-		TestVariant.CAMERA_ATTACHED:
+		TestVariant.CURRENT_SINGLE_DEPTH:
 			pass
 		TestVariant.ARCHITECTURE_MATCHED:
 			_apply_parallax_scales([0.18, 0.46, 0.82])
@@ -129,7 +129,7 @@ func _set_variant(value: TestVariant) -> void:
 	_update_variant_label()
 
 
-func _restore_camera_attached_emitters() -> void:
+func _restore_current_emitters() -> void:
 	if _camera == null:
 		return
 
@@ -205,7 +205,7 @@ func _create_overlay() -> void:
 	_add_label(
 		canvas,
 		Vector2(22.0, 133.0),
-		"A: CURRENT   B: ARCHITECTURE-MATCHED   C: SUBTLE   D: PRONOUNCED",
+		"A: CURRENT ONE-DEPTH   B: ARCHITECTURE-MATCHED   C: SUBTLE   D: PRONOUNCED",
 		9,
 		Color(0.36, 0.54, 0.64, 0.95)
 	)
@@ -267,8 +267,8 @@ func _update_variant_label() -> void:
 	if _variant_label == null:
 		return
 	match _variant:
-		TestVariant.CAMERA_ATTACHED:
-			_variant_label.text = "A  /  CURRENT CAMERA-ATTACHED EMITTERS"
+		TestVariant.CURRENT_SINGLE_DEPTH:
+			_variant_label.text = "A  /  CURRENT SINGLE GLOBAL-SPACE DEPTH"
 		TestVariant.ARCHITECTURE_MATCHED:
 			_variant_label.text = "B  /  FAR 0.18   MID 0.46   NEAR 0.82"
 		TestVariant.SUBTLE_DEPTH:
