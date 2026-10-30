@@ -39,10 +39,12 @@ var _emitters: Array[GPUParticles2D] = []
 var _parallax_layers: Array[Parallax2D] = []
 var _architecture: Node2D
 var _middle_treatment: MiddleTreatment = MiddleTreatment.BASELINE
+var _debug_contrast_enabled: bool = false
 var _palette_variant: int = PALETTE_A2_INTEGRATED
 var _seed_label: Label
 var _variant_label: Label
 var _palette_label: Label
+var _debug_label: Label
 var _height_label: Label
 var _start_y: float
 var _seed_rng := RandomNumberGenerator.new()
@@ -105,6 +107,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_set_middle_treatment(MiddleTreatment.STEPPED_INSETS)
 		KEY_C:
 			_set_middle_treatment(MiddleTreatment.INSETS_AND_MECHANICAL_RECESSES)
+		KEY_D:
+			_set_debug_contrast(not _debug_contrast_enabled)
 		KEY_5:
 			_set_palette(PALETTE_A1_DEPTH)
 		KEY_6:
@@ -162,6 +166,18 @@ func _set_middle_treatment(value: MiddleTreatment) -> void:
 	if _architecture != null:
 		_architecture.call("set_mid_detail_treatment", int(_middle_treatment))
 	_update_variant_label()
+
+
+func _set_debug_contrast(value: bool) -> void:
+	_debug_contrast_enabled = value
+	if _architecture != null:
+		_architecture.call("set_mid_detail_debug", _debug_contrast_enabled)
+	if _debug_label != null:
+		_debug_label.text = (
+			"DETAIL DEBUG CONTRAST  /  ON"
+			if _debug_contrast_enabled
+			else "DETAIL DEBUG CONTRAST  /  OFF"
+		)
 
 
 func _set_palette(value: int) -> void:
@@ -252,12 +268,19 @@ func _create_overlay() -> void:
 	_add_label(
 		canvas,
 		Vector2(22.0, 275.0),
-		"SPACE / ENTER: RESTART   |   MIDDLE DETAILS ARE NON-EMISSIVE",
+		"D: DEBUG CONTRAST TOGGLE   |   SPACE / ENTER: RESTART",
 		9,
 		Color(0.36, 0.54, 0.64, 0.90)
 	)
+
+	_debug_label = Label.new()
+	_debug_label.position = Vector2(270.0, 237.0)
+	_set_label_theme(_debug_label, 11, Color(0.78, 0.84, 0.95, 0.98))
+	canvas.add_child(_debug_label)
+
 	_update_seed_label(initial_seed)
 	_set_palette(_palette_variant)
+	_set_debug_contrast(_debug_contrast_enabled)
 	_update_variant_label()
 
 
