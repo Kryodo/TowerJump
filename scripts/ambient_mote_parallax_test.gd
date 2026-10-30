@@ -3,6 +3,14 @@ extends Node2D
 ## The main game scene is instantiated as a reference; production files are untouched.
 
 const MAIN_GAME_SCENE: PackedScene = preload("res://scenes/main.tscn")
+const BACKGROUND_SCRIPT: Script = preload("res://scripts/procedural_architecture_background.gd")
+const BACKGROUND_NAVY := Color(0.007843138, 0.023529412, 0.050980393, 1.0) # #02060D
+const WORLD_WIDTH: float = 720.0
+const STRUCTURE_TOP_Y: float = -10400.0
+const STRUCTURE_BOTTOM_Y: float = 1600.0
+const PALETTE_A1_DEPTH: int = 4
+const PALETTE_A2_INTEGRATED: int = 11
+const LIFE_COMPACT_PANEL_FLICKER: int = 8
 const MOTE_PATHS: Array[NodePath] = [
 	NodePath("GameCamera/AmbientMotes"),
 	NodePath("GameCamera/AmbientMotesNear"),
@@ -31,8 +39,11 @@ var _emitters: Array[GPUParticles2D] = []
 var _initial_transforms: Array[Transform2D] = []
 var _initial_local_coords: Array[bool] = []
 var _parallax_layers: Array[Parallax2D] = []
+var _architecture: Node2D
+var _palette_variant: int = PALETTE_A2_INTEGRATED
 var _seed_label: Label
 var _variant_label: Label
+var _palette_label: Label
 var _height_label: Label
 var _variant: TestVariant = TestVariant.CURRENT_SINGLE_DEPTH
 var _start_y: float
@@ -75,7 +86,9 @@ func _spawn_game() -> void:
 		_initial_local_coords.append(emitter.local_coords)
 
 	_start_y = _ball.global_position.y
+	_create_architecture()
 	_set_variant(_variant)
+	_set_palette(_palette_variant)
 	_update_seed_label(initial_seed)
 
 
@@ -100,6 +113,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_set_variant(TestVariant.SUBTLE_DEPTH)
 		KEY_D:
 			_set_variant(TestVariant.PRONOUNCED_DEPTH)
+		KEY_5:
+			_set_palette(PALETTE_A1_DEPTH)
+		KEY_6:
+			_set_palette(PALETTE_A2_INTEGRATED)
 		KEY_1:
 			_set_seed(7319)
 		KEY_2:
@@ -170,6 +187,37 @@ func _apply_parallax_scales(scales: Array[float]) -> void:
 		emitter.restart()
 
 
+func _set_palette(value: int) -> void:
+	_palette_variant = value
+	if _architecture != null:
+		_architecture.call("set_palette_variant", _palette_variant)
+	if _palette_label != null:
+		_palette_label.text = (
+			"ARCHITECTURE PALETTE  /  A1 DEPTH"
+			if _palette_variant == PALETTE_A1_DEPTH
+			else "ARCHITECTURE PALETTE  /  A2 INTEGRATED"
+		)
+
+
+func _create_architecture() -> void:
+	# Reuse the approved architecture stack, including the compact aperture
+	# treatment and stationary switch/shimmer lighting from the milestone branch.
+	_architecture = Node2D.new()
+	_architecture.name = "ApprovedEnvironmentArchitecture"
+	_architecture.set_script(BACKGROUND_SCRIPT)
+	_architecture.set("environment_seed", initial_seed)
+	_architecture.set("palette_variant", _palette_variant)
+	_architecture.set("life_treatment", LIFE_COMPACT_PANEL_FLICKER)
+	_architecture.set("world_width", WORLD_WIDTH)
+	_architecture.set("section_top_y", STRUCTURE_TOP_Y)
+	_architecture.set("section_bottom_y", STRUCTURE_BOTTOM_Y)
+	_architecture.set("camera_path", NodePath("../GameCamera"))
+	_architecture.z_index = -50
+	_game.add_child(_architecture)
+	_architecture.call("set_background_fill_override", BACKGROUND_NAVY)
+	_architecture.call("set_environment_seed", initial_seed)
+
+
 func _set_seed(value: int) -> void:
 	initial_seed = value
 	_restart_game()
@@ -182,6 +230,7 @@ func _restart_game() -> void:
 	_game = null
 	_camera = null
 	_ball = null
+	_architecture = null
 	_emitters.clear()
 	_initial_transforms.clear()
 	_initial_local_coords.clear()
@@ -198,48 +247,61 @@ func _create_overlay() -> void:
 	_add_label(
 		canvas,
 		Vector2(22.0, 110.0),
-		"AMBIENT MOTE PARALLAX STUDY",
+		"AMBIENT MOTE + ARCHITECTURE PARALLAX STUDY",
 		14,
 		Color(0.43, 0.75, 0.85, 0.95)
 	)
 	_add_label(
 		canvas,
 		Vector2(22.0, 133.0),
-		"A: CURRENT ONE-DEPTH   B: ARCHITECTURE-MATCHED   C: SUBTLE   D: PRONOUNCED",
+		"A: CURRENT   B: ARCHITECTURE-MATCHED   C: SUBTLE   D: PRONOUNCED",
+		9,
+		Color(0.36, 0.54, 0.64, 0.95)
+	)
+	_add_label(
+		canvas,
+		Vector2(22.0, 149.0),
+		"5: A1 DEPTH PALETTE   6: A2 INTEGRATED PALETTE",
 		9,
 		Color(0.36, 0.54, 0.64, 0.95)
 	)
 
 	_seed_label = Label.new()
-	_seed_label.position = Vector2(22.0, 155.0)
+	_seed_label.position = Vector2(22.0, 171.0)
 	_set_label_theme(_seed_label, 13, Color(0.36, 0.66, 0.76, 0.95))
 	canvas.add_child(_seed_label)
 
 	_variant_label = Label.new()
-	_variant_label.position = Vector2(22.0, 177.0)
+	_variant_label.position = Vector2(22.0, 193.0)
 	_set_label_theme(_variant_label, 12, Color(0.52, 0.70, 0.83, 0.96))
 	canvas.add_child(_variant_label)
 
+	_palette_label = Label.new()
+	_palette_label.position = Vector2(215.0, 193.0)
+	_set_label_theme(_palette_label, 12, Color(0.45, 0.62, 0.82, 0.96))
+	canvas.add_child(_palette_label)
+
 	_height_label = Label.new()
-	_height_label.position = Vector2(22.0, 199.0)
+	_height_label.position = Vector2(22.0, 215.0)
 	_set_label_theme(_height_label, 13, Color(0.45, 0.43, 0.74, 0.95))
 	canvas.add_child(_height_label)
 
 	_add_label(
 		canvas,
-		Vector2(22.0, 221.0),
+		Vector2(22.0, 237.0),
 		"1 / 2 / 3: FIXED RUN SEED   R: RANDOM   SPACE / ENTER: RESTART",
 		10,
 		Color(0.36, 0.54, 0.64, 0.90)
 	)
 	_add_label(
 		canvas,
-		Vector2(22.0, 237.0),
-		"ALL MODES KEEP THE CURRENT MOTE COUNTS, COLORS, SIZES AND EMISSION",
+		Vector2(22.0, 253.0),
+		"APPROVED FAR APERTURE FLICKER + EXISTING MIDDLE / NEAR ARCHITECTURE",
 		9,
 		Color(0.36, 0.54, 0.64, 0.90)
 	)
 	_update_seed_label(initial_seed)
+	_set_palette(_palette_variant)
 
 
 func _add_label(
