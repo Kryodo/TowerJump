@@ -16,8 +16,8 @@ const PALETTE_A2_INTEGRATED: int = 11
 # LifeTreatment IDs are appended after the existing static treatment mappings.
 const LIFE_BASELINE: int = 0
 const LIFE_STRUCTURED_COMBINED: int = 5
-const LIFE_PANEL_CLUSTERS: int = 8
-const LIFE_PANEL_ENERGY_STATES: int = 9
+const LIFE_PANEL_CLUSTERS: int = 6
+const LIFE_PANEL_ENERGY_STATES: int = 7
 
 enum TestVariant {
 	A1_BASELINE,
