@@ -1131,7 +1131,7 @@ func _draw_mid_inset_plate(
 
 
 # Middle-layer study C adds different mechanical cavity arrangements to B.
-# The recesses remain non-emissive and use a value-aware palette.
+# The recesses remain non-emissive and use the shared dark-indigo material.
 func _draw_mid_mechanical_recesses(
 	side: float,
 	top_y: float,
@@ -1185,7 +1185,11 @@ func _draw_mid_mechanical_recesses(
 		var spec: Rect2 = slots[slot_index]
 		var outer_offset: float = 6.0 + float(slot_index) * 3.0
 		var maximum_slot_width: float = nearest_inset_edge - outer_offset - 15.0
-		var slot_width_actual: float = minf(spec.size.x, maxf(14.0, maximum_slot_width))
+		# Skip a cavity rather than violating the minimum gap if a future pattern
+		# leaves insufficient room for a readable service recess.
+		if maximum_slot_width < 14.0:
+			continue
+		var slot_width_actual: float = minf(spec.size.x, maximum_slot_width)
 		var slot_height_actual: float = spec.size.y
 		var slot_y: float = spec.position.y + float(posmod(index + slot_index, 2)) * 5.0
 		var slot_anchor_x: float = edge_x + side * outer_offset
