@@ -1,8 +1,8 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://2bekxbqfjt45"]
 
-[ext_resource type="Script" path="res://scripts/coin.gd" id="1_coin"]
+[ext_resource type="Script" uid="uid://0mdbu6wrbx1t" path="res://scripts/coin.gd" id="1_coin"]
 
-[node name="Coin" type="Area2D"]
+[node name="Coin" type="Area2D" unique_id=648619064]
 script = ExtResource("1_coin")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=869135543]
