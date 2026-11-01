@@ -8,6 +8,7 @@ extends Camera2D
 @onready var _target: Node2D = get_node(target_path)
 
 @export_category("Landing Camera Response")
+@export var landing_response_enabled: bool = true
 @export var landing_feedback_controller_path: NodePath = NodePath("../LandingFeedbackController")
 @export var landing_score_controller_path: NodePath = NodePath("../LandingScoreController")
 @export_range(0.0, 240.0, 5.0) var landing_response_impulse: float = 110.0
@@ -44,6 +45,11 @@ var _streak_zoom_velocity: float = 0.0
 func _ready() -> void:
 	_base_offset = offset
 	_base_zoom = zoom
+
+	# Standalone test scenes may intentionally omit landing feedback systems.
+	# The production scene keeps this enabled and must resolve one controller.
+	if not landing_response_enabled:
+		return
 
 	# Prefer the scored result so the response can distinguish Good, Epic and
 	# Perfect without delaying a frame. landing_scored is emitted synchronously
