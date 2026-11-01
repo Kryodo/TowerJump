@@ -17,6 +17,7 @@ position = Vector2(360, 600)
 position = Vector2(360, 640)
 script = ExtResource("3_camera")
 target_path = NodePath("../Ball")
+landing_response_enabled = false
 
 [node name="Background" type="ColorRect" parent="GameCamera"]
 z_index = -10
