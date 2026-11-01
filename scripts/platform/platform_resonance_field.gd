@@ -231,15 +231,15 @@ func _draw_vertical_resonance_field(half_width: float, half_height: float) -> vo
 	)
 
 	for strand in range(VERTICAL_FILAMENT_COUNT):
-		var seed: float = _phase_offset * 0.37 + float(strand) * 29.17
+		var random_seed: float = _phase_offset * 0.37 + float(strand) * 29.17
 
 		# Each packet has an irregular independent lifetime. Gaps between lives
 		# let the current breathe instead of displaying a permanent mesh.
-		var life_duration: float = lerpf(0.82, 2.65, _random01(seed + 0.3))
-		var life_clock: float = _time / life_duration + _random01(seed + 1.4)
+		var life_duration: float = lerpf(0.82, 2.65, _random01(random_seed + 0.3))
+		var life_clock: float = _time / life_duration + _random01(random_seed + 1.4)
 		var life_phase: float = fposmod(life_clock, 1.0)
 		var cycle_id: float = floor(life_clock)
-		var cycle_seed: float = seed + cycle_id * 23.17
+		var cycle_seed: float = random_seed + cycle_id * 23.17
 		var life_window: float = lerpf(0.30, 0.76, _random01(cycle_seed + 2.1))
 		if life_phase >= life_window:
 			continue
@@ -355,7 +355,7 @@ func _draw_vertical_resonance_field(half_width: float, half_height: float) -> vo
 				* (0.006 + segment_wave_signal * 0.994)
 			)
 			var width_scale: float = lerpf(0.68, 1.20, _random01(segment_seed + 1.5))
-			if segment == points.size() / 2:
+			if segment == int(float(points.size()) * 0.5):
 				width_scale *= 1.20
 			var segment_width: float = stroke_width * width_scale * lerpf(
 				0.82, 1.48, segment_wave_signal
@@ -497,11 +497,11 @@ func _draw_tip_sparks(
 	)
 
 	for index in range(TIP_SPARK_COUNT):
-		var seed: float = _phase_offset * 0.83 + float(index) * 31.73
-		var life_duration: float = lerpf(0.62, 1.42, _random01(seed + 0.4))
-		var life_clock: float = _time / life_duration + _random01(seed + 1.5)
+		var random_seed: float = _phase_offset * 0.83 + float(index) * 31.73
+		var life_duration: float = lerpf(0.62, 1.42, _random01(random_seed + 0.4))
+		var life_clock: float = _time / life_duration + _random01(random_seed + 1.5)
 		var life_phase: float = fposmod(life_clock, 1.0)
-		var cycle_seed: float = seed + floor(life_clock) * 19.17
+		var cycle_seed: float = random_seed + floor(life_clock) * 19.17
 		# The fourth strand is a small, occasional accent rather than a constant
 		# increase in source density.
 		if index == 3 and _random01(cycle_seed + 12.7) > 0.42:
@@ -597,7 +597,7 @@ func _draw_spark_filament_chain(
 	tip_y: float,
 	tint: Color,
 	strength: float,
-	seed: float,
+	random_seed: float,
 	pulse_phase: float
 ) -> void:
 	if strength <= 0.025:
@@ -616,7 +616,7 @@ func _draw_spark_filament_chain(
 		0.88
 	) + 2.8
 	var center_x: float = (
-		_random01(seed + 3.8) * 2.0 - 1.0
+		_random01(random_seed + 3.8) * 2.0 - 1.0
 	) * local_fan_width * 0.24
 
 	var points := PackedVector2Array()
@@ -627,10 +627,10 @@ func _draw_spark_filament_chain(
 		point_y -= lerpf(
 			7.5,
 			12.0,
-			_random01(seed + float(index) * 5.17)
+			_random01(random_seed + float(index) * 5.17)
 		)
 		point_x += (
-			_random01(seed + float(index) * 7.31) - 0.5
+			_random01(random_seed + float(index) * 7.31) - 0.5
 		) * 9.0
 		point_x = clampf(
 			point_x,
@@ -640,7 +640,7 @@ func _draw_spark_filament_chain(
 		points.append(Vector2(point_x, point_y))
 
 	for segment in range(1, points.size()):
-		var segment_seed: float = seed + float(segment) * 13.71
+		var segment_seed: float = random_seed + float(segment) * 13.71
 		var segment_strength: float = strength * lerpf(
 			0.68,
 			1.0,
@@ -677,7 +677,7 @@ func _draw_spark_filament_chain(
 		)
 
 	for index in range(points.size()):
-		var point_seed: float = seed + float(index) * 17.19
+		var point_seed: float = random_seed + float(index) * 17.19
 		if index > 0 and _random01(point_seed + 4.1) < 0.22:
 			continue
 		var radius: float = lerpf(0.62, 1.08, _random01(point_seed + 5.2))
@@ -732,14 +732,14 @@ func _draw_edge_filaments(half_width: float, half_height: float) -> void:
 	# gate keeps nearby candidates from bunching into a fringe along the edge.
 	var accepted_origins: Array[Vector2] = []
 	for strand in range(FILAMENT_COUNT):
-		var seed: float = _phase_offset * 0.19 + float(strand) * 13.71
-		var life_clock: float = _time * (0.19 + float(strand) * 0.023) + seed
+		var random_seed: float = _phase_offset * 0.19 + float(strand) * 13.71
+		var life_clock: float = _time * (0.19 + float(strand) * 0.023) + random_seed
 		var life_phase: float = fposmod(life_clock, 1.0)
 		var active_window: float = 0.33 + float(strand % 2) * 0.07
 		if life_phase >= active_window:
 			continue
 		var cycle_id: float = floor(life_clock)
-		var random_seed: float = seed + cycle_id * 17.17
+		var random_seed: float = random_seed + cycle_id * 17.17
 		var envelope: float = sin(PI * life_phase / active_window)
 		envelope = pow(maxf(envelope, 0.0), 0.8)
 		_draw_emergent_filament(
@@ -754,20 +754,20 @@ func _draw_edge_filaments(half_width: float, half_height: float) -> void:
 func _draw_emergent_filament(
 	half_width: float,
 	half_height: float,
-	seed: float,
+	random_seed: float,
 	energy: float,
 	accepted_origins: Array[Vector2]
 ) -> void:
 	if energy <= 0.025:
 		return
-	var side_roll: float = _random01(seed + 1.1)
+	var side_roll: float = _random01(random_seed + 1.1)
 	var side_id: int = 1
 	if side_roll >= 0.70:
-		side_id = 2 if _random01(seed + 8.1) < 0.5 else 3
-	var along: float = _random01(seed + 2.3) * 2.0 - 1.0
+		side_id = 2 if _random01(random_seed + 8.1) < 0.5 else 3
+	var along: float = _random01(random_seed + 2.3) * 2.0 - 1.0
 	if side_id >= 2:
 		# Side filaments only appear below the platform's midline.
-		along = lerpf(0.05, 1.0, _random01(seed + 2.7))
+		along = lerpf(0.05, 1.0, _random01(random_seed + 2.7))
 	var origin := Vector2.ZERO
 	var normal := Vector2.ZERO
 	var tangent := Vector2.ZERO
@@ -791,14 +791,14 @@ func _draw_emergent_filament(
 			return
 	accepted_origins.append(origin)
 
-	var direction: float = -1.0 if _random01(seed + 3.7) < 0.5 else 1.0
-	var bend: float = (_random01(seed + 4.9) - 0.5) * 13.0
-	var length: float = lerpf(12.0, 26.0, _random01(seed + 5.3))
+	var direction: float = -1.0 if _random01(random_seed + 3.7) < 0.5 else 1.0
+	var bend: float = (_random01(random_seed + 4.9) - 0.5) * 13.0
+	var length: float = lerpf(12.0, 26.0, _random01(random_seed + 5.3))
 	# Most filaments still grow out of the platform edge. A few begin several
 	# pixels into the cloud, so the energy occasionally appears already detached.
 	var detached_gap: float = 0.0
-	if _random01(seed + 6.7) < 0.38:
-		detached_gap = lerpf(3.5, 7.0, _random01(seed + 7.1))
+	if _random01(random_seed + 6.7) < 0.38:
+		detached_gap = lerpf(3.5, 7.0, _random01(random_seed + 7.1))
 	var points := PackedVector2Array()
 	points.append(origin + normal * detached_gap + tangent * direction * 1.5)
 	points.append(origin + normal * (detached_gap + 3.8) + tangent * (direction * length * 0.23 + bend * 0.25))
@@ -806,17 +806,17 @@ func _draw_emergent_filament(
 	points.append(origin + normal * (detached_gap + length * 0.83) + tangent * (direction * length * 0.45 - bend * 0.45))
 	points.append(origin + normal * (detached_gap + length) + tangent * (direction * length * 0.22))
 
-	_draw_tapered_filament(points, energy, seed)
+	_draw_tapered_filament(points, energy, random_seed)
 
 
-func _draw_tapered_filament(points: PackedVector2Array, energy: float, seed: float) -> void:
+func _draw_tapered_filament(points: PackedVector2Array, energy: float, random_seed: float) -> void:
 	if points.size() < 2 or energy <= 0.01:
 		return
 	var tint: Color = _resonance_tint()
 	for index in range(1, points.size()):
 		var t: float = float(index) / float(points.size() - 1)
 		var taper: float = sin((t * 0.90 + 0.06) * PI) * 0.58 + 0.12
-		var shimmer: float = 0.72 + 0.28 * absf(sin(_time * 17.0 + seed + float(index) * 3.7))
+		var shimmer: float = 0.72 + 0.28 * absf(sin(_time * 17.0 + random_seed + float(index) * 3.7))
 		var strength: float = energy * taper * shimmer
 		draw_line(
 			points[index - 1], points[index],
@@ -842,12 +842,12 @@ func _draw_edge_fragments(half_width: float, half_height: float) -> void:
 	var tint: Color = _resonance_tint()
 	var accepted_positions: Array[Vector2] = []
 	for index in range(FRAGMENT_COUNT):
-		var seed: float = _phase_offset * 5.7 + float(index) * 19.31
-		var speed: float = 0.12 + _random01(seed + 0.6) * 0.085
-		var life_clock: float = _time * speed + seed
+		var random_seed: float = _phase_offset * 5.7 + float(index) * 19.31
+		var speed: float = 0.12 + _random01(random_seed + 0.6) * 0.085
+		var life_clock: float = _time * speed + random_seed
 		var phase: float = fposmod(life_clock, 1.0)
 		var cycle_id: float = floor(life_clock)
-		var local_seed: float = seed + cycle_id * 23.9
+		var local_seed: float = random_seed + cycle_id * 23.9
 		var alpha_envelope: float = sin(PI * phase)
 		alpha_envelope = pow(maxf(alpha_envelope, 0.0), 1.25)
 		if alpha_envelope <= 0.015:
