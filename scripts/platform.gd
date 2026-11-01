@@ -35,8 +35,22 @@ const BEVEL := 4.0
 const EDGE_HEIGHT := 8.0
 const EDGE_INSET := 1.0
 
+const IDLE_SHEEN_CHANCE := 0.38
+const IDLE_SHEEN_MIN_SPAWN_GAP := 2
+const IDLE_SHEEN_MAX_SPAWN_GAP := 5
+const IDLE_SHEEN_DELAY_MIN := 0.35
+const IDLE_SHEEN_DELAY_MAX := 1.20
+const IDLE_SHEEN_DURATION_MIN := 0.36
+const IDLE_SHEEN_DURATION_MAX := 0.50
+
+static var _sheen_spawn_sequence: int = 0
+static var _last_sheen_spawn_sequence: int = -1000
+
 const LandingApproachStateScript := preload(
 	"res://scripts/landing/landing_approach_state.gd"
+)
+const PlatformResonanceFieldScript := preload(
+	"res://scripts/platform_resonance_field.gd"
 )
 
 # Physical landing is surfaced as an event so the centralized landing system
@@ -44,6 +58,8 @@ const LandingApproachStateScript := preload(
 signal landing_occurred(landing_world_x: float)
 
 var platform_type: PlatformType = PlatformType.NORMAL
+## Increments every time this pooled node is assigned a new platform spawn.
+var spawn_generation: int = 0
 
 var _base_position: Vector2 = Vector2.ZERO
 var _move_phase: float = 0.0
@@ -54,6 +70,10 @@ var _broken: bool = false
 # owns targeting/prediction; the platform only exposes a visual adapter.
 var _landing_approach: LandingApproachState = LandingApproachState.new()
 var _landing_confirmation_tween: Tween = null
+var _resonance_field: Node2D = null
+var _last_landing_world_x: float = 0.0
+var _idle_sheen_delay: float = -1.0
+var _idle_sheen_tween: Tween = null
 
 @onready var _collision_shape: CollisionShape2D = $CollisionShape2D
 @onready var _visual: Polygon2D = $Visual
@@ -63,7 +83,22 @@ func _ready() -> void:
 	add_to_group("platforms")
 	_collision_shape.one_way_collision = true
 
+	_create_resonance_field()
 	_apply_geometry()
+	_schedule_idle_sheen()
+
+
+func _create_resonance_field() -> void:
+	if _resonance_field != null and is_instance_valid(_resonance_field):
+		return
+
+	_resonance_field = Node2D.new()
+	_resonance_field.name = "ResonanceField"
+	_resonance_field.set_script(PlatformResonanceFieldScript)
+	add_child(_resonance_field)
+	# Draw the field before the body and neon edge so its energy stays outside
+	# and beneath the platform instead of obscuring its established silhouette.
+	move_child(_resonance_field, 0)
 
 func _apply_geometry() -> void:
 	var shape := RectangleShape2D.new()
@@ -118,6 +153,120 @@ func _apply_geometry() -> void:
 		"platform_width",
 		width * width_scale
 	)
+	_neon_edge.set_instance_shader_parameter("platform_height", height)
+	_neon_edge.set_instance_shader_parameter("edge_height", EDGE_HEIGHT)
+	_neon_edge.set_instance_shader_parameter("idle_sheen_progress", -1.0)
+
+	if _resonance_field != null and is_instance_valid(_resonance_field):
+		_resonance_field.call(
+			"configure",
+			int(platform_type),
+			width * width_scale,
+			height
+		)
+
+func _process(delta: float) -> void:
+	if _idle_sheen_delay < 0.0:
+		return
+	# Pooled platform nodes can exist off-screen before they enter the viewport.
+	# Pause the one-shot timer until the platform is actually visible.
+	if not _is_platform_on_screen():
+		return
+	_idle_sheen_delay -= delta
+	if _idle_sheen_delay > 0.0:
+		return
+
+	if _is_idle_sheen_allowed():
+		_idle_sheen_delay = -1.0
+		_play_idle_sheen()
+	elif _can_wait_for_idle_sheen():
+		# Keep the selected flash pending through the approach window. Once the
+		# platform becomes activated/landed, it is cancelled instead of lost or
+		# allowed to fire over gameplay feedback.
+		_idle_sheen_delay = 0.18
+	else:
+		_idle_sheen_delay = -1.0
+
+
+func _can_wait_for_idle_sheen() -> bool:
+	if not visible or _broken or _is_breaking:
+		return false
+	var active: float = float(_neon_edge.get_instance_shader_parameter("activated"))
+	var confirm: float = float(_neon_edge.get_instance_shader_parameter("landing_confirm"))
+	return active <= 0.001 and confirm <= 0.001
+
+
+func _is_platform_on_screen() -> bool:
+	if not is_inside_tree() or not visible:
+		return false
+	var canvas_transform: Transform2D = get_viewport().get_canvas_transform()
+	var screen_center: Vector2 = canvas_transform * global_position
+	var screen_scale_x: float = canvas_transform.x.length()
+	var screen_scale_y: float = canvas_transform.y.length()
+	var half_screen_width: float = half_width() * screen_scale_x
+	var half_screen_height: float = height * screen_scale_y * 0.5
+	var screen_rect := Rect2(
+		Vector2(screen_center.x - half_screen_width, screen_center.y - half_screen_height),
+		Vector2(half_screen_width * 2.0, half_screen_height * 2.0)
+	)
+	return screen_rect.intersects(get_viewport().get_visible_rect())
+
+
+func _schedule_idle_sheen() -> void:
+	if _idle_sheen_tween != null and _idle_sheen_tween.is_valid():
+		_idle_sheen_tween.kill()
+	_idle_sheen_tween = null
+	_idle_sheen_delay = -1.0
+	_neon_edge.set_instance_shader_parameter("idle_sheen_progress", -1.0)
+
+	_sheen_spawn_sequence += 1
+	var spawn_gap: int = _sheen_spawn_sequence - _last_sheen_spawn_sequence
+	if spawn_gap < IDLE_SHEEN_MIN_SPAWN_GAP:
+		return
+	# Randomize the gap, but guarantee another event by the maximum gap.
+	if spawn_gap < IDLE_SHEEN_MAX_SPAWN_GAP and randf() > IDLE_SHEEN_CHANCE:
+		return
+
+	_last_sheen_spawn_sequence = _sheen_spawn_sequence
+	_idle_sheen_delay = randf_range(IDLE_SHEEN_DELAY_MIN, IDLE_SHEEN_DELAY_MAX)
+
+
+func _is_idle_sheen_allowed() -> bool:
+	if not visible or _broken or _is_breaking:
+		return false
+	if _landing_approach.progress > 0.0001:
+		return false
+	var charge: float = float(_neon_edge.get_instance_shader_parameter("approach_charge"))
+	var active: float = float(_neon_edge.get_instance_shader_parameter("activated"))
+	var confirm: float = float(_neon_edge.get_instance_shader_parameter("landing_confirm"))
+	return charge <= 0.001 and active <= 0.001 and confirm <= 0.001
+
+
+func _set_idle_sheen_progress(value: float) -> void:
+	if is_instance_valid(_neon_edge):
+		_neon_edge.set_instance_shader_parameter("idle_sheen_progress", value)
+
+
+func _play_idle_sheen() -> void:
+	_neon_edge.set_instance_shader_parameter("idle_sheen_progress", 0.0)
+	_idle_sheen_tween = create_tween()
+	var sheen_duration: float = randf_range(
+		IDLE_SHEEN_DURATION_MIN,
+		IDLE_SHEEN_DURATION_MAX
+	)
+	_idle_sheen_tween.tween_method(
+		_set_idle_sheen_progress,
+		0.0,
+		1.0,
+		sheen_duration
+	).set_trans(Tween.TRANS_LINEAR)
+	_idle_sheen_tween.tween_callback(
+		func() -> void:
+			if is_instance_valid(_neon_edge):
+				_neon_edge.set_instance_shader_parameter("idle_sheen_progress", -1.0)
+			_idle_sheen_tween = null
+	)
+
 
 func _physics_process(delta: float) -> void:
 	if platform_type == PlatformType.MOVING and not _is_breaking and not _broken:
@@ -132,6 +281,7 @@ func spawn_as(
 	new_position: Vector2,
 	new_width_scale: float = 1.0
 ) -> void:
+	spawn_generation += 1
 	platform_type = type
 	width_scale = new_width_scale
 
@@ -150,8 +300,13 @@ func spawn_as(
 	visible = true
 
 	_apply_geometry()
+	_schedule_idle_sheen()
 
 func on_ball_landed(landing_world_x: float) -> float:
+	# Preserve the physical contact point for the visual response that follows
+	# landing confirmation; this does not alter scoring or jump physics.
+	_last_landing_world_x = landing_world_x
+
 	# Surface the physical landing. LandingFeedbackController turns this into
 	# one LandingEvent that all future reaction layers can consume.
 	landing_occurred.emit(landing_world_x)
@@ -172,6 +327,13 @@ func on_ball_landed(landing_world_x: float) -> float:
 func play_landing_confirmation(strength: float = 1.0) -> void:
 	if _landing_confirmation_tween != null and _landing_confirmation_tween.is_valid():
 		_landing_confirmation_tween.kill()
+
+	if _resonance_field != null and is_instance_valid(_resonance_field):
+		_resonance_field.call(
+			"play_landing_wave",
+			_last_landing_world_x,
+			strength
+		)
 
 	_neon_edge.set_instance_shader_parameter("activated", 1.0)
 	_neon_edge.set_instance_shader_parameter("landing_confirm", 0.0)
@@ -268,6 +430,7 @@ func set_landing_approach_feedback(
 		"approach_target_x",
 		_landing_approach.target_x
 	)
+	_update_resonance_approach_feedback()
 
 func retract_landing_approach_feedback(delta: float) -> void:
 	_landing_approach.update_retract(
@@ -282,6 +445,7 @@ func retract_landing_approach_feedback(delta: float) -> void:
 		"approach_target_x",
 		_landing_approach.target_x
 	)
+	_update_resonance_approach_feedback()
 
 func complete_landing_approach_feedback() -> void:
 	_landing_approach.complete()
@@ -297,6 +461,16 @@ func complete_landing_approach_feedback() -> void:
 		"activated",
 		1.0
 	)
+	_update_resonance_approach_feedback()
+
+func _update_resonance_approach_feedback() -> void:
+	if _resonance_field == null or not is_instance_valid(_resonance_field):
+		return
+	_resonance_field.call(
+		"set_approach_feedback",
+		_landing_approach.charge(),
+		_landing_approach.target_x
+	)
 
 func is_landing_approach_feedback_empty() -> bool:
 	return _landing_approach.progress <= 0.0001
@@ -309,6 +483,10 @@ func get_landing_approach_target_x() -> float:
 
 func reset_landing_feedback_visual() -> void:
 	_landing_approach.reset()
+	_last_landing_world_x = global_position.x
+	if _resonance_field != null and is_instance_valid(_resonance_field):
+		_resonance_field.call("reset_feedback")
+	_neon_edge.set_instance_shader_parameter("idle_sheen_progress", -1.0)
 	_neon_edge.set_instance_shader_parameter("approach_charge", 0.0)
 	_neon_edge.set_instance_shader_parameter("approach_target_x", 0.5)
 	_neon_edge.set_instance_shader_parameter("activated", 0.0)

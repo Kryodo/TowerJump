@@ -1,9 +1,9 @@
 extends CanvasLayer
-## Zeigt Score und aktuelle Run-Coins live während des Spiels an.
+## Displays the authoritative run total and coins. Landing-state feedback is
+## coordinated by LandingFeedbackPresenter so it can avoid the ball and rewards.
 
 @onready var _score_label: Label = $ScoreLabel
 @onready var _coin_label: Label = $CoinLabel
-
 @onready var _platform_spawner: Node = get_node("../PlatformSpawner")
 
 var _debug_displayed_section: PlatformGeneratorBrain.BiomeSection = \
@@ -12,14 +12,17 @@ var _debug_displayed_section: PlatformGeneratorBrain.BiomeSection = \
 ## Tracks whether the temporary section label has displayed its first state.
 var _debug_section_initialized: bool = false
 
+
 func _ready() -> void:
 	GameManager.score_changed.connect(_on_score_changed)
 	GameManager.coins_changed.connect(_on_coins_changed)
 	_on_score_changed(GameManager.current_score)
 	_on_coins_changed(GameManager.run_coins)
 
+
 func _on_score_changed(new_score: int) -> void:
 	_score_label.text = "Score: %d" % new_score
+
 
 func _on_coins_changed(new_run_coins: int) -> void:
 	_coin_label.text = "● %d" % new_run_coins
@@ -27,6 +30,7 @@ func _on_coins_changed(new_run_coins: int) -> void:
 
 func _process(_delta: float) -> void:
 	update_debug_section_label()
+
 
 ## Shows the current biome section with a temporary fade-in transition.
 func update_debug_section_label() -> void:
@@ -48,18 +52,14 @@ func update_debug_section_label() -> void:
 	match section:
 		PlatformGeneratorBrain.BiomeSection.EARLY:
 			label.text = "EARLY FOREST"
-
 		PlatformGeneratorBrain.BiomeSection.MID:
 			label.text = "MID FOREST"
-
 		PlatformGeneratorBrain.BiomeSection.LATE:
 			label.text = "LATE FOREST"
-
 		PlatformGeneratorBrain.BiomeSection.DEEP:
 			label.text = "DEEP FOREST"
 
 	label.modulate.a = 0.0
-
 	var tween: Tween = create_tween()
 	tween.tween_property(label, "modulate:a", 1.0, 0.4)
 	tween.tween_interval(1.5)
