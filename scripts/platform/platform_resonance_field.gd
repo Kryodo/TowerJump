@@ -732,14 +732,14 @@ func _draw_edge_filaments(half_width: float, half_height: float) -> void:
 	# gate keeps nearby candidates from bunching into a fringe along the edge.
 	var accepted_origins: Array[Vector2] = []
 	for strand in range(FILAMENT_COUNT):
-		var random_seed: float = _phase_offset * 0.19 + float(strand) * 13.71
-		var life_clock: float = _time * (0.19 + float(strand) * 0.023) + random_seed
+		var strand_seed: float = _phase_offset * 0.19 + float(strand) * 13.71
+		var life_clock: float = _time * (0.19 + float(strand) * 0.023) + strand_seed
 		var life_phase: float = fposmod(life_clock, 1.0)
 		var active_window: float = 0.33 + float(strand % 2) * 0.07
 		if life_phase >= active_window:
 			continue
 		var cycle_id: float = floor(life_clock)
-		var random_seed: float = random_seed + cycle_id * 17.17
+		var random_seed: float = strand_seed + cycle_id * 17.17
 		var envelope: float = sin(PI * life_phase / active_window)
 		envelope = pow(maxf(envelope, 0.0), 0.8)
 		_draw_emergent_filament(
