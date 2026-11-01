@@ -1,6 +1,6 @@
 extends CanvasLayer
 
-const STATE_INDICATOR_ENERGY_SHADER = preload("res://scenes/state_indicator_energy.gdshader")
+const STATE_INDICATOR_ENERGY_SHADER = preload("res://shaders/ui/state_indicator_energy.gdshader")
 const STATE_INDICATOR_ENERGY_FIELD_SCRIPT = preload("res://scripts/landing/state_indicator_energy_field.gd")
 ## Presents landing rewards and persistent landing states in screen space.
 ## Scoring remains in LandingScoreController; this node only handles presentation.
