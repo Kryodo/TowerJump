@@ -123,7 +123,6 @@ func _physics_process(delta: float) -> void:
 	velocity.y += gravity * delta
 
 	# --- Horizontal movement with momentum ---
-	var input_direction := Input.get_axis("ui_left", "ui_right")
 
 	if abs(input_direction) > 0.01:
 		var target_speed := input_direction * max_horizontal_speed
