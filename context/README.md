@@ -38,4 +38,4 @@ This folder is the maintained handoff point for TowerJump design and implementat
 
 ## Validation status
 
-The repository-side folder move and path rewrites are complete on `chore/project-organization`. Source-level checks are performed there. Godot 4.7.x project import, scene loading, gameplay, and Android export still require validation on the project owner's machine before this branch is merged into `main`.
+The owner confirmed the reorganized project and platform test room run correctly in Godot after reloading scenes. Godot's subsequent import/sterilization changes were pushed in commit `3415ec87d0ced46b1dde6ab9bfaa9b12ee5fdbd3`. A warning-cleanup pass is now committed on the organization branch and requires a focused retest before merging; see [Repository Organization and Validation](Repository%20Organization%20and%20Validation.md).
