@@ -1,7 +1,7 @@
 # TowerJump — Environment Art Pipeline Masterplan
 
 Last updated: 2026-11-01  
-Status: Production pipeline definition; repository organization branch is awaiting local Godot validation.
+Status: Production pipeline definition; repository organization branch passed the initial folder-migration runtime check, and the warning-cleanup pass awaits focused retest.
 
 This document is the primary handoff for building TowerJump's procedural environmental world and reusable Art Library. It records approved visual foundations, the production phases, data relationships, preview tools, architecture module scope, deterministic landmark rules, and the next implementation steps.
 
@@ -425,10 +425,10 @@ Tags preserve exact historical commits without keeping every experiment as an ac
 # 13. Immediate next steps
 
 1. Finish and audit `chore/project-organization` (folder and context changes).
-2. Owner fetches the branch in GitHub Desktop and opens the project in Godot 4.7.x.
-3. Wait for Godot's import/UID scan to complete; verify the main scene, player/trail, platform, landing feedback, and test room.
+2. Owner fetches the branch in GitHub Desktop and opens the project in Godot 4.7.x. Initial folder-migration and platform test-room checks have already passed.
+3. Retest the warning-cleanup pass: desktop/touch input resolution, trail material initialization, platform resonance drawing, main-game landing camera response, and the standalone platform test room.
 4. Run an Android export and resolve any path/import issues.
-5. Merge the organization branch into main only after local validation.
+5. Merge the organization branch into main only after focused retest and warning review.
 6. Delete the merged `experiment-vertical-resonance-field` and temporary merge branch locally/remotely; preserve their tags.
 7. Create `feature/environment-art-library-v1` from the validated main.
 8. Start Phase 2: data model and Architecture Library Viewer, then Zone/Subzone Preview and Full-Game Environment Jump-In.
