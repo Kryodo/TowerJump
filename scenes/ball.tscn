@@ -6,26 +6,69 @@
 [ext_resource type="Shader" uid="uid://berr1ad3exlim" path="res://scenes/ball_trail_energy.gdshader" id="3_eew57"]
 [ext_resource type="Texture2D" uid="uid://bdjibaetopyy2" path="res://Assets/ball_mask.png" id="3_f7cbr"]
 [ext_resource type="Texture2D" uid="uid://cxkt5pn1abx0k" path="res://Assets/soft_energy_particle.png" id="4_jj7gd"]
+[ext_resource type="Texture2D" uid="uid://x4vri0ghb2xn" path="res://Assets/energy_particle_atlas.png" id="5_energy_atlas"]
+[ext_resource type="Shader" uid="uid://c7656tg1lral0" path="res://scenes/unified_comet.gdshader" id="7_unified_comet"]
+[ext_resource type="Shader" uid="uid://b6opk25aat210" path="res://scenes/ball_rim_halo.gdshader" id="9_rim_halo"]
+[ext_resource type="Shader" uid="uid://dk6rerpy7inja" path="res://scenes/trail_aura_pulse.gdshader" id="10_trail_aura_pulse"]
+[ext_resource type="Script" uid="uid://cqa0mgnogmlov" path="res://scripts/landing/quality_ring_indicator.gd" id="11_quality_ring"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_unified_comet"]
+shader = ExtResource("7_unified_comet")
+shader_parameter/palette_mode = 0
+shader_parameter/fragment_alpha_boost = 1.0
+shader_parameter/flow_speed = 0.9
+shader_parameter/surface_flow_strength = 0.16
+shader_parameter/pulse_progress = -1.0
+shader_parameter/pulse_strength = 0.0
+shader_parameter/jump_boost_progress = -1.0
+shader_parameter/jump_boost_strength = 0.0
+shader_parameter/combo_energy = 0.0
+shader_parameter/combo_tint = Vector3(0.24, 1.02, 1.42)
+
+[sub_resource type="Gradient" id="Gradient_unified_contour"]
+offsets = PackedFloat32Array(0, 0.04, 0.12, 0.44, 0.56, 0.88, 0.96, 1)
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0.84, 1, 1, 1, 0.5, 1, 1, 1, 0.04, 1, 1, 1, 0.04, 1, 1, 1, 0.5, 1, 1, 1, 0.84, 1, 1, 1, 1)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_trail_aura_pulse"]
+shader = ExtResource("10_trail_aura_pulse")
+shader_parameter/palette_mode = 0
+shader_parameter/pulse_progress = -1.0
+shader_parameter/pulse_strength = 0.0
+shader_parameter/jump_boost_progress = -1.0
+shader_parameter/jump_boost_strength = 0.0
+shader_parameter/combo_energy = 0.0
+shader_parameter/combo_tint = Vector3(0.24, 1.02, 1.42)
 
 [sub_resource type="Curve" id="Curve_iijjg"]
-_data = [Vector2(0, 1), 0.0, -1.1999999, 0, 1, Vector2(0.15, 0.82), -1.1999999, -1.1999999, 1, 1, Vector2(0.4, 0.52), -1.1999999, -1.08, 1, 1, Vector2(0.65, 0.25), -1.08, -0.8499998, 1, 1, Vector2(0.85, 0.08), -0.8499998, -0.5333334, 1, 1, Vector2(1, 0), -0.5333334, 0.0, 1, 0]
-point_count = 6
+_data = [Vector2(0, 0.015), 0.0, 4.2, 0, 1, Vector2(0.07, 0.7), 4.2, 1.2, 1, 1, Vector2(0.2, 1.15), 1.2, 0.0, 1, 1, Vector2(0.36, 0.94), 0.0, -0.9, 1, 1, Vector2(0.68, 0.42), -0.9, -1.0, 1, 1, Vector2(0.92, 0.04), -1.0, -0.5, 1, 1, Vector2(1, 0), -0.5, 0.0, 1, 0]
+point_count = 7
 
 [sub_resource type="Gradient" id="Gradient_f7kxq"]
 offsets = PackedFloat32Array(0, 0.26666668, 0.6, 0.8, 1)
-colors = PackedColorArray(0, 0.8980392, 1, 1, 0, 0.8117647, 0.9098039, 1, 0, 0.6156863, 0.70980394, 1, 0, 0.40784314, 0.47058824, 1, 1, 1, 1, 0)
+colors = PackedColorArray(0, 0.8980392, 1, 0.46, 0, 0.8117647, 0.9098039, 0.3, 0, 0.6156863, 0.70980394, 0.07, 0, 0.40784314, 0.47058824, 0.015, 1, 1, 1, 0)
 metadata/_snap_enabled = true
 metadata/_snap_count = 15
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_eew57"]
 shader = ExtResource("3_eew57")
 shader_parameter/flow_speed = 0.9
-shader_parameter/energy_strength = 1.350000064125
-shader_parameter/filament_strength = 1.7
+shader_parameter/energy_strength = 1.65
+shader_parameter/filament_strength = 2.1
+shader_parameter/palette_mode = 0
+shader_parameter/trail_progress_start = 0.0
+shader_parameter/trail_progress_scale = 1.0
+shader_parameter/pulse_progress = -1.0
+shader_parameter/pulse_strength = 0.0
+shader_parameter/jump_boost_progress = -1.0
+shader_parameter/jump_boost_strength = 0.0
+shader_parameter/landing_kick_strength = 0.0
+shader_parameter/landing_kick_progress = 0.0
+shader_parameter/combo_energy = 0.0
+shader_parameter/combo_tint = Vector3(0.24, 1.02, 1.42)
 
-[sub_resource type="Curve" id="Curve_4dx81"]
-_data = [Vector2(0, 1), 0.0, -0.70625985, 0, 1, Vector2(0.35000002, 0.75280905), -0.70625985, -1.1420155, 1, 1, Vector2(0.655, 0.4044944), -1.1420155, -1.4589453, 1, 1, Vector2(0.85, 0.12), -1.4589453, -0.80000013, 1, 1, Vector2(1, 0), -0.80000013, 0.0, 1, 0]
-point_count = 5
+[sub_resource type="Curve" id="Curve_energy_taper"]
+_data = [Vector2(0, 0.58), 0.0, 1.7, 0, 1, Vector2(0.07, 0.7), 1.7, 2.0, 1, 1, Vector2(0.2, 0.98), 2.0, 0.0, 1, 1, Vector2(0.36, 0.84), 0.0, -0.9, 1, 1, Vector2(0.68, 0.46), -0.9, -0.8, 1, 1, Vector2(0.92, 0.12), -0.8, -0.35, 1, 1, Vector2(1, 0.07), -0.35, 0.0, 1, 0]
+point_count = 7
 
 [sub_resource type="Curve" id="Curve_f7kxq"]
 _data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.05, 0.85), 0.0, 0.0, 0, 0, Vector2(0.12, 1), 0.0, 0.0, 0, 0, Vector2(0.35, 1), 0.0, 0.0, 0, 0, Vector2(0.6, 0.9), 0.0, 0.0, 0, 0, Vector2(0.82, 0.65), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
@@ -79,11 +122,15 @@ curve = SubResource("Curve_jj7gd")
 [sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_fwo8l"]
 lifetime_randomness = 0.15
 emission_shape = 1
-emission_sphere_radius = 25.0
+emission_sphere_radius = 18.0
+angle_min = -180.0
+angle_max = 180.0
 direction = Vector3(0, 1, 0)
 spread = 30.0
-initial_velocity_min = 2.0
-initial_velocity_max = 14.0
+initial_velocity_min = 3.0
+initial_velocity_max = 18.0
+angular_velocity_min = -95.0
+angular_velocity_max = 95.0
 gravity = Vector3(0, 0, 0)
 tangential_accel_min = -10.000002
 tangential_accel_max = 9.999997
@@ -105,8 +152,71 @@ turbulence_noise_speed_random = 0.15
 turbulence_influence_max = 0.2
 turbulence_influence_over_life = SubResource("CurveTexture_fwo8l")
 
+[sub_resource type="AtlasTexture" id="AtlasTexture_ball_diamond"]
+atlas = ExtResource("5_energy_atlas")
+region = Rect2(16, 0, 16, 16)
+
+[sub_resource type="Gradient" id="Gradient_comet_fragment_lifetime"]
+offsets = PackedFloat32Array(0, 0.1, 0.72, 1)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0.72, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_comet_fragment_lifetime"]
+gradient = SubResource("Gradient_comet_fragment_lifetime")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_comet_fragments"]
+lifetime_randomness = 0.22
+emission_shape = 1
+emission_sphere_radius = 16.0
+angle_min = -180.0
+angle_max = 180.0
+direction = Vector3(0, 1, 0)
+spread = 42.0
+initial_velocity_min = 8.0
+initial_velocity_max = 30.0
+angular_velocity_min = -150.0
+angular_velocity_max = 150.0
+gravity = Vector3(0, 0, 0)
+tangential_accel_min = -5.0
+tangential_accel_max = 5.0
+damping_min = 4.0
+damping_max = 10.0
+scale_min = 0.55
+scale_curve = SubResource("CurveTexture_iijjg")
+color_ramp = SubResource("GradientTexture1D_comet_fragment_lifetime")
+hue_variation_min = -0.04
+hue_variation_max = 0.04
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ball_square"]
+atlas = ExtResource("5_energy_atlas")
+region = Rect2(64, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ball_shard"]
+atlas = ExtResource("5_energy_atlas")
+region = Rect2(48, 0, 16, 16)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_rim_halo"]
+shader = ExtResource("9_rim_halo")
+shader_parameter/palette_mode = 0
+shader_parameter/rim_breath = 1.0
+shader_parameter/landing_anticipation = 0.0
+shader_parameter/landing_confirmation = 0.0
+shader_parameter/combo_energy = 0.0
+shader_parameter/combo_tint = Vector3(0.24, 1.02, 1.42)
+shader_parameter/body_radius = 0.755
+
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_4dx81"]
 shader = ExtResource("2_f7cbr")
+shader_parameter/palette_mode = 0
+shader_parameter/rim_breath = 1.0
+shader_parameter/landing_anticipation = 0.0
+shader_parameter/landing_confirmation = 0.0
+shader_parameter/combo_energy = 0.0
+shader_parameter/combo_tint = Vector3(0.24, 1.02, 1.42)
+shader_parameter/combo_core_quality = 0
+shader_parameter/combo_core_blend = 0.0
+shader_parameter/combo_core_active = 0.0
+shader_parameter/combo_activation_flash = 0.0
+shader_parameter/streak_activation_flash = 0.0
 
 [node name="Ball" type="CharacterBody2D" unique_id=1745057106]
 script = ExtResource("1_ball")
@@ -116,11 +226,29 @@ script = ExtResource("1_ball")
 [node name="TrailVisual" type="Node2D" parent="." unique_id=2025838925]
 z_index = -1
 script = ExtResource("2_4dx81")
+visual_palette = 1
+full_release_every_landings = 10
+
+[node name="UnifiedCometShape" type="MeshInstance2D" parent="TrailVisual" unique_id=1770062203]
+z_index = -1
+material = SubResource("ShaderMaterial_unified_comet")
+
+[node name="UnifiedCometContour" type="Line2D" parent="TrailVisual" unique_id=1770062204]
+visible = false
+z_index = 2
+width = 2.0
+gradient = SubResource("Gradient_unified_contour")
+joint_mode = 2
+begin_cap_mode = 2
+end_cap_mode = 2
+antialiased = true
 
 [node name="TrailAura" type="Line2D" parent="TrailVisual" unique_id=333510001]
-width = 18.0
+material = SubResource("ShaderMaterial_trail_aura_pulse")
+width = 40.0
 width_curve = SubResource("Curve_iijjg")
 gradient = SubResource("Gradient_f7kxq")
+texture_mode = 2
 joint_mode = 2
 begin_cap_mode = 2
 end_cap_mode = 2
@@ -128,8 +256,8 @@ antialiased = true
 
 [node name="EnergyLine" type="Line2D" parent="TrailVisual" unique_id=1281318945]
 material = SubResource("ShaderMaterial_eew57")
-width = 24.0
-width_curve = SubResource("Curve_4dx81")
+width = 26.0
+width_curve = SubResource("Curve_energy_taper")
 texture_mode = 2
 joint_mode = 2
 begin_cap_mode = 2
@@ -137,13 +265,47 @@ end_cap_mode = 2
 antialiased = true
 
 [node name="TrailParticles" type="GPUParticles2D" parent="TrailVisual" unique_id=2074338206]
-amount = 28
+z_index = 1
+amount = 10
 texture = ExtResource("4_jj7gd")
 lifetime = 1.25
 randomness = 0.45
 process_material = SubResource("ParticleProcessMaterial_fwo8l")
 
+[node name="TrailDiamonds" type="GPUParticles2D" parent="TrailVisual" unique_id=1841021003]
+z_index = 1
+scale = Vector2(1.12, 1.12)
+amount = 12
+texture = SubResource("AtlasTexture_ball_diamond")
+randomness = 0.55
+process_material = SubResource("ParticleProcessMaterial_comet_fragments")
+
+[node name="TrailSquares" type="GPUParticles2D" parent="TrailVisual" unique_id=1841021004]
+z_index = 1
+amount = 9
+texture = SubResource("AtlasTexture_ball_square")
+lifetime = 0.95
+randomness = 0.65
+process_material = SubResource("ParticleProcessMaterial_comet_fragments")
+
+[node name="TrailShards" type="GPUParticles2D" parent="TrailVisual" unique_id=1841021005]
+z_index = 1
+scale = Vector2(1.12, 1.12)
+texture = SubResource("AtlasTexture_ball_shard")
+lifetime = 0.85
+randomness = 0.65
+process_material = SubResource("ParticleProcessMaterial_comet_fragments")
+
+[node name="RimAura" type="Sprite2D" parent="." unique_id=1697793800]
+z_index = -1
+material = SubResource("ShaderMaterial_rim_halo")
+scale = Vector2(0.62, 0.62)
+texture = ExtResource("3_f7cbr")
+
 [node name="Visual" type="Sprite2D" parent="." unique_id=213819786]
 material = SubResource("ShaderMaterial_4dx81")
 scale = Vector2(0.468, 0.468)
 texture = ExtResource("3_f7cbr")
+
+[node name="QualityRingIndicator" type="Node2D" parent="." unique_id=2012236888]
+script = ExtResource("11_quality_ring")

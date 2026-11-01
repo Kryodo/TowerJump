@@ -16,6 +16,8 @@ var horizontal_velocity: float
 var vertical_velocity: float
 var approach_progress: float
 var platform_type: int
+var platform_generation: int
+var late_edge_recovery: bool
 
 func _init(
 	landing_ball: CharacterBody2D,
@@ -26,7 +28,9 @@ func _init(
 	horizontal_speed: float,
 	vertical_speed: float,
 	approach: float,
-	type: int
+	type: int,
+	generation: int,
+	had_late_edge_recovery: bool
 ) -> void:
 	ball = landing_ball
 	platform = landing_platform
@@ -37,3 +41,5 @@ func _init(
 	vertical_velocity = vertical_speed
 	approach_progress = approach
 	platform_type = type
+	platform_generation = generation
+	late_edge_recovery = had_late_edge_recovery
