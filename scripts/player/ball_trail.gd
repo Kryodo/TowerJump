@@ -158,9 +158,9 @@ func _initialize_surface_fragment_material() -> void:
 func _initialize_landing_impact_material() -> void:
 	# Landing sparks use a brief additive accent separate from the larger
 	# translucent fragments shed by the comet trail.
-	var material := CanvasItemMaterial.new()
-	material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	_landing_impact_material = material
+	var landing_material := CanvasItemMaterial.new()
+	landing_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	_landing_impact_material = landing_material
 
 func _measure_ball_surface_radius() -> float:
 	if _ball_visual == null or _ball_visual.texture == null:
