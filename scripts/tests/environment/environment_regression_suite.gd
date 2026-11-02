@@ -69,14 +69,18 @@ func _run_suite() -> void:
 		var signature_a := EnvironmentCompositionPlanner.plan_signature(plan_a)
 		var signature_b := EnvironmentCompositionPlanner.plan_signature(plan_b)
 
-		# The fixture IDs and seed keys currently match. Change one key temporarily
-		# to prove the planner actually consumes the authored stable seed key.
+		# Work on duplicated Resources: the preloaded fixture constant must remain immutable.
+		# This proves the planner consumes the authored subzone seed key without mutating
+		# the shared regression fixture used by the other seed cases.
 		if not ZONE_PROFILE.subzones.is_empty():
-			var original_subzone_key: StringName = ZONE_PROFILE.subzones[0].seed_key
-			ZONE_PROFILE.subzones[0].seed_key = &"regression_alternate_seed_key"
-			var alternate_key_plan := EnvironmentCompositionPlanner.build_plan(ZONE_PROFILE, seed_value)
+			var alternate_zone := ZONE_PROFILE.duplicate() as EnvironmentZoneProfile
+			var alternate_subzones: Array[EnvironmentSubzoneProfile] = []
+			for source_subzone in ZONE_PROFILE.subzones:
+				alternate_subzones.append(source_subzone.duplicate(true) as EnvironmentSubzoneProfile)
+			alternate_zone.subzones = alternate_subzones
+			alternate_zone.subzones[0].seed_key = &"regression_alternate_seed_key"
+			var alternate_key_plan := EnvironmentCompositionPlanner.build_plan(alternate_zone, seed_value)
 			var alternate_key_signature := EnvironmentCompositionPlanner.plan_signature(alternate_key_plan)
-			ZONE_PROFILE.subzones[0].seed_key = original_subzone_key
 			if alternate_key_signature == signature_a:
 				failures.append("Seed %d: changing the stable subzone key did not change the composition signature." % seed_value)
 
