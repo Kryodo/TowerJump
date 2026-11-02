@@ -169,6 +169,7 @@ func _create_subzone_architecture(section: Dictionary) -> void:
 		layer.set("world_width", WORLD_WIDTH)
 		layer.set("section_top_y", float(section.section_top_y) + world_origin_height_px)
 		layer.set("section_bottom_y", float(section.section_bottom_y) + world_origin_height_px)
+		layer.set("preserve_reference_overdraw", bool(section.get("preserve_reference_overdraw", false)))
 		layer.set("far_detail_treatment", int(recipe.far_detail_treatment))
 		layer.set("mid_detail_treatment", int(recipe.middle_detail_treatment))
 		layer.z_index = depth + 1
