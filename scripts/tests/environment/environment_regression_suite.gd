@@ -146,9 +146,15 @@ func _run_suite() -> void:
 		for landmark in plan_a.get("landmarks", []):
 			var anchor: EnvironmentLandmarkAnchor = landmark.anchor
 			if anchor.landmark_id == &"resonance_gate":
-				gate_found = is_equal_approx(float(landmark.root_position.y), -4280.0)
+				gate_found = (
+					is_equal_approx(float(landmark.root_position.y), -4280.0)
+					and anchor.subzone_id == &"reference_full_composition"
+				)
 			elif anchor.landmark_id == &"archive_fragment":
-				archive_found = is_equal_approx(float(landmark.root_position.y), -6680.0)
+				archive_found = (
+					is_equal_approx(float(landmark.root_position.y), -6680.0)
+					and anchor.subzone_id == &"reference_full_composition"
+				)
 		if not gate_found:
 			failures.append("Seed %d: Resonance Gate no longer occupies the established reference anchor." % seed_value)
 		if not archive_found:
