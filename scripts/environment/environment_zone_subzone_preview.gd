@@ -1,15 +1,16 @@
 extends Node2D
 ## Independent vertical preview for zone/subzone structure, voids and fixed landmarks.
 
-const ZONE_PROFILE: EnvironmentZoneProfile = preload("res://resources/environment/zones/preview_diagnostic_zone.tres")
-const THEME_PROFILES: Array[EnvironmentThemeProfile] = [
+@export var zone_profile: EnvironmentZoneProfile = preload("res://resources/environment/zones/preview_diagnostic_zone.tres")
+@export var theme_profiles: Array[EnvironmentThemeProfile] = [
 	preload("res://resources/environment/themes/navy_resonance.tres"),
 	preload("res://resources/environment/themes/amber_diagnostic.tres"),
 ]
+@export var fixed_seeds: Array[int] = [7319, 24017, 91207]
+
 const COMPOSITOR_SCRIPT: Script = preload("res://scripts/environment/environment_preview_compositor.gd")
 const BACKGROUND_COLOR := Color(0.007843138, 0.023529412, 0.050980393, 1.0)
 const HEIGHT_ORIGIN: float = 600.0
-const FIXED_SEEDS: Array[int] = [7319, 24017, 91207]
 
 var _camera: Camera2D
 var _compositor: EnvironmentPreviewCompositor
@@ -20,6 +21,9 @@ var _theme_index: int = 0
 
 
 func _ready() -> void:
+	if zone_profile == null or theme_profiles.is_empty() or fixed_seeds.is_empty():
+		push_error("Zone/Subzone Preview: assign a zone, at least one theme, and at least one fixed seed.")
+		return
 	_create_camera_and_background()
 	_create_compositor()
 	_create_hud()
@@ -41,15 +45,15 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_set_view_height(3600.0)
 		KEY_1, KEY_2, KEY_3:
 			_seed_index = key_event.keycode - KEY_1
-			_compositor.call("set_world_seed", FIXED_SEEDS[_seed_index])
+			_compositor.call("set_world_seed", fixed_seeds[_seed_index])
 			_update_hud()
 		KEY_R:
-			_seed_index = posmod(_seed_index + 1, FIXED_SEEDS.size())
-			_compositor.call("set_world_seed", FIXED_SEEDS[_seed_index])
+			_seed_index = posmod(_seed_index + 1, fixed_seeds.size())
+			_compositor.call("set_world_seed", fixed_seeds[_seed_index])
 			_update_hud()
 		KEY_T:
-			_theme_index = posmod(_theme_index + 1, THEME_PROFILES.size())
-			_compositor.call("set_theme_override", THEME_PROFILES[_theme_index])
+			_theme_index = posmod(_theme_index + 1, theme_profiles.size())
+			_compositor.call("set_theme_override", theme_profiles[_theme_index])
 			_update_hud()
 		KEY_J:
 			var next_height: float = _compositor.call("get_next_landmark_height", _view_height_px)
@@ -80,8 +84,8 @@ func _create_camera_and_background() -> void:
 func _create_compositor() -> void:
 	_compositor = COMPOSITOR_SCRIPT.new() as EnvironmentPreviewCompositor
 	_compositor.name = "EnvironmentPreviewCompositor"
-	_compositor.zone_profile = ZONE_PROFILE
-	_compositor.world_seed = FIXED_SEEDS[_seed_index]
+	_compositor.zone_profile = zone_profile
+	_compositor.world_seed = fixed_seeds[_seed_index]
 	_compositor.camera_path = NodePath("../PreviewCamera")
 	_compositor.z_index = -50
 	add_child(_compositor)
@@ -104,7 +108,7 @@ func _create_hud() -> void:
 
 
 func _set_view_height(value: float) -> void:
-	_view_height_px = clampf(value, ZONE_PROFILE.start_height_px, ZONE_PROFILE.end_height_px)
+	_view_height_px = clampf(value, zone_profile.start_height_px, zone_profile.end_height_px)
 	_camera.position.y = HEIGHT_ORIGIN - _view_height_px
 	_update_hud()
 
@@ -116,15 +120,15 @@ func _update_hud() -> void:
 	var next_height: float = _compositor.call("get_next_landmark_height", _view_height_px) if _compositor != null else -1.0
 	var next_text := "NONE" if next_height < 0.0 else "%dm" % roundi(next_height)
 	_hud_label.text = (
-		"ZONE / SUBZONE PREVIEW   |   %s\n" % String(ZONE_PROFILE.zone_id).to_upper()
+		"ZONE / SUBZONE PREVIEW   |   %s\n" % String(zone_profile.zone_id).to_upper()
 		+ "HEIGHT: %dm   |   CURRENT: %s   |   NEXT LANDMARK: %s\n" % [
 			roundi(_view_height_px),
 			_compositor.call("get_subzone_id_at_height", _view_height_px),
 			next_text,
 		]
 		+ "SEED: %d   |   THEME: %s   |   MODULES: %d   |   LANDMARKS: %d\n" % [
-			FIXED_SEEDS[_seed_index],
-			String(THEME_PROFILES[_theme_index].profile_id),
+			fixed_seeds[_seed_index],
+			String(theme_profiles[_theme_index].profile_id),
 			int(summary.get("placement_count", 0)),
 			int(summary.get("landmark_count", 0)),
 		]
@@ -140,8 +144,8 @@ func _capture_regression_image() -> void:
 		push_warning("Zone Preview: Could not create regression capture directory.")
 		return
 	var filename := "zone_%s_seed_%d_height_%d.png" % [
-		String(ZONE_PROFILE.zone_id),
-		FIXED_SEEDS[_seed_index],
+		String(zone_profile.zone_id),
+		fixed_seeds[_seed_index],
 		roundi(_view_height_px),
 	]
 	var path := directory.path_join(filename)
