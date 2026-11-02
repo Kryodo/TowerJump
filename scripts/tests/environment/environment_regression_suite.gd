@@ -1,13 +1,13 @@
-extends SceneTree
+extends Node
 ## Headless-friendly deterministic data/layout regression checks.
 ## Run after project import with:
-## godot --headless --path . --script res://scripts/tests/environment/environment_regression_suite.gd
+## godot --headless --path . res://scenes/tests/environment/environment_regression_suite.tscn
 
 const ZONE_PROFILE: EnvironmentZoneProfile = preload("res://resources/environment/zones/preview_diagnostic_zone.tres")
 const BASELINE_PATH: String = "res://resources/environment/regression/preview_diagnostic_fixed_seeds.json"
 
 
-func _initialize() -> void:
+func _ready() -> void:
 	call_deferred("_run_suite")
 
 
@@ -16,7 +16,7 @@ func _run_suite() -> void:
 	var manifest_text := FileAccess.get_file_as_string(BASELINE_PATH)
 	if manifest_text.is_empty():
 		push_error("Environment regression baseline manifest is missing or empty.")
-		quit(2)
+		get_tree().quit(2)
 		return
 
 	var parsed_manifest: Variant = JSON.parse_string(manifest_text)
@@ -104,10 +104,10 @@ func _run_suite() -> void:
 			String(parsed_manifest.get("fixture_id", "unknown")),
 			cases.size(),
 		])
-		quit(0)
+		get_tree().quit(0)
 		return
 
 	for failure in failures:
 		push_error(failure)
 	print("ENVIRONMENT REGRESSION FAIL (%d issue(s))" % failures.size())
-	quit(1)
+	get_tree().quit(1)
