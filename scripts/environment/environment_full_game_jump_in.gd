@@ -149,5 +149,5 @@ func _update_hud() -> void:
 			module_count,
 		]
 		+ "SEED: %d   |   THEME: %s\n" % [world_seed, String(theme_profiles[_theme_index].profile_id)]
-		+ "STEER WITH GAME TOUCH / MOUSE   1–3 JUMP-IN PRESETS   R RESTART   N NEXT SEED   T THEME"
+		+ "TOUCH LEFT/RIGHT OR UI LEFT/RIGHT   1–3 JUMP-IN PRESETS   R RESTART   N NEXT SEED   T THEME"
 	)
