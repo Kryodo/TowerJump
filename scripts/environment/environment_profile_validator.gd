@@ -53,8 +53,8 @@ static func validate_zone(zone: EnvironmentZoneProfile) -> Dictionary:
 		var recipe := subzone.architecture_recipe
 		if String(recipe.recipe_id).is_empty():
 			errors.append("Subzone %s uses a recipe with an empty ID." % subzone_id)
-		if recipe.section_step_px <= 0.0:
-			errors.append("Recipe %s must have a positive section step." % String(recipe.recipe_id))
+		if recipe.section_step_px < 200.0 or recipe.section_step_px > 5000.0:
+			errors.append("Recipe %s section step must remain in the supported 200–5000 px range." % String(recipe.recipe_id))
 		if (
 			recipe.far_density < 0.0 or recipe.far_density > 1.0
 			or recipe.middle_density < 0.0 or recipe.middle_density > 1.0
@@ -104,6 +104,7 @@ static func validate_zone(zone: EnvironmentZoneProfile) -> Dictionary:
 			errors.append("Subzone height ranges overlap; use a gap for an intentional void interval.")
 
 	var landmark_ids: Dictionary = {}
+	var landmark_reservations: Array[Rect2] = []
 	for anchor in zone.landmark_anchors:
 		if anchor == null:
 			errors.append("Zone contains a null landmark anchor.")
@@ -117,10 +118,24 @@ static func validate_zone(zone: EnvironmentZoneProfile) -> Dictionary:
 			landmark_ids[landmark_id] = true
 		if anchor.scene == null:
 			errors.append("Landmark %s has no PackedScene." % landmark_id)
-		if anchor.height_anchor_px < zone.start_height_px or anchor.height_anchor_px > zone.end_height_px:
+		if anchor.height_anchor_px < zone.start_height_px or anchor.height_anchor_px >= zone.end_height_px:
 			errors.append("Landmark %s is outside the zone height range." % landmark_id)
 		if anchor.clearance_bounds.size.x <= 0.0 or anchor.clearance_bounds.size.y <= 0.0:
 			errors.append("Landmark %s must reserve a positive clearance rectangle." % landmark_id)
+		else:
+			var anchor_root := Vector2(
+				anchor.local_position.x,
+				600.0 - anchor.height_anchor_px + anchor.local_position.y
+			)
+			var reservation := Rect2(
+				anchor_root + anchor.clearance_bounds.position,
+				anchor.clearance_bounds.size
+			)
+			for existing_reservation in landmark_reservations:
+				if reservation.intersects(existing_reservation):
+					errors.append("Landmark %s overlaps another landmark reservation." % landmark_id)
+					break
+			landmark_reservations.append(reservation)
 		if not String(anchor.subzone_id).is_empty():
 			var owning_subzone := _find_subzone(zone, anchor.subzone_id)
 			if owning_subzone == null:
@@ -149,10 +164,20 @@ static func _validate_lighting_profile(
 	errors: Array[String]
 ) -> void:
 	var shares_total := profile.dormant_share + profile.subtle_share + profile.neon_share
-	if profile.dormant_share < 0.0 or profile.subtle_share < 0.0 or profile.neon_share < 0.0:
-		errors.append("%s lighting profile contains a negative light-state share." % scope_label)
+	if (
+		profile.dormant_share < 0.0 or profile.dormant_share > 1.0
+		or profile.subtle_share < 0.0 or profile.subtle_share > 1.0
+		or profile.neon_share < 0.0 or profile.neon_share > 1.0
+	):
+		errors.append("%s lighting profile shares must each be between 0 and 1." % scope_label)
 	if shares_total <= 0.0:
 		errors.append("%s lighting profile must enable at least one light state." % scope_label)
+	if profile.intensity_scale < 0.0 or profile.intensity_scale > 2.0:
+		errors.append("%s lighting intensity scale must be between 0 and 2." % scope_label)
+	if profile.flicker_rate_hz < 0.1 or profile.flicker_rate_hz > 8.0:
+		errors.append("%s lighting flicker rate is outside the supported range." % scope_label)
+	if profile.flicker_minimum_alpha < 0.75 or profile.flicker_minimum_alpha > 1.0:
+		errors.append("%s lighting flicker minimum alpha is outside the supported range." % scope_label)
 
 
 static func _validate_ambient_profile(
@@ -160,8 +185,10 @@ static func _validate_ambient_profile(
 	scope_label: String,
 	errors: Array[String]
 ) -> void:
-	if profile.density_scale < 0.0 or profile.speed_scale < 0.0:
-		errors.append("%s ambient profile has a negative density or speed scale." % scope_label)
+	if profile.density_scale < 0.0 or profile.density_scale > 3.0:
+		errors.append("%s ambient density scale must be between 0 and 3." % scope_label)
+	if profile.speed_scale < 0.0 or profile.speed_scale > 2.0:
+		errors.append("%s ambient speed scale must be between 0 and 2." % scope_label)
 	if profile.highlight_share < 0.0 or profile.highlight_share > 1.0:
 		errors.append("%s ambient highlight share must be between 0 and 1." % scope_label)
 	if (
