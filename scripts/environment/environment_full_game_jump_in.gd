@@ -2,16 +2,16 @@ extends Node2D
 ## Runs the actual gameplay scene at an authored height without changing production gameplay files.
 
 const MAIN_GAME_SCENE: PackedScene = preload("res://scenes/gameplay/main.tscn")
-const ZONE_PROFILE: EnvironmentZoneProfile = preload("res://resources/environment/zones/preview_diagnostic_zone.tres")
-const THEME_PROFILES: Array[EnvironmentThemeProfile] = [
+const COMPOSITOR_SCRIPT: Script = preload("res://scripts/environment/environment_preview_compositor.gd")
+const START_BALL_Y: float = 600.0
+
+@export var zone_profile: EnvironmentZoneProfile = preload("res://resources/environment/zones/preview_diagnostic_zone.tres")
+@export var theme_profiles: Array[EnvironmentThemeProfile] = [
 	preload("res://resources/environment/themes/navy_resonance.tres"),
 	preload("res://resources/environment/themes/amber_diagnostic.tres"),
 ]
-const COMPOSITOR_SCRIPT: Script = preload("res://scripts/environment/environment_preview_compositor.gd")
-const FIXED_SEEDS: Array[int] = [7319, 24017, 91207]
-const JUMP_HEIGHTS: Array[float] = [1800.0, 5400.0, 9600.0]
-const START_BALL_Y: float = 600.0
-
+@export var fixed_seeds: Array[int] = [7319, 24017, 91207]
+@export var jump_heights: Array[float] = [1800.0, 5400.0, 9600.0]
 @export var jump_in_height_px: float = 3600.0
 @export var world_seed: int = 7319
 
@@ -26,6 +26,12 @@ var _seed_index: int = 0
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	if zone_profile == null or theme_profiles.is_empty() or fixed_seeds.is_empty() or jump_heights.is_empty():
+		push_error("Full-Game Jump-In: assign a zone, theme, fixed seeds, and jump-height presets.")
+		return
+	if fixed_seeds.size() != jump_heights.size():
+		push_error("Full-Game Jump-In: fixed seed and jump-height preset arrays must have the same size.")
+		return
 	_create_hud()
 	_spawn_game()
 
@@ -43,8 +49,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	match key_event.keycode:
 		KEY_1, KEY_2, KEY_3:
 			var index := key_event.keycode - KEY_1
-			_seed_index = index
-			_restart_game(JUMP_HEIGHTS[index], FIXED_SEEDS[index])
+			if index < jump_heights.size():
+				_seed_index = index
+				_restart_game(jump_heights[index], fixed_seeds[index])
 		KEY_R:
 			_restart_game(_get_current_height(), world_seed)
 		KEY_N:
@@ -52,9 +59,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			world_seed = posmod(world_seed + 7919, 2147483646) + 1
 			_restart_game(resume_height, world_seed)
 		KEY_T:
-			_theme_index = posmod(_theme_index + 1, THEME_PROFILES.size())
+			_theme_index = posmod(_theme_index + 1, theme_profiles.size())
 			if _compositor != null:
-				_compositor.set_theme_override(THEME_PROFILES[_theme_index])
+				_compositor.set_theme_override(theme_profiles[_theme_index])
 			_update_hud()
 
 
@@ -79,7 +86,7 @@ func _spawn_game() -> void:
 
 	_compositor = COMPOSITOR_SCRIPT.new() as EnvironmentPreviewCompositor
 	_compositor.name = "EnvironmentPreviewCompositor"
-	_compositor.zone_profile = ZONE_PROFILE
+	_compositor.zone_profile = zone_profile
 	_compositor.world_seed = world_seed
 	_compositor.world_origin_height_px = jump_in_height_px
 	_compositor.camera_path = NodePath("../GameCamera")
@@ -135,12 +142,12 @@ func _update_hud() -> void:
 		subzone = _compositor.get_subzone_id_at_height(current_height)
 		module_count = int(_compositor.get_plan_summary().get("placement_count", 0))
 	_hud_label.text = (
-		"FULL-GAME ENVIRONMENT JUMP-IN   |   %s\n" % String(ZONE_PROFILE.zone_id).to_upper()
+		"FULL-GAME ENVIRONMENT JUMP-IN   |   %s\n" % String(zone_profile.zone_id).to_upper()
 		+ "HEIGHT: %dm   |   SUBZONE: %s   |   MODULES IN PLAN: %d\n" % [
 			roundi(current_height),
 			subzone,
 			module_count,
 		]
-		+ "SEED: %d   |   THEME: %s\n" % [world_seed, String(THEME_PROFILES[_theme_index].profile_id)]
+		+ "SEED: %d   |   THEME: %s\n" % [world_seed, String(theme_profiles[_theme_index].profile_id)]
 		+ "STEER WITH GAME TOUCH / MOUSE   1–3 JUMP-IN PRESETS   R RESTART   N NEXT SEED   T THEME"
 	)
