@@ -1,7 +1,7 @@
 # Art Library V1 — Implementation Notes
 
 Last updated: 2026-11-02  
-Status: **Phase 2 implementation complete at source level; Godot 4.7.x import/runtime validation pending.**
+Status: **Reference extraction and preview parity corrections implemented at source level; Godot 4.7.x import/runtime and visual comparison pending.**
 
 This document records implementation details. The masterplan remains the authoritative strategic scope and exit-criteria document.
 
@@ -52,9 +52,13 @@ The approved ambient vertical parallax relationship remains:
 
 ## 3. Reused visual reference
 
-The preserved experiment branch was inspected read-only. Its monolithic drawing script and comparison scenes were not copied wholesale.
+The preserved experiment branch is a read-only visual/technical reference. Its comparison harness, palette controls, debug overlays, and test orchestration are not copied into the Art Library.
 
-The current diagnostic module scenes selectively represent the approved visual vocabulary:
+The reusable EnvironmentArchitectureLayer extracts the approved Far/Middle/Near drawing grammar, fixed A2 Integrated palette values, Compact Panel Flicker treatment, middle treatment C, section cadence, and deterministic per-layer seed behavior. The renderer retains the established proportions and geometry while taking theme and recipe resources as inputs. Resonance Gate and Archive Fragment are separate authored scenes positioned by fixed-height anchors; their local geometry and placement match the original study.
+
+The reference parity fixture uses the exact original study window (-10400 to 1600 px), world width 720 px, A2 Integrated fills, Compact Panel Flicker, Insets + Mechanical Recesses, and fixed seeds. The comparison harness itself remains on the experiment branch and is not copied.
+
+The diagnostic module scenes represent the approved visual vocabulary:
 
 - Far aperture cluster: connected dark silhouette with deliberately grouped apertures/panels and a few dormant/subtle/neon states.
 - Middle support inset: monumental fill, stepped inset, partial contour reveal, and a mechanical recess separated from the plate by at least 15 px.
@@ -115,7 +119,7 @@ It:
 - Uses ambient density, speed, tint, and highlight share. Highlight particles are a small separate fraction; they are not a new high-density effect system.
 - Can disable the original game mote emitters on the full-game test instance only.
 
-Optional structural flicker is a very restrained profile property, off by default. The current default fixture remains static.
+Optional structural flicker is a very restrained profile property, off by default. The reference parity recipe defaults to Compact Panel Flicker and middle treatment C, matching the approved reference. The current default reference fixture is not a new zone concept.
 
 ## 7. Preview tools
 
@@ -125,7 +129,7 @@ These are runnable test scenes, not editor plugins. They are deliberately lightw
 
 Scene: scenes/tests/environment/architecture_library_viewer.tscn
 
-It displays the current diagnostic module and reports module ID, family, depth, visual bounds, clearance bounds, connection points, current theme, and fixed seed. It overlays visual/clearance outlines.
+It browses the module/depth definitions and displays the selected depth using the actual extracted architecture grammar in a short vertical slice. It reports module ID, family, depth, visual bounds, clearance bounds, connection points, current theme, and fixed seed. It does not substitute the old narrow generic drawing fixtures for the established layer composition.
 
 Controls:
 - 1 / 2 / 3 or Left / Right: select module.
@@ -205,13 +209,15 @@ These files are scaffolding for exercising the pipeline. They are not the first 
 - Typed Resource model and profile validation.
 - Deterministic section/landmark seed resolver.
 - Shared composition planner with fixed-height landmark clearance reservations.
-- Three diagnostic architecture modules and two landmark scenes.
+- Three architecture module definitions and two landmark scenes, with the landmark local geometry restored to the original study.
 - Diagnostic theme, ambient, lighting, recipe, subzone, landmark, and zone resources.
 - Shared environment compositor.
 - Architecture Library Viewer.
 - Zone/Subzone Preview.
 - Full-Game Environment Jump-In using the real production scene in a test-only wrapper.
-- Three-case fixed-seed regression manifest and runnable regression scene.
+- Three-case fixed-seed regression manifest and runnable regression scene, including parity-zone validity, exact reference section bounds, A2 fill values, landmark anchor positions, and treatment checks.
+- Full-game parallax origin correction: when the test wrapper offsets the instantiated game root, local layer positions compensate for that offset so global parallax matches the original camera-relative behavior.
+- Parity fixture landmark ownership corrected to the single reference subzone; invalid cross-fixture subzone IDs are no longer carried into the parity zone.
 - Documentation of the model, controls, and validation workflow.
 
 ### Still required from the owner
