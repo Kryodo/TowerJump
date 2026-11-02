@@ -1,7 +1,7 @@
 extends Node2D
 ## Independent vertical preview for zone/subzone structure, voids and fixed landmarks.
 
-@export var zone_profile: EnvironmentZoneProfile = preload("res://resources/environment/zones/preview_diagnostic_zone.tres")
+@export var zone_profile: EnvironmentZoneProfile = preload("res://resources/environment/zones/reference_extraction_parity.tres")
 @export var theme_profiles: Array[EnvironmentThemeProfile] = [
 	preload("res://resources/environment/themes/navy_resonance.tres"),
 	preload("res://resources/environment/themes/amber_diagnostic.tres"),
@@ -134,10 +134,10 @@ func _update_hud() -> void:
 			_compositor.call("get_subzone_id_at_height", _view_height_px),
 			next_text,
 		]
-		+ "SEED: %d   |   THEME: %s   |   MODULES: %d   |   LANDMARKS: %d\n" % [
+		+ "SEED: %d   |   THEME: %s   |   ARCHITECTURE SECTIONS: %d   |   LANDMARKS: %d\n" % [
 			fixed_seeds[_seed_index],
 			String(theme_profiles[_theme_index].profile_id),
-			int(summary.get("placement_count", 0)),
+			int(summary.get("section_count", 0)),
 			int(summary.get("landmark_count", 0)),
 		]
 		+ "↑ / ↓ HEIGHT   J NEXT LANDMARK   1–3 / R SEED   T THEME   P CAPTURE PNG   HOME RESET"
