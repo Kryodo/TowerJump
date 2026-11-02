@@ -3,13 +3,15 @@ extends Node2D
 ## Shared data-driven renderer used by the library viewer, zone preview and full-game jump-in.
 
 const WORLD_WIDTH: float = 720.0
-const BACKGROUND_HEIGHT_ORIGIN: float = 640.0
+const RUN_ORIGIN_WORLD_Y: float = 600.0
 const AMBIENT_TEXTURE: Texture2D = preload("res://assets/particles/ambient_mote.svg")
 const LAYER_NAMES: Array[String] = ["FarArchitecture", "MiddleArchitecture", "NearArchitecture"]
 const BASE_AMBIENT_AMOUNTS: Array[int] = [54, 18, 5]
 
 @export var zone_profile: EnvironmentZoneProfile
 @export var world_seed: int = 7319
+## Adds the previewed climb height to local plan coordinates in the full-game wrapper.
+@export var world_origin_height_px: float = 0.0
 @export var camera_path: NodePath
 @export var theme_override: EnvironmentThemeProfile
 @export var replace_game_ambient_emitters: bool = false
@@ -76,7 +78,7 @@ func rebuild() -> void:
 		if instance == null:
 			push_warning("EnvironmentPreviewCompositor: Module %s did not instantiate as Node2D." % String(definition.module_id))
 			continue
-		instance.position = placement.root_position
+		instance.position = placement.root_position + Vector2(0.0, world_origin_height_px)
 		instance.scale.x = -1.0 if placement.mirror_x else 1.0
 		instance.call(
 			"configure",
@@ -95,7 +97,7 @@ func rebuild() -> void:
 		if instance == null:
 			push_warning("EnvironmentPreviewCompositor: Landmark %s did not instantiate as Node2D." % String(anchor.landmark_id))
 			continue
-		instance.position = landmark.root_position
+		instance.position = landmark.root_position + Vector2(0.0, world_origin_height_px)
 		instance.call(
 			"configure",
 			landmark.theme_profile,
@@ -154,8 +156,9 @@ func _create_architecture_layers() -> void:
 		_architecture_layers.append(layer)
 
 
-func _get_parallax_factors() -> Array[float]:
-	var ambient := zone_profile.ambient_profile if zone_profile != null else null
+func _get_parallax_factors(ambient: EnvironmentAmbientProfile = null) -> Array[float]:
+	if ambient == null:
+		ambient = _resolve_ambient_profile_for_current_height()
 	if ambient == null:
 		return [0.18, 0.46, 0.82]
 	return [ambient.far_parallax, ambient.middle_parallax, ambient.near_parallax]
@@ -164,16 +167,19 @@ func _get_parallax_factors() -> Array[float]:
 func _update_parallax() -> void:
 	if _camera == null:
 		return
-	var factors := _get_parallax_factors()
+	var active_profile := _resolve_ambient_profile_for_current_height()
+	var factors := _get_parallax_factors(active_profile)
 	var x_factors: Array[float] = [0.88, 0.96, 1.0]
 	for index in range(_architecture_layers.size()):
 		var factor: float = factors[index]
+		_architecture_layers[index].scale.y = factor
 		_architecture_layers[index].position = Vector2(
 			WORLD_WIDTH * 0.5 * (1.0 - x_factors[index]),
 			_camera.position.y * (1.0 - factor)
 		)
 	for index in range(_ambient_layers.size()):
 		var factor: float = factors[index]
+		_ambient_layers[index].scale.y = factor
 		_ambient_layers[index].position = Vector2(
 			WORLD_WIDTH * 0.5 * (1.0 - x_factors[index]),
 			_camera.position.y * (1.0 - factor)
@@ -189,23 +195,29 @@ func _disable_existing_game_emitters() -> void:
 			emitter.emitting = false
 
 
+func _resolve_ambient_profile_for_current_height() -> EnvironmentAmbientProfile:
+	var ambient := zone_profile.ambient_profile if zone_profile != null else null
+	if zone_profile == null or _camera == null:
+		return ambient
+
+	var view_height := world_origin_height_px + RUN_ORIGIN_WORLD_Y - _camera.position.y
+	for subzone in zone_profile.subzones:
+		if (
+			subzone != null
+			and view_height >= subzone.start_height_px
+			and view_height < subzone.end_height_px
+			and subzone.ambient_profile != null
+		):
+			return subzone.ambient_profile
+	return ambient
+
+
 func _update_ambient_for_view_height(force_rebuild: bool = false) -> void:
 	if not ambient_particles_enabled:
 		_clear_ambient_layers()
 		return
 
-	var ambient := zone_profile.ambient_profile if zone_profile != null else null
-	if zone_profile != null and _camera != null:
-		var view_height := BACKGROUND_HEIGHT_ORIGIN - _camera.position.y
-		for subzone in zone_profile.subzones:
-			if (
-				subzone != null
-				and view_height >= subzone.start_height_px
-				and view_height < subzone.end_height_px
-				and subzone.ambient_profile != null
-			):
-				ambient = subzone.ambient_profile
-				break
+	var ambient := _resolve_ambient_profile_for_current_height()
 	if ambient == _active_ambient_profile and not force_rebuild:
 		return
 	_active_ambient_profile = ambient
