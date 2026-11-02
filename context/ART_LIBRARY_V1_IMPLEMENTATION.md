@@ -172,8 +172,8 @@ The baseline manifest is resources/environment/regression/preview_diagnostic_fix
 | World seed | Plan signature | Modules | Landmarks | Suppressed by landmark reservations |
 |---:|---:|---:|---:|---:|
 | 7319 | 864963443 | 22 | 2 | 6 |
-| 24017 | 2697880921 | 21 | 2 | 6 |
-| 91207 | 2388626626 | 21 | 2 | 6 |
+| 24017 | 3501769721 | 21 | 2 | 6 |
+| 91207 | 81216545 | 21 | 2 | 6 |
 
 The regression scene checks stable seed repeatability, distinct stable section keys, profile validity, repeated plan-signature equality, manifest signature/count equality, and absence of module-clearance overlap with any landmark reservation.
 
@@ -182,7 +182,7 @@ Run after project import:
 1. Open/import the project in Godot 4.7.x, or run godot --headless --editor --path . --quit.
 2. Run godot --headless --path . res://scenes/tests/environment/environment_regression_suite.tscn.
 
-The signatures were independently calculated from the current deterministic planning contract. They have not yet been confirmed by running the GDScript regression scene in the Godot engine, so the first owner-side test run is the authoritative verification.
+The signatures were recalculated against the current stable-subzone-key and 600 px climb-origin planning contract. They have not yet been confirmed by running the GDScript regression scene in the Godot engine, so the first owner-side test run is the authoritative verification.
 
 ## 9. Diagnostic resource fixture inventory
 
