@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="EnvironmentSubzoneProfile" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/environment/environment_subzone_profile.gd" id="1_script"]
+[ext_resource type="Resource" path="res://resources/environment/recipes/preview_vertical_grammar.tres" id="2_recipe"]
+[ext_resource type="Resource" path="res://resources/environment/themes/navy_resonance.tres" id="3_theme"]
+[ext_resource type="Resource" path="res://resources/environment/ambient/default_motes.tres" id="4_ambient"]
+[ext_resource type="Resource" path="res://resources/environment/lighting/restrained_structural_lights.tres" id="5_lighting"]
+
+[resource]
+script = ExtResource("1_script")
+subzone_id = &"lower_structure"
+start_height_px = 1800.0
+end_height_px = 5400.0
+architecture_recipe = ExtResource("2_recipe")
+theme_profile = ExtResource("3_theme")
+ambient_profile = ExtResource("4_ambient")
+lighting_profile = ExtResource("5_lighting")
+seed_key = &"lower_structure"
