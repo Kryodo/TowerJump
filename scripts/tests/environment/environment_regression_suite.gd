@@ -43,6 +43,38 @@ func _run_suite() -> void:
 	if ZONE_PROFILE.landmark_anchors.size() != 2:
 		failures.append("Reference parity zone must contain the Gate and Archive anchors.")
 
+	# The Zone/Subzone Preview uses the separate two-subzone diagnostic fixture.
+	# The reference parity fixture above intentionally remains a single section.
+	var diagnostic_validation := EnvironmentProfileValidator.validate_zone(DIAGNOSTIC_ZONE_PROFILE)
+	for message in diagnostic_validation.get("errors", []):
+		failures.append("Diagnostic zone validation: " + str(message))
+	if DIAGNOSTIC_ZONE_PROFILE.subzones.size() != 2:
+		failures.append("Diagnostic zone must contain lower and upper structural subzones.")
+	if DIAGNOSTIC_ZONE_PROFILE.landmark_anchors.size() != 2:
+		failures.append("Diagnostic zone must contain its two owned landmark anchors.")
+	if DIAGNOSTIC_ZONE_PROFILE.subzones.size() == 2:
+		var lower_subzone: EnvironmentSubzoneProfile = DIAGNOSTIC_ZONE_PROFILE.subzones[0]
+		var upper_subzone: EnvironmentSubzoneProfile = DIAGNOSTIC_ZONE_PROFILE.subzones[1]
+		if (
+			not is_equal_approx(lower_subzone.start_height_px, 1800.0)
+			or not is_equal_approx(lower_subzone.end_height_px, 5400.0)
+			or not is_equal_approx(upper_subzone.start_height_px, 6000.0)
+			or not is_equal_approx(upper_subzone.end_height_px, 11400.0)
+		):
+			failures.append("Diagnostic zone height ranges or intentional void gap changed.")
+	var diagnostic_plan := EnvironmentCompositionPlanner.build_plan(DIAGNOSTIC_ZONE_PROFILE, 7319)
+	var diagnostic_repeat := EnvironmentCompositionPlanner.build_plan(DIAGNOSTIC_ZONE_PROFILE, 7319)
+	if EnvironmentCompositionPlanner.plan_signature(diagnostic_plan) != EnvironmentCompositionPlanner.plan_signature(diagnostic_repeat):
+		failures.append("Diagnostic two-subzone plan is not deterministic for a fixed seed.")
+	var diagnostic_sections: Array = diagnostic_plan.get("architecture_sections", [])
+	if diagnostic_sections.size() != 2:
+		failures.append("Diagnostic zone must resolve exactly two architecture sections.")
+	elif diagnostic_sections.size() == 2:
+		var lower_section: Dictionary = diagnostic_sections[0]
+		var upper_section: Dictionary = diagnostic_sections[1]
+		if int(lower_section.get("architecture_seed", -1)) == int(upper_section.get("architecture_seed", -1)):
+			failures.append("Diagnostic subzones must have independent stable architecture seeds.")
+
 	# Full-game jump-in shifts the parent game root by -jump_height and adds
 	# jump_height to architecture draw coordinates before those coordinates are
 	# scaled. Check the combined transform, not just the layer's unscaled origin.
@@ -117,6 +149,37 @@ func _run_suite() -> void:
 		or not _color_matches(A1_THEME.far_window_halo, Color(0.26, 0.12, 0.40, 0.11))
 	):
 		failures.append("A1 near-black recess / purple aperture material set no longer matches the approved reference.")
+
+	# Test the actual renderer resolver as well as the .tres values. This catches
+	# a future regression where the selected theme exists but is not consumed.
+	var a2_resolved: Dictionary = EnvironmentArchitectureLayer.resolve_far_detail_palette(theme)
+	var a1_resolved: Dictionary = EnvironmentArchitectureLayer.resolve_far_detail_palette(A1_THEME)
+	var a2_expected: Dictionary = {
+		"panel_fill": Color(0.009, 0.026, 0.052, 0.68),
+		"panel_edge": Color(0.055, 0.095, 0.145, 0.40),
+		"panel_rail": Color(0.070, 0.120, 0.180, 0.32),
+		"window_frame": Color(0.045, 0.092, 0.132, 0.70),
+		"window_dark": Color(0.005, 0.014, 0.028, 0.90),
+		"window_lit": Color(0.024, 0.090, 0.142, 0.82),
+		"window_neon": Color(0.13, 0.37, 0.55, 0.74),
+		"window_halo": Color(0.08, 0.24, 0.38, 0.10),
+	}
+	var a1_expected: Dictionary = {
+		"panel_fill": Color(0.003, 0.004, 0.012, 0.82),
+		"panel_edge": Color(0.070, 0.052, 0.112, 0.54),
+		"panel_rail": Color(0.105, 0.078, 0.166, 0.42),
+		"window_frame": Color(0.092, 0.066, 0.138, 0.78),
+		"window_dark": Color(0.003, 0.004, 0.011, 0.98),
+		"window_lit": Color(0.085, 0.048, 0.142, 0.84),
+		"window_neon": Color(0.36, 0.18, 0.54, 0.76),
+		"window_halo": Color(0.26, 0.12, 0.40, 0.11),
+	}
+	for key in a2_expected:
+		if not _color_matches(a2_resolved[key], a2_expected[key]):
+			failures.append("Far renderer does not resolve the A2 %s material correctly." % key)
+	for key in a1_expected:
+		if not _color_matches(a1_resolved[key], a1_expected[key]):
+			failures.append("Far renderer does not resolve the A1 %s material correctly." % key)
 
 	for case_data in cases:
 		var seed_value := int(case_data.get("seed", 0))
