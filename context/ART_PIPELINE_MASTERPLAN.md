@@ -456,69 +456,85 @@ Tags preserve exact historical commits without requiring every completed experim
 
 ## Status — 2026-11-02
 
-**Implementation status: complete at source level on feature/environment-art-library-v1. Godot 4.7.x import, parser, and runtime validation is still pending.**
+**Implementation status: core resources, source renderer, shared previews, and regression checks exist on feature/environment-art-library-v1. A source audit/correction pass has been completed. Godot 4.7.x import, parser, visual, and runtime validation is still pending.**
 
-Phase 2 is the reusable model and the tools needed to inspect it. It is deliberately separate from Zone 1/Zone 2 concept production. The implementation uses one shared profile validator, deterministic composition planner, and compositor; the three preview capabilities are lightweight runnable test scenes rather than separate editor-plugin frameworks.
+Phase 2 is the reusable data foundation and the minimum tools needed to inspect it. It is deliberately separate from Zone 1/Zone 2 production concepts. The implementation reuses the established renderer from experiment-middle-architecture-details rather than replacing it with a new simplified primitive system.
 
-The active production branch main and the preserved architecture reference experiment-middle-architecture-details have not been modified by this implementation.
+The production branch main and preserved architecture reference branch remain untouched.
 
-## Required Phase 2 deliverables
+## Required Phase 2 deliverables and actual implementation boundary
 
-| Required deliverable | Implementation | Current scope |
+| Deliverable | Current implementation | Accurate current capability |
 |---|---|---|
-| Architecture module definitions and metadata | ArchitectureModuleDefinition Resource | Stable ID, family, depth layer, PackedScene, visual bounds, clearance bounds, connection points. |
-| Theme/palette profiles | EnvironmentThemeProfile Resource | Far/middle fills, near detail, accents, and dormant/subtle/neon light colors. The global navy void remains a scene/background responsibility. |
-| Architecture recipes and module pools | EnvironmentArchitectureRecipe Resource | Ordered module pool, section step, and per-depth density. |
-| Ambient/lighting profiles | EnvironmentAmbientProfile and EnvironmentLightingProfile Resources | Mote tint/density/speed/highlight share and parallax; seeded light-state shares and optional low-amplitude flicker (off by default). |
-| Zone/subzone profile definitions | EnvironmentZoneProfile and EnvironmentSubzoneProfile Resources | Bounded positive climb-height ranges, overrides, recipes, and stable IDs/seed keys. Gaps between subzones are intentional void intervals. |
-| Fixed-height landmark anchors and deterministic height/seed resolver | EnvironmentLandmarkAnchor and EnvironmentSeedResolver | Authored local position, absolute climb-height anchor, neighborhood seed, optional theme override, and a local clearance rectangle. |
-| Fixed-seed regression support | Regression scene + JSON manifest | Repeated plan signatures, expected module/landmark/suppression counts, profile validation, and clearance-overlap checks across three stored seeds. |
-| Architecture Library Viewer | architecture_library_viewer.tscn | Inspect diagnostic modules, family/depth, visual and clearance bounds, connection points, theme, and fixed-seed variants. |
-| Zone and Subzone Preview | zone_subzone_preview.tscn | Inspect the diagnostic zone vertically, including void intervals, subzone identity, landmark heights/reservations, ambient layers, theme overrides, and repeatable seeds. |
-| Full-Game Environment Jump-In | full_game_environment_jump_in.tscn | Instantiate the actual scenes/gameplay/main.tscn, overlay the same compositor at a selected height, and inspect the environment with the real foreground, camera, glow, and game controls. |
+| Architecture module definitions | ArchitectureModuleDefinition Resource | Stable ID, family, depth layer, PackedScene, visual/clearance bounds, optional connection points. |
+| Theme/palette profiles | EnvironmentThemeProfile Resource | Far/middle/near fills, complete A1/A2 far panel/recess/aperture material sets, accents and generic light-state colors. |
+| Architecture recipes and module pools | EnvironmentArchitectureRecipe Resource | Reusable module catalogue, repeat spacing, bottom padding, far/middle detail treatments. Module pools currently feed the Viewer and validation; they are not yet a per-module placement solver. |
+| Ambient/lighting profiles | EnvironmentAmbientProfile and EnvironmentLightingProfile Resources | Ambient tint/density/speed/highlight share/parallax; lighting state distribution and optional flicker data. Ambient profile drives mote preview behavior. Lighting profile is validated but is not yet consumed by the extracted architecture renderer. |
+| Zone/subzone profiles | EnvironmentZoneProfile and EnvironmentSubzoneProfile Resources | Bounded climb-height ranges, inherited/override profiles, recipes, stable IDs/seed keys, and intentional void gaps. |
+| Fixed-height landmarks and deterministic seeds | EnvironmentLandmarkAnchor and EnvironmentSeedResolver | Authored scenes, stable height anchors, ownership, clearance rectangles, neighborhood seeds. Landmark reservations are planned and validated. |
+| Shared composition planning | EnvironmentCompositionPlanner | Deterministic architecture-section descriptors and landmark/reservation records. It does not currently generate individual module placements or suppress module placements against reservations. |
+| Shared environment rendering | EnvironmentPreviewCompositor + EnvironmentArchitectureLayer | Renders the established continuous Far/Middle/Near architectural grammar per subzone, then places authored landmark scenes. It does not yet compose zones from individual PackedScene modules. |
+| Architecture Library Viewer | architecture_library_viewer.tscn | Instantiates the selected module definition's actual PackedScene and applies theme, seed, recipe, preview bounds. |
+| Zone/Subzone Preview | zone_subzone_preview.tscn | Uses the two-subzone diagnostic fixture to show structure/void/structure/void, landmark ownership, theme and seed changes, and profile-driven ambient parallax. |
+| Full-Game Environment Jump-In | full_game_environment_jump_in.tscn | Instantiates the actual production gameplay scene in a test-only wrapper and overlays the reference-parity environment at selected absolute heights. |
+| Fixed-seed regression | environment_regression_suite.tscn + JSON manifest | Checks reference plan signatures/anchors, A1/A2 resource and renderer palette mapping, diagnostic subzone composition/seeds, and jump-in parallax coordinate conversion. It is not a pixel-golden or gameplay platform-overlap test. |
 
-### Shared composition behavior
+## Shared composition behavior
 
-- The planner creates a deterministic, inspectable plan without instantiating scene nodes.
-- Every repeating section gets a seed derived from the world seed, zone ID, subzone stable seed key, and absolute section/depth key. Side placements derive their own seeds from stable side keys.
-- Landmark seeds derive independently from the zone ID, landmark ID, and stable neighborhood key.
-- All landmark clearance rectangles are registered before procedural modules are considered. Any module whose clearance intersects a landmark reservation is suppressed.
-- Positive climb-height zero maps to the production ball's starting local Y coordinate, 600 px. The plan converts a positive height h to local world Y 600 - h; the full-game wrapper applies its jump-in origin offset to overlay nodes only.
-- Far/Middle/Near parallax defaults remain 0.18 / 0.46 / 0.82. Per-subzone ambient profiles can override those values.
-- The compositor uses the zone/subzone-resolved ambient profile and creates three restrained parallax mote layers. Optional highlights are controlled by highlight_share.
-- The production scene, gameplay scripts, movement, physics, platform generation, scoring, and camera script remain untouched.
+- The planner builds an inspectable data plan without instantiating scene nodes.
+- One architecture section is produced per valid subzone. Single-subzone parity fixtures preserve the world seed unchanged; multi-subzone plans derive stable independent seeds from the world seed, zone ID, and subzone identity/key.
+- Landmark seeds derive independently from the world seed, zone ID, landmark ID, and stable neighborhood key.
+- Landmark clearance rectangles are validated and included in the plan. Since individual module placements are not currently generated, the planner does not yet suppress module instances against these reservations.
+- Positive climb-height zero maps to production ball local Y=600 px. A positive height h maps to local world Y=600-h.
+- Far/Middle/Near parallax defaults remain 0.18 / 0.46 / 0.82.
+- Architecture X parallax remains distinct from mote parallax. Motes use horizontal factor 1.0 and profile-driven vertical factors.
+- The full-game wrapper reuses the original three production mote emitters; the standalone Zone Preview creates lightweight profile-driven Parallax2D emitters from the existing mote texture.
+- The production gameplay scene, player movement, physics, platform generator/spawner, scoring, and camera script are not modified by this environment preview implementation.
 
-### Diagnostic fixture boundaries
+## Two independent preview fixtures
 
-The current fixture is preview_diagnostic_fixture. It supplies three reusable diagnostic modules (far_aperture_cluster, middle_support_inset, and near_edge_frame), two landmark scene examples (resonance_gate and archive_fragment), navy and amber diagnostic theme profiles, and two structural subzones with deliberate void gaps.
+Do not confuse the reference parity fixture with the diagnostic zone fixture.
 
-These are implementation fixtures only. They do not select Zone 1 or Zone 2, establish final zone names/palettes, approve either landmark for production, or represent a large production module inventory. The amber profile exists to test theme switching and is not a second-zone design.
+- reference_extraction_parity: one full-height subzone, exact reference study window, A2 default palette, Compact Panel Flicker, middle detail treatment C, Gate/Archive anchors at established original heights. Used by the Full-Game Jump-In and the reference regression suite.
+- preview_diagnostic_zone: two structure subzones with an intentional 600 px gap, open void before and after, Gate owned by lower structure and Archive owned by upper structure. Used by Zone/Subzone Preview.
 
-### Preview scenes and controls
+These fixtures exercise the pipeline only. They do not define Zone 1 or Zone 2, finalize zone palettes, or approve the landmarks for production.
+
+## Palette profiles
+
+The three preview tools cycle the following profiles:
+
+1. A2 Integrated — navy_resonance.
+2. A1 Depth — navy_depth_a1.
+3. Amber Diagnostic — amber_diagnostic.
+
+A1 and A2 both provide the complete far structured panel/window palette. The extracted renderer resolves all eight material values from the selected theme profile. A1's far panels/dormant apertures remain near-black and its aperture states/halo are purple-tinted; A2 remains blue-toned. Amber is solely a diagnostic theme-switching resource and is not a Zone 2 concept.
+
+## Preview controls
 
 | Test scene | Controls |
 |---|---|
-| scenes/tests/environment/architecture_library_viewer.tscn | 1–3 or Left/Right: module. T: theme. R: fixed seed. |
-| scenes/tests/environment/zone_subzone_preview.tscn | Up/Down: move 400 px in height. Home: return to the initial 3600 px view. J: jump to the next landmark. 1–3 or R: fixed seed. T: theme. P: save a PNG capture under user://environment_regression/. |
-| scenes/tests/environment/full_game_environment_jump_in.tscn | The instantiated game's normal input controls remain active. 1–3: jump-in presets (1800 / 5400 / 9600 px) and matching fixed seeds. R: restart current height/seed. N: next seed. T: cycle diagnostic theme. |
+| scenes/tests/environment/architecture_library_viewer.tscn | 1 / 2 / 3 or Left / Right: module. T: theme. R: fixed seed. |
+| scenes/tests/environment/zone_subzone_preview.tscn | Up / Down: move through height. Home: initial height. J: next landmark. 1 / 2 / 3 or R: fixed seed. T: theme. P: capture PNG under user://environment_regression/. |
+| scenes/tests/environment/full_game_environment_jump_in.tscn | Normal game movement. 1 / 2 / 3: jump to 1,800 / 5,400 / 9,600 px with fixed seeds. R: restart. N: next seed. T: theme. |
 | scenes/tests/environment/environment_regression_suite.tscn | Runs deterministic source/layout checks and exits with a status code. |
 
-For a headless regression run after Godot has imported the project:
+After Godot has imported the project, run the regression suite with:
 
-1. Open/import the project once in Godot 4.7.x, or run godot --headless --editor --path . --quit.
-2. Run godot --headless --path . res://scenes/tests/environment/environment_regression_suite.tscn.
+1. godot --headless --editor --path . --quit
+2. godot --headless --path . res://scenes/tests/environment/environment_regression_suite.tscn
 
-The expected signatures and counts live in resources/environment/regression/preview_diagnostic_fixed_seeds.json. This is a deterministic plan/layout regression, not a pixel-perfect renderer screenshot test. The Zone Preview's P capture is a manual visual-comparison aid.
+The expected reference-parity signatures are in resources/environment/regression/preview_diagnostic_fixed_seeds.json. This is a deterministic plan/resource/coordinate regression, not a pixel-perfect renderer test or a runtime platform-collision test.
 
 ## Phase 2 completion boundary
 
-All ten required deliverables above now exist in source on the feature branch. This closes the implementation sequence at the data/model/tooling level. It does not close the owner-side Godot validation requirement, nor does it mean that either representative production zone is designed or complete.
+All planned resource types and three preview capabilities exist at source level. The Viewer now instantiates the actual selected module PackedScene. Zone/Subzone Preview uses the two-subzone diagnostic fixture. Full-Game Jump-In uses the real production scene in a test-only wrapper. The reference renderer/palette parity and regression checks have been strengthened.
 
-The next action is an owner-side Godot 4.7.x import and run-through of the four test scenes. Resolve any parser, resource-registration, rendering, or runtime issues on this same feature branch. Preserve any .uid sidecars Godot generates.
+This closes the current source implementation sequence for the basic Phase 2 foundation, but **does not close owner-side Godot validation**. It also does not mean that a generic modular architecture placement engine, connector graph, fully integrated lighting profile, or either representative production zone is complete.
 
-Only after that validation should the work move to Zone 1 concept definition, deriving its actual module needs, and later a genuinely contrasting Zone 2. Do not expand the generic module catalog or lock production zone palettes before those concepts exist.
+The next action is an owner-side Godot 4.7.x import and run-through of the regression scene and all three preview scenes. Resolve parser, resource, rendering, platform-spawn, parallax, and palette issues on this same feature branch. Preserve any .uid sidecars Godot generates.
 
----
+Only after validation should work proceed to Zone 1 concept definition, deriving actual architectural requirements, and later proving reuse with a genuinely contrasting Zone 2. Do not expand the module catalogue or implement speculative module-placement abstractions before the concepts reveal a concrete need.
 
 # 14. Art Pipeline V1 exit criteria and intentional handoff back to gameplay
 
