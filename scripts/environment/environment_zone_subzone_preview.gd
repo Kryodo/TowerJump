@@ -1,7 +1,7 @@
 extends Node2D
 ## Independent vertical preview for zone/subzone structure, voids and fixed landmarks.
 
-@export var zone_profile: EnvironmentZoneProfile = preload("res://resources/environment/zones/reference_extraction_parity.tres")
+@export var zone_profile: EnvironmentZoneProfile = preload("res://resources/environment/zones/preview_diagnostic_zone.tres")
 @export var theme_profiles: Array[EnvironmentThemeProfile] = [
 	preload("res://resources/environment/themes/navy_resonance.tres"),
 	preload("res://resources/environment/themes/navy_depth_a1.tres"),
