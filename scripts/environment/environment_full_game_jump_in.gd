@@ -5,7 +5,7 @@ const MAIN_GAME_SCENE: PackedScene = preload("res://scenes/gameplay/main.tscn")
 const COMPOSITOR_SCRIPT: Script = preload("res://scripts/environment/environment_preview_compositor.gd")
 const START_BALL_Y: float = 600.0
 
-@export var zone_profile: EnvironmentZoneProfile = preload("res://resources/environment/zones/preview_diagnostic_zone.tres")
+@export var zone_profile: EnvironmentZoneProfile = preload("res://resources/environment/zones/reference_extraction_parity.tres")
 @export var theme_profiles: Array[EnvironmentThemeProfile] = [
 	preload("res://resources/environment/themes/navy_resonance.tres"),
 	preload("res://resources/environment/themes/amber_diagnostic.tres"),
@@ -95,7 +95,7 @@ func _spawn_game() -> void:
 	_compositor.theme_override = theme_profiles[_theme_index]
 	_compositor.world_origin_height_px = jump_in_height_px
 	_compositor.camera_path = NodePath("../GameCamera")
-	_compositor.replace_game_ambient_emitters = true
+	_compositor.reuse_game_ambient_emitters = true
 	_compositor.z_index = -50
 	_game_root.add_child(_compositor)
 	_update_hud()
@@ -145,10 +145,10 @@ func _update_hud() -> void:
 	var module_count := 0
 	if is_instance_valid(_compositor):
 		subzone = _compositor.get_subzone_id_at_height(current_height)
-		module_count = int(_compositor.get_plan_summary().get("placement_count", 0))
+		module_count = int(_compositor.get_plan_summary().get("section_count", 0))
 	_hud_label.text = (
 		"FULL-GAME ENVIRONMENT JUMP-IN   |   %s\n" % String(zone_profile.zone_id).to_upper()
-		+ "HEIGHT: %dm   |   SUBZONE: %s   |   MODULES IN PLAN: %d\n" % [
+		+ "HEIGHT: %dm   |   SUBZONE: %s   |   ARCHITECTURE SECTIONS: %d\n" % [
 			roundi(current_height),
 			subzone,
 			module_count,
