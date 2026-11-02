@@ -11,6 +11,13 @@ extends Resource
 @export var middle_fill: Color = Color(0.011, 0.024, 0.044, 0.96)
 @export var near_detail: Color = Color(0.018, 0.13, 0.18, 0.20)
 
+@export_group("Far architectural recesses")
+@export var far_panel_fill: Color = Color(0.009, 0.026, 0.052, 0.68)
+@export var far_panel_edge: Color = Color(0.055, 0.095, 0.145, 0.40)
+@export var far_panel_rail: Color = Color(0.070, 0.120, 0.180, 0.32)
+@export var far_window_frame: Color = Color(0.045, 0.092, 0.132, 0.70)
+@export var far_window_dark: Color = Color(0.005, 0.014, 0.028, 0.90)
+
 @export_group("Far architectural aperture states")
 @export var far_window_lit: Color = Color(0.024, 0.090, 0.142, 0.82)
 @export var far_window_neon: Color = Color(0.13, 0.37, 0.55, 0.74)
