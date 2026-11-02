@@ -23,7 +23,7 @@ enum MidDetailTreatment {
 @export_range(800.0, 2600.0, 20.0) var far_repeat_spacing_px: float = 1580.0
 @export_range(800.0, 2200.0, 20.0) var middle_repeat_spacing_px: float = 1260.0
 @export_range(1200.0, 3200.0, 20.0) var near_repeat_spacing_px: float = 2140.0
-## Extends the renderer slightly below the zone start, matching the reference window.
+## Historical full-window extension. Applied only when the owning subzone opts into reference overdraw.
 @export_range(0.0, 2000.0, 20.0) var section_bottom_padding_px: float = 1000.0
 
 @export var far_detail_treatment: FarDetailTreatment = FarDetailTreatment.COMPACT_PANEL_FLICKER
