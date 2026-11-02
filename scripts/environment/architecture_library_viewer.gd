@@ -17,7 +17,7 @@ var _modules: Array[ArchitectureModuleDefinition] = []
 var _camera: Camera2D
 var _module_instance: Node2D
 var _hud_label: Label
-var _module_index: int = 1
+var _module_index: int = 0
 var _theme_index: int = 0
 var _seed_index: int = 0
 var _preview_scale: float = 1.0
