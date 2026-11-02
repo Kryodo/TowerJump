@@ -129,7 +129,7 @@ func _get_platform_overlap_summary() -> Dictionary:
 
 	var active_platforms: Array[Node2D] = []
 	for candidate in get_tree().get_nodes_in_group("platforms"):
-		if not candidate is Node2D or not _game_root.is_ancestor_of(candidate):
+		if not (candidate is Node2D) or not _game_root.is_ancestor_of(candidate):
 			continue
 		var platform := candidate as Node2D
 		if not platform.visible or not platform.has_method("half_width"):
