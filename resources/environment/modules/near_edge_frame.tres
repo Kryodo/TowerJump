@@ -6,7 +6,7 @@
 [resource]
 script = ExtResource("1_script")
 module_id = &"near_edge_frame"
-family = 2
+family = 3
 depth_layer = 2
 scene = ExtResource("2_scene")
 local_bounds = Rect2(0, 0, 40, 1200)
