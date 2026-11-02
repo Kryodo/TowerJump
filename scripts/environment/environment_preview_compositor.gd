@@ -269,12 +269,30 @@ func _rebuild_ambient_layers(profile: EnvironmentAmbientProfile) -> void:
 		layer.add_child(emitter)
 		_ambient_emitters.append(emitter)
 		emitter.emitting = true
+
+		var highlight_count := roundi(float(emitter.amount) * profile.highlight_share)
+		if highlight_count > 0:
+			var highlight_emitter := GPUParticles2D.new()
+			highlight_emitter.name = "AmbientMoteHighlights"
+			highlight_emitter.texture = AMBIENT_TEXTURE
+			highlight_emitter.amount = highlight_count
+			highlight_emitter.lifetime = emitter.lifetime
+			highlight_emitter.preprocess = emitter.preprocess
+			highlight_emitter.visibility_rect = emitter.visibility_rect
+			var highlight_material := material.duplicate() as ParticleProcessMaterial
+			highlight_material.scale_min *= 0.62
+			highlight_material.scale_max *= 0.78
+			highlight_material.color = profile.mote_tint.lightened(0.12)
+			highlight_emitter.process_material = highlight_material
+			layer.add_child(highlight_emitter)
+			_ambient_emitters.append(highlight_emitter)
+			highlight_emitter.emitting = true
 	_update_parallax()
 
 
 func _clear_ambient_layers() -> void:
 	for layer in _ambient_layers:
 		if is_instance_valid(layer):
-			layer.queue_free()
+			layer.free()
 	_ambient_layers.clear()
 	_ambient_emitters.clear()
