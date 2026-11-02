@@ -32,6 +32,9 @@ func _draw() -> void:
 
 
 func _draw_resonance_gate() -> void:
+	# Geometry and accent placement are extracted from the approved experiment.
+	# The anchor supplies the absolute world position; this scene keeps the
+	# original local dimensions and restrained inner reveals.
 	var cyan := _accent_primary()
 	var violet := _accent_secondary()
 	var outer := PackedVector2Array([
@@ -61,14 +64,16 @@ func _draw_resonance_gate() -> void:
 	])
 	draw_colored_polygon(aperture, Color(0.003, 0.007, 0.017, 1.0))
 
-	cyan.a *= 0.74
-	violet.a *= 0.66
+	# Preserve the original full-strength outer accents and quieter inner reveals.
 	draw_line(Vector2(-245.0, 165.0), Vector2(-245.0, -118.0), cyan, 2.5, true)
 	draw_line(Vector2(245.0, -118.0), Vector2(245.0, 165.0), cyan, 2.5, true)
 	draw_line(Vector2(-128.0, -390.0), Vector2(-76.0, -320.0), violet, 2.0, true)
 	draw_line(Vector2(128.0, -390.0), Vector2(76.0, -320.0), violet, 2.0, true)
-	draw_line(Vector2(-155.0, -118.0), Vector2(-155.0, 280.0), cyan, 2.0, true)
-	draw_line(Vector2(155.0, -118.0), Vector2(155.0, 280.0), cyan, 2.0, true)
+	draw_line(Vector2(-155.0, -118.0), Vector2(-155.0, 280.0), Color(0.020, 0.24, 0.31, 0.35), 2.0, true)
+	draw_line(Vector2(155.0, -118.0), Vector2(155.0, 280.0), Color(0.020, 0.24, 0.31, 0.35), 2.0, true)
+	draw_line(Vector2(-122.0, -239.0), Vector2(-75.0, -303.0), Color(0.025, 0.31, 0.39, 0.43), 2.0, true)
+	draw_line(Vector2(122.0, -239.0), Vector2(75.0, -303.0), Color(0.025, 0.31, 0.39, 0.43), 2.0, true)
+
 	draw_string(
 		ThemeDB.fallback_font,
 		Vector2(-116.0, -428.0),
@@ -81,22 +86,43 @@ func _draw_resonance_gate() -> void:
 
 
 func _draw_archive_fragment() -> void:
-	var frame := Color(0.018, 0.050, 0.071, 0.72)
-	var accent := _accent_primary()
-	accent.a *= 0.48
-	var housing := Rect2(Vector2(-52.0, -82.0), Vector2(104.0, 164.0))
+	# The original archive recess was embedded at the right-side structure edge.
+	# Its anchor now carries that world position, so only local geometry remains here.
+	var housing := Rect2(Vector2(-48.0, -76.0), Vector2(96.0, 152.0))
 	draw_rect(housing, Color(0.006, 0.015, 0.030, 0.98), true)
-	draw_rect(housing, frame, false, 2.0)
-	draw_rect(Rect2(Vector2(-34.0, -61.0), Vector2(68.0, 122.0)), Color(0.003, 0.008, 0.018, 1.0), true)
-	draw_line(Vector2(-23.0, -43.0), Vector2(0.0, -55.0), accent, 2.0, true)
-	draw_line(Vector2(0.0, -55.0), Vector2(23.0, -43.0), accent, 2.0, true)
-	draw_line(Vector2(-19.0, 34.0), Vector2(19.0, 34.0), accent, 1.4, true)
+	draw_rect(housing, Color(0.018, 0.050, 0.071, 0.72), false, 2.0)
+	draw_rect(
+		Rect2(Vector2(-31.0, -57.0), Vector2(62.0, 114.0)),
+		Color(0.003, 0.008, 0.018, 1.0),
+		true
+	)
+	draw_line(
+		Vector2(-21.0, -38.0),
+		Vector2(0.0, -51.0),
+		Color(0.025, 0.22, 0.28, 0.48),
+		2.0,
+		true
+	)
+	draw_line(
+		Vector2(0.0, -51.0),
+		Vector2(21.0, -38.0),
+		Color(0.025, 0.22, 0.28, 0.48),
+		2.0,
+		true
+	)
+	draw_line(
+		Vector2(-17.0, 33.0),
+		Vector2(17.0, 33.0),
+		Color(0.025, 0.22, 0.28, 0.35),
+		1.5,
+		true
+	)
 	draw_string(
 		ThemeDB.fallback_font,
-		Vector2(-42.0, 108.0),
+		Vector2(-51.0, 98.0),
 		"ARCHIVE",
 		HORIZONTAL_ALIGNMENT_LEFT,
-		84.0,
+		102.0,
 		10,
 		Color(0.16, 0.35, 0.45, 0.55)
 	)
