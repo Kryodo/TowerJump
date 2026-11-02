@@ -5,9 +5,9 @@
 
 [resource]
 script = ExtResource("1_script")
-module_id = &"near_edge_frame"
+module_id = &"near_structural_frames"
 family = 3
 depth_layer = 2
 scene = ExtResource("2_scene")
-local_bounds = Rect2(0, 0, 40, 1200)
-clearance_bounds = Rect2(-2, -6, 44, 1212)
+local_bounds = Rect2(0, 400, 720, 1060)
+clearance_bounds = Rect2(0, 394, 720, 1072)
