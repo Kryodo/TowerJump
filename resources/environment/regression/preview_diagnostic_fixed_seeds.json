@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "fixture_id": "preview_diagnostic_fixture",
+  "description": "Fixed-seed source/layout regression baselines for the diagnostic preview fixture. These are not Zone 1 or Zone 2 approvals.",
+  "coordinate_origin": "Positive climb height 0 equals the production ball's initial local Y of 600 px.",
+  "algorithm": "EnvironmentCompositionPlanner.plan_signature / EnvironmentSeedResolver FNV-1a 32-bit fingerprint",
+  "cases": [
+    {
+      "seed": 7319,
+      "signature": 864963443,
+      "placements": 22,
+      "landmarks": 2,
+      "suppressed": 6
+    },
+    {
+      "seed": 24017,
+      "signature": 2697880921,
+      "placements": 21,
+      "landmarks": 2,
+      "suppressed": 6
+    },
+    {
+      "seed": 91207,
+      "signature": 2388626626,
+      "placements": 21,
+      "landmarks": 2,
+      "suppressed": 6
+    }
+  ]
+}
