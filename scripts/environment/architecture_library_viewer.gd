@@ -4,14 +4,14 @@ extends Node2D
 @export var module_recipe: EnvironmentArchitectureRecipe = preload("res://resources/environment/recipes/preview_vertical_grammar.tres")
 @export var theme_profiles: Array[EnvironmentThemeProfile] = [
 	preload("res://resources/environment/themes/navy_resonance.tres"),
+	preload("res://resources/environment/themes/navy_depth_a1.tres"),
 	preload("res://resources/environment/themes/amber_diagnostic.tres"),
 ]
 @export var lighting_profile: EnvironmentLightingProfile = preload("res://resources/environment/lighting/restrained_structural_lights.tres")
 @export var fixed_seeds: Array[int] = [7319, 24017, 91207]
 
-const ARCHITECTURE_LAYER_SCRIPT: Script = preload("res://scripts/environment/environment_architecture_layer.gd")
-const VIEW_SECTION_TOP_Y: float = -2200.0
-const VIEW_SECTION_BOTTOM_Y: float = 1800.0
+const VIEW_CENTER: Vector2 = Vector2(360.0, 700.0)
+const PREVIEW_BOUNDS_SIZE: Vector2 = Vector2(620.0, 980.0)
 
 var _modules: Array[ArchitectureModuleDefinition] = []
 
@@ -21,6 +21,7 @@ var _hud_label: Label
 var _module_index: int = 1
 var _theme_index: int = 0
 var _seed_index: int = 0
+var _preview_scale: float = 1.0
 
 
 func _ready() -> void:
@@ -85,26 +86,49 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 func _show_module() -> void:
 	if _module_instance != null and is_instance_valid(_module_instance):
-		_module_instance.queue_free()
+		_module_instance.free()
+	_module_instance = null
 
 	var definition := _modules[_module_index]
-	# Show the selected depth using the actual extracted architectural grammar.
-	# A short vertical slice keeps the module's relationship to the surrounding
-	# construction visible; it avoids presenting a single thin primitive as a
-	# stand-alone substitute for the established architecture.
-	_module_instance = Node2D.new()
-	_module_instance.name = "ReferenceArchitectureLayerPreview"
-	_module_instance.set_script(ARCHITECTURE_LAYER_SCRIPT)
+	if definition.scene == null:
+		push_error("Architecture Library Viewer: module %s has no PackedScene." % String(definition.module_id))
+		return
+	if definition.local_bounds.size.x <= 0.0 or definition.local_bounds.size.y <= 0.0:
+		push_error("Architecture Library Viewer: module %s has invalid visual bounds." % String(definition.module_id))
+		return
+
+	# Display the actual PackedScene referenced by this module definition. The
+	# previous viewer recreated a generic renderer node and ignored definition.scene,
+	# making the module selector report resources it did not really instantiate.
+	var instance := definition.scene.instantiate() as Node2D
+	if instance == null:
+		push_error("Architecture Library Viewer: module %s scene root must be Node2D." % String(definition.module_id))
+		return
+	_module_instance = instance
+	_module_instance.name = "SelectedModulePreview"
 	_module_instance.set("layer_type", int(definition.depth_layer))
 	_module_instance.set("theme_profile", theme_profiles[_theme_index])
 	_module_instance.set("environment_seed", fixed_seeds[_seed_index])
 	_module_instance.set("architecture_recipe", module_recipe)
 	_module_instance.set("world_width", 720.0)
-	_module_instance.set("section_top_y", VIEW_SECTION_TOP_Y)
-	_module_instance.set("section_bottom_y", VIEW_SECTION_BOTTOM_Y)
+	_module_instance.set("section_top_y", 0.0)
+	_module_instance.set("section_bottom_y", 1280.0)
 	_module_instance.set("far_detail_treatment", int(module_recipe.far_detail_treatment))
 	_module_instance.set("mid_detail_treatment", int(module_recipe.middle_detail_treatment))
-	_module_instance.set("module_preview_mode", false)
+	_module_instance.set("module_preview_mode", true)
+
+	# Fit each real module's declared bounds into the same inspection area while
+	# preserving its proportions and never enlarging small modules past native scale.
+	_preview_scale = minf(
+		1.0,
+		minf(
+			PREVIEW_BOUNDS_SIZE.x / definition.local_bounds.size.x,
+			PREVIEW_BOUNDS_SIZE.y / definition.local_bounds.size.y
+		)
+	)
+	_module_instance.scale = Vector2.ONE * _preview_scale
+	var bounds_center := definition.local_bounds.position + definition.local_bounds.size * 0.5
+	_module_instance.position = VIEW_CENTER - bounds_center * _preview_scale
 	_module_instance.z_index = 1
 	add_child(_module_instance)
 	queue_redraw()
@@ -154,6 +178,10 @@ func _update_hud() -> void:
 			str(definition.clearance_bounds),
 			points_text,
 		]
-		+ "THEME: %s   |   FIXED SEED: %d\n" % [String(theme_profiles[_theme_index].profile_id), fixed_seeds[_seed_index]]
-		+ "1–3 / ← → DEPTH LAYER   T THEME   R FIXED SEED"
+		+ "THEME: %s   |   FIXED SEED: %d   |   VIEW SCALE: %.2f\n" % [
+			String(theme_profiles[_theme_index].profile_id),
+			fixed_seeds[_seed_index],
+			_preview_scale,
+		]
+		+ "1–3 / ← → MODULE   T THEME   R FIXED SEED"
 	)
