@@ -6,7 +6,7 @@
 [resource]
 script = ExtResource("1_script")
 landmark_id = &"resonance_gate"
-subzone_id = &"reference_full_composition"
+subzone_id = &"lower_structure"
 scene = ExtResource("2_scene")
 height_anchor_px = 4880.0
 local_position = Vector2(360, 0)
