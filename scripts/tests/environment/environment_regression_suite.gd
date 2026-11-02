@@ -68,6 +68,23 @@ func _run_suite() -> void:
 		var plan_b := EnvironmentCompositionPlanner.build_plan(ZONE_PROFILE, seed_value)
 		var signature_a := EnvironmentCompositionPlanner.plan_signature(plan_a)
 		var signature_b := EnvironmentCompositionPlanner.plan_signature(plan_b)
+
+		# The fixture IDs and seed keys currently match. Change one key temporarily
+		# to prove the planner actually consumes the authored stable seed key.
+		if not ZONE_PROFILE.subzones.is_empty():
+			var original_subzone_key: StringName = ZONE_PROFILE.subzones[0].seed_key
+			ZONE_PROFILE.subzones[0].seed_key = &"regression_alternate_seed_key"
+			var alternate_key_plan := EnvironmentCompositionPlanner.build_plan(ZONE_PROFILE, seed_value)
+			var alternate_key_signature := EnvironmentCompositionPlanner.plan_signature(alternate_key_plan)
+			ZONE_PROFILE.subzones[0].seed_key = original_subzone_key
+			if alternate_key_signature == signature_a:
+				failures.append("Seed %d: changing the stable subzone key did not change the composition signature." % seed_value)
+
+		var alternate_landmark_seed := EnvironmentSeedResolver.landmark_seed(
+			seed_value, ZONE_PROFILE.zone_id, &"resonance_gate", &"alternate_neighborhood"
+		)
+		if alternate_landmark_seed == landmark_seed:
+			failures.append("Seed %d: changing the landmark neighborhood key did not change its seed." % seed_value)
 		if signature_a != signature_b:
 			failures.append("Seed %d: identical inputs produced different plan signatures." % seed_value)
 		if signature_a != expected_signature:
