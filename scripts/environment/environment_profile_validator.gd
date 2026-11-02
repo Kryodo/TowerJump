@@ -18,6 +18,8 @@ static func validate_zone(zone: EnvironmentZoneProfile) -> Dictionary:
 		warnings.append("Zone has no default theme profile.")
 	if zone.ambient_profile == null:
 		warnings.append("Zone has no default ambient profile.")
+	else:
+		_validate_ambient_profile(zone.ambient_profile, "Zone", errors)
 	if zone.lighting_profile == null:
 		warnings.append("Zone has no default lighting profile.")
 	else:
@@ -53,6 +55,12 @@ static func validate_zone(zone: EnvironmentZoneProfile) -> Dictionary:
 			errors.append("Subzone %s uses a recipe with an empty ID." % subzone_id)
 		if recipe.section_step_px <= 0.0:
 			errors.append("Recipe %s must have a positive section step." % String(recipe.recipe_id))
+		if (
+			recipe.far_density < 0.0 or recipe.far_density > 1.0
+			or recipe.middle_density < 0.0 or recipe.middle_density > 1.0
+			or recipe.near_density < 0.0 or recipe.near_density > 1.0
+		):
+			errors.append("Recipe %s has a depth density outside the 0–1 range." % String(recipe.recipe_id))
 		if recipe.module_pool.is_empty():
 			errors.append("Recipe %s has an empty module pool." % String(recipe.recipe_id))
 
@@ -68,6 +76,10 @@ static func validate_zone(zone: EnvironmentZoneProfile) -> Dictionary:
 				errors.append("Recipe %s contains duplicate module ID %s." % [String(recipe.recipe_id), module_id])
 			else:
 				module_ids[module_id] = true
+			if module.family < ArchitectureModuleDefinition.Family.LARGE_MASS or module.family > ArchitectureModuleDefinition.Family.SURFACE_DETAIL:
+				errors.append("Module %s has an invalid family value." % module_id)
+			if module.depth_layer < ArchitectureModuleDefinition.DepthLayer.FAR or module.depth_layer > ArchitectureModuleDefinition.DepthLayer.NEAR:
+				errors.append("Module %s has an invalid depth layer." % module_id)
 			if module.scene == null:
 				errors.append("Module %s has no PackedScene." % module_id)
 			if module.local_bounds.size.x <= 0.0 or module.local_bounds.size.y <= 0.0:
@@ -79,6 +91,8 @@ static func validate_zone(zone: EnvironmentZoneProfile) -> Dictionary:
 			warnings.append("Subzone %s has no resolved theme." % subzone_id)
 		if subzone.ambient_profile == null and zone.ambient_profile == null:
 			warnings.append("Subzone %s has no resolved ambient profile." % subzone_id)
+		elif subzone.ambient_profile != null:
+			_validate_ambient_profile(subzone.ambient_profile, "Subzone %s" % subzone_id, errors)
 		if subzone.lighting_profile == null and zone.lighting_profile == null:
 			warnings.append("Subzone %s has no resolved lighting profile." % subzone_id)
 		elif subzone.lighting_profile != null:
@@ -113,7 +127,7 @@ static func validate_zone(zone: EnvironmentZoneProfile) -> Dictionary:
 				errors.append("Landmark %s references unknown subzone %s." % [landmark_id, String(anchor.subzone_id)])
 			elif (
 				anchor.height_anchor_px < owning_subzone.start_height_px
-				or anchor.height_anchor_px > owning_subzone.end_height_px
+				or anchor.height_anchor_px >= owning_subzone.end_height_px
 			):
 				errors.append("Landmark %s is outside its assigned subzone %s." % [landmark_id, String(anchor.subzone_id)])
 
@@ -139,3 +153,20 @@ static func _validate_lighting_profile(
 		errors.append("%s lighting profile contains a negative light-state share." % scope_label)
 	if shares_total <= 0.0:
 		errors.append("%s lighting profile must enable at least one light state." % scope_label)
+
+
+static func _validate_ambient_profile(
+	profile: EnvironmentAmbientProfile,
+	scope_label: String,
+	errors: Array[String]
+) -> void:
+	if profile.density_scale < 0.0 or profile.speed_scale < 0.0:
+		errors.append("%s ambient profile has a negative density or speed scale." % scope_label)
+	if profile.highlight_share < 0.0 or profile.highlight_share > 1.0:
+		errors.append("%s ambient highlight share must be between 0 and 1." % scope_label)
+	if (
+		profile.far_parallax < 0.0 or profile.far_parallax > 1.0
+		or profile.middle_parallax < 0.0 or profile.middle_parallax > 1.0
+		or profile.near_parallax < 0.0 or profile.near_parallax > 1.0
+	):
+		errors.append("%s ambient parallax factors must be between 0 and 1." % scope_label)
