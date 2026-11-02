@@ -32,6 +32,10 @@ func _ready() -> void:
 	if fixed_seeds.size() != jump_heights.size():
 		push_error("Full-Game Jump-In: fixed seed and jump-height preset arrays must have the same size.")
 		return
+	for profile in theme_profiles:
+		if profile == null:
+			push_error("Full-Game Jump-In: theme_profiles must not contain null entries.")
+			return
 	_create_hud()
 	_spawn_game()
 
