@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="EnvironmentLandmarkAnchor" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/environment/environment_landmark_anchor.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://scenes/environment/landmarks/archive_fragment.tscn" id="2_scene"]
+
+[resource]
+script = ExtResource("1_script")
+landmark_id = &"archive_fragment"
+subzone_id = &"upper_structure"
+scene = ExtResource("2_scene")
+height_anchor_px = 9600.0
+local_position = Vector2(610, 0)
+clearance_bounds = Rect2(-95, -130, 190, 260)
+seed_key = &"archive_neighborhood"
