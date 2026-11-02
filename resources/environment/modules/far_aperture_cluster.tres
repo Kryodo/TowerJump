@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ArchitectureModuleDefinition" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/environment/architecture_module_definition.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://scenes/environment/modules/far_aperture_cluster.tscn" id="2_scene"]
+
+[resource]
+script = ExtResource("1_script")
+module_id = &"far_aperture_cluster"
+family = 0
+depth_layer = 0
+scene = ExtResource("2_scene")
+local_bounds = Rect2(0, 0, 190, 1200)
+clearance_bounds = Rect2(-8, -8, 206, 1216)
