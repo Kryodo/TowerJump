@@ -41,6 +41,23 @@ func _run_suite() -> void:
 	if ZONE_PROFILE.landmark_anchors.size() != 2:
 		failures.append("Reference parity zone must contain the Gate and Archive anchors.")
 
+	# Full-game jump-in shifts the parent game root. The compositor's local
+	# offset must still resolve to the same GLOBAL camera-relative parallax as
+	# the preserved experiment at every supported depth and jump-in height.
+	for jump_height in [0.0, 3600.0, 9600.0]:
+		var camera_global_y := 640.0 - jump_height
+		for parallax_factor in [0.18, 0.46, 0.82]:
+			var local_y := EnvironmentPreviewCompositor.local_parallax_y(
+				camera_global_y, parallax_factor, jump_height
+			)
+			var resolved_global_offset := local_y - jump_height
+			var expected_global_offset := camera_global_y * (1.0 - parallax_factor)
+			if not is_equal_approx(resolved_global_offset, expected_global_offset):
+				failures.append(
+					"Jump height %.0f / parallax %.2f: local origin conversion changed global parallax."
+					% [jump_height, parallax_factor]
+				)
+
 	var theme := ZONE_PROFILE.theme_profile
 	if theme != null:
 		if (
