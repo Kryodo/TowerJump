@@ -49,6 +49,7 @@ const NEAR_SEAM := Color(0.018, 0.13, 0.18, 0.20)
 const ACCENT_CYAN := Color(0.012, 0.82, 1.15, 0.84)
 const ACCENT_VIOLET := Color(0.42, 0.16, 0.88, 0.78)
 const EDGE_REVEAL := Color(0.026, 0.105, 0.155, 0.64)
+const MAX_BOUND_MID_SUPPORT_HEIGHT: float = 1172.0
 
 const FAR_STRUCTURED_A2 := {
 	"panel_fill": Color(0.009, 0.026, 0.052, 0.68),
@@ -491,17 +492,16 @@ func _draw_mid_architecture() -> void:
 func _draw_mid_architecture_bounded() -> void:
 	# The largest authored support variant is 1,172 px tall. Use that conservative
 	# envelope so neither the primary nor offset opposing support crosses a boundary.
-	const MAX_SUPPORT_HEIGHT: float = 1172.0
 	var y: float = section_top_y + 120.0
 	var index := 0
 	var spacing: float = architecture_recipe.middle_repeat_spacing_px if architecture_recipe != null else 1260.0
-	while y + MAX_SUPPORT_HEIGHT <= section_bottom_y:
+	while y + MAX_BOUND_MID_SUPPORT_HEIGHT <= section_bottom_y:
 		_draw_support_module(1.0, y, index)
 		if index % 4 != 1 or _rng.randf() < 0.12:
 			var opposite_y: float = y + (180.0 if index % 2 == 0 else -110.0)
 			if (
 				opposite_y >= section_top_y
-				and opposite_y + MAX_SUPPORT_HEIGHT <= section_bottom_y
+				and opposite_y + MAX_BOUND_MID_SUPPORT_HEIGHT <= section_bottom_y
 			):
 				_draw_support_module(-1.0, opposite_y, index + 2)
 		index += 1
