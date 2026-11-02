@@ -9,5 +9,5 @@ module_id = &"near_structural_frames"
 family = 3
 depth_layer = 2
 scene = ExtResource("2_scene")
-local_bounds = Rect2(0, 400, 720, 1060)
-clearance_bounds = Rect2(0, 394, 720, 1072)
+local_bounds = Rect2(0, 400, 720, 475)
+clearance_bounds = Rect2(0, 394, 720, 487)
