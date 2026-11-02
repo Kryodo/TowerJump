@@ -9,7 +9,9 @@
 script = ExtResource("1_script")
 recipe_id = &"preview_vertical_grammar"
 module_pool = Array[ArchitectureModuleDefinition]([ExtResource("2_far"), ExtResource("3_middle"), ExtResource("4_near")])
-section_step_px = 1200.0
-far_density = 0.96
-middle_density = 0.88
-near_density = 0.40
+far_repeat_spacing_px = 1580.0
+middle_repeat_spacing_px = 1260.0
+near_repeat_spacing_px = 2140.0
+section_bottom_padding_px = 1000.0
+far_detail_treatment = 2
+middle_detail_treatment = 2
