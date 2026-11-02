@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="EnvironmentZoneProfile" load_steps=7 format=3]
+[gd_resource type="Resource" script_class="EnvironmentZoneProfile" load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/environment/environment_zone_profile.gd" id="1_script"]
 [ext_resource type="Resource" path="res://resources/environment/themes/navy_resonance.tres" id="2_theme"]
@@ -17,5 +17,5 @@ end_height_px = 13200.0
 theme_profile = ExtResource("2_theme")
 ambient_profile = ExtResource("3_ambient")
 lighting_profile = ExtResource("4_lighting")
-subzones = Array[Resource]([ExtResource("5_lower"), ExtResource("6_upper")])
-landmark_anchors = Array[Resource]([ExtResource("7_gate"), ExtResource("8_archive")])
+subzones = Array[EnvironmentSubzoneProfile]([ExtResource("5_lower"), ExtResource("6_upper")])
+landmark_anchors = Array[EnvironmentLandmarkAnchor]([ExtResource("7_gate"), ExtResource("8_archive")])
