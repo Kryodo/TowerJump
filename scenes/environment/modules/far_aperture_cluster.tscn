@@ -1,9 +1,8 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://scripts/environment/environment_architecture_module_visual.gd" id="1_visual"]
+[ext_resource type="Script" path="res://scripts/environment/environment_architecture_layer.gd" id="1_layer"]
 
-[node name="FarApertureCluster" type="Node2D"]
-script = ExtResource("1_visual")
-module_style = 0
-module_width = 190.0
-module_height = 1200.0
+[node name="FarConnectedMass" type="Node2D"]
+script = ExtResource("1_layer")
+layer_type = 0
+module_preview_mode = true
