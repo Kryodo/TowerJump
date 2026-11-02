@@ -88,6 +88,7 @@ func _spawn_game() -> void:
 	_compositor.name = "EnvironmentPreviewCompositor"
 	_compositor.zone_profile = zone_profile
 	_compositor.world_seed = world_seed
+	_compositor.theme_override = theme_profiles[_theme_index]
 	_compositor.world_origin_height_px = jump_in_height_px
 	_compositor.camera_path = NodePath("../GameCamera")
 	_compositor.replace_game_ambient_emitters = true
