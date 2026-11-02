@@ -22,12 +22,12 @@ func _run_suite() -> void:
 	var parsed_manifest: Variant = JSON.parse_string(manifest_text)
 	if not (parsed_manifest is Dictionary):
 		push_error("Environment regression baseline manifest is not a JSON object.")
-		quit(2)
+		get_tree().quit(2)
 		return
 	var cases: Array = parsed_manifest.get("cases", [])
 	if cases.is_empty():
 		push_error("Environment regression baseline manifest contains no cases.")
-		quit(2)
+		get_tree().quit(2)
 		return
 
 	var validation := EnvironmentProfileValidator.validate_zone(ZONE_PROFILE)
