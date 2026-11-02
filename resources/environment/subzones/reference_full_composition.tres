@@ -15,4 +15,5 @@ architecture_recipe = ExtResource("2_recipe")
 theme_profile = ExtResource("3_theme")
 ambient_profile = ExtResource("4_ambient")
 lighting_profile = ExtResource("5_lighting")
+preserve_reference_overdraw = true
 seed_key = &"reference_full_composition"
