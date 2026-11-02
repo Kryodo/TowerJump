@@ -123,6 +123,50 @@ func _get_current_height() -> float:
 	return jump_in_height_px
 
 
+func _get_platform_overlap_summary() -> Dictionary:
+	if not is_instance_valid(_game_root):
+		return {"active": 0, "overlap_pairs": 0}
+
+	var active_platforms: Array[Node2D] = []
+	for candidate in get_tree().get_nodes_in_group("platforms"):
+		if not candidate is Node2D or not _game_root.is_ancestor_of(candidate):
+			continue
+		var platform := candidate as Node2D
+		if not platform.visible or not platform.has_method("half_width"):
+			continue
+		var collision_shape := platform.get_node_or_null("CollisionShape2D") as CollisionShape2D
+		if collision_shape != null and collision_shape.disabled:
+			continue
+		active_platforms.append(platform)
+
+	var overlap_pairs := 0
+	for first_index in range(active_platforms.size()):
+		var first := active_platforms[first_index]
+		var first_half_width: float = float(first.call("half_width"))
+		var first_half_height: float = float(first.get("height")) * 0.5
+		for second_index in range(first_index + 1, active_platforms.size()):
+			var second := active_platforms[second_index]
+			var horizontal_overlap: float = (
+				first_half_width
+				+ float(second.call("half_width"))
+				- absf(first.global_position.x - second.global_position.x)
+			)
+			if horizontal_overlap <= 0.5:
+				continue
+			var vertical_overlap: float = (
+				first_half_height
+				+ float(second.get("height")) * 0.5
+				- absf(first.global_position.y - second.global_position.y)
+			)
+			if vertical_overlap > 0.5:
+				overlap_pairs += 1
+
+	return {
+		"active": active_platforms.size(),
+		"overlap_pairs": overlap_pairs,
+	}
+
+
 func _create_hud() -> void:
 	var canvas := CanvasLayer.new()
 	canvas.name = "FullGameJumpInHUD"
@@ -148,6 +192,19 @@ func _update_hud() -> void:
 	var subzone := "VOID"
 	var section_count := 0
 	var validation_text := "PENDING"
+	var platform_summary: Dictionary = _get_platform_overlap_summary()
+	var mote_text := "PENDING"
+	if is_instance_valid(_compositor):
+		var ambient_summary: Dictionary = _compositor.get_ambient_summary()
+		var factors: Array = ambient_summary.get("parallax_factors", [0.18, 0.46, 0.82])
+		mote_text = "%s %d/%d  %.2f/%.2f/%.2f" % [
+			String(ambient_summary.get("source", "UNKNOWN")),
+			int(ambient_summary.get("layer_count", 0)),
+			int(ambient_summary.get("expected_layer_count", 3)),
+			float(factors[0]),
+			float(factors[1]),
+			float(factors[2]),
+		]
 	if is_instance_valid(_compositor):
 		subzone = _compositor.get_subzone_id_at_height(current_height)
 		var summary: Dictionary = _compositor.get_plan_summary()
@@ -166,5 +223,10 @@ func _update_hud() -> void:
 			validation_text,
 		]
 		+ "SEED: %d   |   THEME: %s\n" % [world_seed, String(theme_profiles[_theme_index].profile_id)]
+		+ "PLATFORMS: %d   |   AABB OVERLAP PAIRS: %d\n" % [
+			int(platform_summary.get("active", 0)),
+			int(platform_summary.get("overlap_pairs", 0)),
+		]
+		+ "MOTES: %s\n" % mote_text
 		+ "TOUCH LEFT/RIGHT OR UI LEFT/RIGHT   1–3 JUMP-IN PRESETS   R RESTART   N NEXT SEED   T THEME"
 	)
