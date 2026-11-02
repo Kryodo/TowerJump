@@ -1,30 +1,40 @@
 {
-  "schema_version": 1,
-  "fixture_id": "preview_diagnostic_fixture",
-  "description": "Fixed-seed source/layout regression baselines for the diagnostic preview fixture. These are not Zone 1 or Zone 2 approvals.",
-  "coordinate_origin": "Positive climb height 0 equals the production ball's initial local Y of 600 px.",
-  "algorithm": "EnvironmentCompositionPlanner.plan_signature / EnvironmentSeedResolver FNV-1a 32-bit fingerprint; mirrored against current coordinate and stable-subzone-key implementation.",
+  "schema_version": 2,
+  "fixture_id": "reference_extraction_parity",
+  "description": "Deterministic composition-plan baselines for the extracted established A2/C/Compact-Panel-Flicker architecture. These are layout/resource regressions, not pixel-perfect renderer captures.",
+  "coordinate_origin": "Positive climb height 0 is production ball local Y=600 px. Reference renderer window maps to section_top_y=-10400 and section_bottom_y=1600.",
+  "visual_reference": {
+    "world_seed": 7319,
+    "palette": "A2 Integrated",
+    "far_detail_treatment": "Compact Panel Flicker",
+    "middle_detail_treatment": "Insets + Mechanical Recesses (C)",
+    "detail_debug": false,
+    "far_parallax": 0.18,
+    "middle_parallax": 0.46,
+    "near_parallax": 0.82
+  },
+  "algorithm": "EnvironmentCompositionPlanner.plan_signature / EnvironmentSeedResolver FNV-1a 32-bit fingerprint.",
   "cases": [
     {
       "seed": 7319,
-      "signature": 864963443,
-      "placements": 22,
+      "signature": 443631857,
+      "sections": 1,
       "landmarks": 2,
-      "suppressed": 6
+      "reservations": 2
     },
     {
       "seed": 24017,
-      "signature": 3501769721,
-      "placements": 21,
+      "signature": 1174694490,
+      "sections": 1,
       "landmarks": 2,
-      "suppressed": 6
+      "reservations": 2
     },
     {
       "seed": 91207,
-      "signature": 81216545,
-      "placements": 21,
+      "signature": 2059592232,
+      "sections": 1,
       "landmarks": 2,
-      "suppressed": 6
+      "reservations": 2
     }
   ]
 }
