@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="EnvironmentArchitectureRecipe" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/environment/environment_architecture_recipe.gd" id="1_script"]
+[ext_resource type="Resource" path="res://resources/environment/modules/far_aperture_cluster.tres" id="2_far"]
+[ext_resource type="Resource" path="res://resources/environment/modules/middle_support_inset.tres" id="3_middle"]
+[ext_resource type="Resource" path="res://resources/environment/modules/near_edge_frame.tres" id="4_near"]
+
+[resource]
+script = ExtResource("1_script")
+recipe_id = &"preview_vertical_grammar"
+module_pool = Array[Resource]([ExtResource("2_far"), ExtResource("3_middle"), ExtResource("4_near")])
+section_step_px = 1200.0
+far_density = 0.96
+middle_density = 0.88
+near_density = 0.40
