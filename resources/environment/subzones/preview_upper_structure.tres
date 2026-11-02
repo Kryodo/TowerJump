@@ -9,7 +9,7 @@
 [resource]
 script = ExtResource("1_script")
 subzone_id = &"upper_structure"
-start_height_px = 7800.0
+start_height_px = 6000.0
 end_height_px = 11400.0
 architecture_recipe = ExtResource("2_recipe")
 theme_profile = ExtResource("3_theme")
