@@ -641,7 +641,7 @@ func _draw_mid_inset_plate(
 		inner_plate,
 		colors["inner_edge"],
 		false,
-		1.25 if mid_detail_debug else 1.1
+		1.1
 	)
 
 	# A broken shoulder reveal is offset to one side, rather than a complete bright frame.
@@ -652,7 +652,7 @@ func _draw_mid_inset_plate(
 		Vector2(shoulder_x, plate.position.y + 12.0),
 		Vector2(shoulder_x, plate.end.y - 12.0),
 		colors["edge"],
-		1.5 if mid_detail_debug else 1.1,
+		1.1,
 		true
 	)
 
