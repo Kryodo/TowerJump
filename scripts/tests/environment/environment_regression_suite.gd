@@ -4,6 +4,7 @@ extends Node
 ## godot --headless --path . res://scenes/tests/environment/environment_regression_suite.tscn
 
 const ZONE_PROFILE: EnvironmentZoneProfile = preload("res://resources/environment/zones/reference_extraction_parity.tres")
+const DIAGNOSTIC_ZONE_PROFILE: EnvironmentZoneProfile = preload("res://resources/environment/zones/preview_diagnostic_zone.tres")
 const A1_THEME: EnvironmentThemeProfile = preload("res://resources/environment/themes/navy_depth_a1.tres")
 const BASELINE_PATH: String = "res://resources/environment/regression/preview_diagnostic_fixed_seeds.json"
 const REFERENCE_TOP_Y: float = -10400.0
