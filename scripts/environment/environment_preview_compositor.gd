@@ -51,10 +51,11 @@ static func local_parallax_y(
 	parallax_factor: float,
 	world_origin_height: float
 ) -> float:
-	# The compositor is parented below the jump-shifted game root in Full-Game
-	# Jump-In. This converts a desired global parallax offset into that parent's
-	# local coordinates while remaining identical to the original at origin 0.
-	return world_origin_height + camera_global_y * (1.0 - parallax_factor)
+	# The compositor is parented below a game root translated by -world_origin_height.
+	# Architecture draw coordinates are also translated by +world_origin_height and
+	# then scaled by the parallax factor. Compensate for BOTH transforms so the final
+	# global offset remains camera_global_y * (1 - parallax_factor).
+	return (camera_global_y + world_origin_height) * (1.0 - parallax_factor)
 
 
 func _ready() -> void:
@@ -256,7 +257,8 @@ func _adopt_existing_game_motes() -> void:
 		return
 
 	var adopted_count := 0
-	var factors := _get_parallax_factors()
+	var active_ambient := _resolve_ambient_profile_for_current_height()
+	var factors: Array[float] = _get_parallax_factors(active_ambient)
 	for index in range(GAME_MOTE_NODE_NAMES.size()):
 		var emitter := _camera.get_node_or_null(GAME_MOTE_NODE_NAMES[index]) as GPUParticles2D
 		if emitter == null:
@@ -271,7 +273,9 @@ func _adopt_existing_game_motes() -> void:
 		layer.scroll_scale = Vector2(1.0, factors[index])
 		layer.repeat_size = Vector2(0.0, AMBIENT_REPEAT_HEIGHT)
 		layer.repeat_times = 2
-		layer.z_index = 20 + index
+		# The compositor itself is z=-50. Cancel that parent offset so each
+		# original emitter retains its reference z-index (-30/-28/-29).
+		layer.z_index = 50
 		add_child(layer)
 		layer.global_position = _camera.global_position
 
@@ -284,6 +288,7 @@ func _adopt_existing_game_motes() -> void:
 		adopted_count += 1
 
 	_using_original_game_motes = adopted_count > 0
+	_active_ambient_profile = active_ambient
 	if adopted_count != GAME_MOTE_NODE_NAMES.size():
 		push_warning(
 			"EnvironmentPreviewCompositor: Adopted %d of %d original game mote emitters."
@@ -309,16 +314,35 @@ func _resolve_ambient_profile_for_current_height() -> EnvironmentAmbientProfile:
 
 
 func _update_ambient_for_view_height(force_rebuild: bool = false) -> void:
-	if _using_original_game_motes or not ambient_particles_enabled:
-		if not ambient_particles_enabled and not _using_original_game_motes:
-			_clear_ambient_layers()
+	var ambient := _resolve_ambient_profile_for_current_height()
+	if _using_original_game_motes:
+		if ambient == _active_ambient_profile and not force_rebuild:
+			return
+		_active_ambient_profile = ambient
+		_update_original_mote_parallax(ambient)
 		return
 
-	var ambient := _resolve_ambient_profile_for_current_height()
+	if not ambient_particles_enabled:
+		_clear_ambient_layers()
+		return
 	if ambient == _active_ambient_profile and not force_rebuild:
 		return
 	_active_ambient_profile = ambient
 	_rebuild_ambient_layers(ambient)
+
+
+func _update_original_mote_parallax(profile: EnvironmentAmbientProfile) -> void:
+	if profile == null:
+		return
+	var factors: Array[float] = [
+		profile.far_parallax,
+		profile.middle_parallax,
+		profile.near_parallax,
+	]
+	for index in range(_original_mote_layers.size()):
+		var layer := _original_mote_layers[index]
+		if is_instance_valid(layer):
+			layer.scroll_scale = Vector2(1.0, factors[index % factors.size()])
 
 
 func _rebuild_ambient_layers(profile: EnvironmentAmbientProfile) -> void:
