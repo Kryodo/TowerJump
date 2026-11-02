@@ -37,6 +37,14 @@ static func landmark_seed(
 	return _resolve(world_seed, stable_key)
 
 
+static func fingerprint(value: String) -> int:
+	# Unsigned 32-bit FNV-1a for stable manifests and regression signatures.
+	var hash_value: int = FNV_OFFSET_BASIS
+	for byte_value in value.to_utf8_buffer():
+		hash_value = ((hash_value ^ int(byte_value)) * FNV_PRIME) & UINT32_MASK
+	return hash_value
+
+
 static func _resolve(world_seed: int, stable_key: String) -> int:
 	# FNV-1a over the world seed and stable identity; explicitly avoids
 	# engine-global random state and order-dependent random draw sequences.
