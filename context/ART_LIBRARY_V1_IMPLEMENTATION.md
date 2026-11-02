@@ -3,7 +3,7 @@
 Last updated: 2026-11-02  
 Status: **Source-level audit and correction pass committed. Godot 4.7.x import, parser, and runtime validation still pending.**
 
-The masterplan remains authoritative for strategic scope and Art Pipeline V1 exit criteria. This document records what the current implementation actually does, including the boundaries that earlier split-chat notes overstated.
+The masterplan remains authoritative for strategic scope and Art Pipeline V1 exit criteria. This document records what the current implementation actually does, including the boundaries that earlier split-chat notes overstated. For the latest audit, bug fixes, source-level findings, and owner test checklist, see [ART_LIBRARY_V1_AUDIT_AND_FIXES.md](ART_LIBRARY_V1_AUDIT_AND_FIXES.md).
 
 ---
 
@@ -52,7 +52,7 @@ The current model consists of typed Godot Resources:
 | EnvironmentAmbientProfile | Mote tint, density, speed, highlight share, and far/middle/near parallax factors. |
 | EnvironmentLightingProfile | Seeded light-state share and optional flicker settings. These values are validated and can resolve a state/color, but are not yet consumed by the architecture renderer. |
 | EnvironmentArchitectureRecipe | Stable recipe ID, module catalogue/pool, far/middle/near repeat spacing, bottom padding, and the approved far/middle detail treatments. |
-| EnvironmentSubzoneProfile | Stable ID, positive climb-height range, recipe, optional theme/ambient/lighting profiles, stable seed key. |
+| EnvironmentSubzoneProfile | Stable ID, positive climb-height range, recipe, optional theme/ambient/lighting profiles, stable seed key, and explicit reference-overdraw compatibility flag. |
 | EnvironmentLandmarkAnchor | Landmark ID, owning subzone, PackedScene, absolute climb-height anchor, local position, clearance rectangle, optional theme override, stable neighborhood seed key. |
 | EnvironmentZoneProfile | Zone ID/range, default theme/ambient/lighting resources, subzones, and landmark anchors. |
 
@@ -145,8 +145,9 @@ Its default profile is now resources/environment/zones/preview_diagnostic_zone.t
 - Lower structural subzone: 1,800–5,400 px.
 - A deliberate 600 px gap: 5,400–6,000 px.
 - Upper structural subzone: 6,000–11,400 px.
-- Open void before the lower structure and after the upper structure.
 - Gate and Archive anchors owned by their corresponding subzones.
+
+Normal subzones use bounded Far/Middle/Near rendering, so geometry remains inside each authored section window and cannot overdraw through the intended void interval. The isolated one-subzone reference fixture opts into the historical overdraw mode explicitly to preserve its original comparison window.
 
 It uses the shared planner and compositor. The compositor draws the extracted layer grammar separately for each subzone and places the corresponding landmark scenes.
 
@@ -199,9 +200,9 @@ Architecture horizontal parallax remains separate from mote parallax. The origin
 
 It adopts the three original production mote emitters and reparents them under Parallax2D wrappers, matching the preserved ambient_mote_parallax_test.gd approach.
 
-The original emitter Z indices are retained (-30, -28, -29). The compositor itself is at Z=-50, so each wrapper uses Z=50 to cancel the parent depth before the emitter's own original Z index is applied. This keeps ambient motes above architecture and preserves their original depth ordering.
+The original emitter Z indices are retained (-30, -28, -29). The Parallax2D wrappers are siblings of the compositor under the gameplay root, matching the preserved reference hierarchy directly; they do not inherit the compositor's architecture Z-index or transform.
 
-The active ambient profile updates the three wrappers' vertical scroll_scale factors when the camera enters a different subzone. It does not replace the production emitter material/texture in the full-game preview.
+The active ambient profile updates the three wrappers' vertical scroll_scale factors when the camera enters a different subzone. It does not replace the production emitter material/texture in the full-game preview. The Jump-In HUD reports the mote source, number of adopted layers, and current factors; the expected production state is GAME 3/3 at 0.18 / 0.46 / 0.82.
 
 ### Standalone Zone Preview
 
@@ -243,7 +244,8 @@ The suite checks:
 - Stable seed resolution and repeated plan signatures across the three manifest seeds.
 - A1/A2 theme fill values and all eight structured far material fields.
 - The renderer's actual A1/A2 far-palette resolution.
-- The two-subzone diagnostic zone, its intentional 600 px gap, deterministic repeated planning, and independent stable subzone seeds.
+- The two-subzone diagnostic zone, its intentional 600 px gap, bounded renderer window coordinates, deterministic repeated planning, and independent stable subzone seeds.
+- The reference-only overdraw flag is enabled only for the one-subzone parity fixture and disabled for both diagnostic subzones.
 - Full jump-in parent/draw-coordinate parallax conversion for the three jump heights and three depth factors.
 
 This remains a plan/resource/coordinate regression. It does not prove rendering pixels, platform collision/spawn spacing at runtime, particle appearance, or Android export.
@@ -285,9 +287,9 @@ The source audit is complete, but the runtime/visual pass remains with the proje
    - Check mote parallax and profile changes across subzones; check the plan validation HUD and PNG capture.
 5. Run Full-Game Jump-In:
    - Test all three height presets and repeated restarts.
-   - Verify initial platforms are placed relative to the translated ball/spawn cursor, do not duplicate or overlap the already initialized pool, and normal platform recycling continues.
+   - Verify initial platforms are placed relative to the translated ball/spawn cursor and normal platform recycling continues. The HUD's platform AABB overlap-pair count should remain 0; report the height/seed if it is positive.
    - Verify ball, platforms, camera, HUD, and architecture share the intended world position.
-   - Compare the three original mote emitters against the preserved experiment: far/middle/near depth, horizontal factor 1.0, and draw order above architecture.
+   - Compare the three original mote emitters against the preserved experiment: GAME 3/3 adopted, far/middle/near factors 0.18/0.46/0.82, and original depth ordering above architecture.
    - Cycle A2/A1/Amber and verify the far fill, recesses, and aperture lighting actually change.
    - Confirm no doubled mote emitters.
 6. Run normal gameplay after closing the test scene to confirm the production scene remains unaffected.
