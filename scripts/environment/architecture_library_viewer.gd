@@ -1,19 +1,17 @@
 extends Node2D
 ## Lightweight inspection surface for the reusable architecture-module library.
 
-const MODULES: Array[ArchitectureModuleDefinition] = [
-	preload("res://resources/environment/modules/far_aperture_cluster.tres"),
-	preload("res://resources/environment/modules/middle_support_inset.tres"),
-	preload("res://resources/environment/modules/near_edge_frame.tres"),
-]
-const THEMES: Array[EnvironmentThemeProfile] = [
+@export var module_recipe: EnvironmentArchitectureRecipe = preload("res://resources/environment/recipes/preview_vertical_grammar.tres")
+@export var theme_profiles: Array[EnvironmentThemeProfile] = [
 	preload("res://resources/environment/themes/navy_resonance.tres"),
 	preload("res://resources/environment/themes/amber_diagnostic.tres"),
 ]
-const LIGHTING: EnvironmentLightingProfile = preload("res://resources/environment/lighting/restrained_structural_lights.tres")
-const FIXED_SEEDS: Array[int] = [7319, 24017, 91207]
-const WORLD_WIDTH: float = 720.0
+@export var lighting_profile: EnvironmentLightingProfile = preload("res://resources/environment/lighting/restrained_structural_lights.tres")
+@export var fixed_seeds: Array[int] = [7319, 24017, 91207]
+
 const PREVIEW_SCALE: float = 0.72
+
+var _modules: Array[ArchitectureModuleDefinition] = []
 
 var _camera: Camera2D
 var _module_instance: Node2D
@@ -24,6 +22,20 @@ var _seed_index: int = 0
 
 
 func _ready() -> void:
+	if module_recipe != null:
+		for module in module_recipe.module_pool:
+			if module != null:
+				_modules.append(module)
+	if _modules.is_empty():
+		push_error("Architecture Library Viewer: selected recipe contains no modules.")
+		return
+	if theme_profiles.is_empty():
+		push_error("Architecture Library Viewer: at least one theme profile is required.")
+		return
+	if fixed_seeds.is_empty():
+		push_error("Architecture Library Viewer: at least one fixed seed is required.")
+		return
+
 	_camera = Camera2D.new()
 	_camera.name = "LibraryViewerCamera"
 	_camera.position = Vector2(360.0, 640.0)
@@ -41,7 +53,7 @@ func _draw() -> void:
 	draw_line(Vector2(360.0, 0.0), Vector2(360.0, 1280.0), Color(0.30, 0.47, 0.61, 0.22), 1.0, true)
 	draw_rect(Rect2(30.0, 112.0, 660.0, 1050.0), Color(0.24, 0.40, 0.55, 0.15), false, 1.0)
 	if _module_instance != null:
-		var definition := MODULES[_module_index]
+		var definition := _modules[_module_index]
 		var box := definition.local_bounds
 		var origin := Vector2(360.0 - definition.local_bounds.size.x * PREVIEW_SCALE * 0.5, 180.0)
 		var preview_rect := Rect2(
@@ -67,23 +79,25 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		return
 	match key_event.keycode:
 		KEY_1, KEY_2, KEY_3:
-			_module_index = key_event.keycode - KEY_1
-			_show_module()
+			var requested_index := key_event.keycode - KEY_1
+			if requested_index < _modules.size():
+				_module_index = requested_index
+				_show_module()
 		KEY_LEFT, KEY_RIGHT:
-			_module_index = posmod(_module_index + (-1 if key_event.keycode == KEY_LEFT else 1), MODULES.size())
+			_module_index = posmod(_module_index + (-1 if key_event.keycode == KEY_LEFT else 1), _modules.size())
 			_show_module()
 		KEY_T:
-			_theme_index = posmod(_theme_index + 1, THEMES.size())
+			_theme_index = posmod(_theme_index + 1, theme_profiles.size())
 			_show_module()
 		KEY_R:
-			_seed_index = posmod(_seed_index + 1, FIXED_SEEDS.size())
+			_seed_index = posmod(_seed_index + 1, fixed_seeds.size())
 			_show_module()
 
 
 func _show_module() -> void:
 	if _module_instance != null and is_instance_valid(_module_instance):
 		_module_instance.queue_free()
-	var definition := MODULES[_module_index]
+	var definition := _modules[_module_index]
 	_module_instance = definition.scene.instantiate() as Node2D
 	if _module_instance == null:
 		push_error("Architecture Library Viewer: module scene failed to instantiate.")
@@ -95,9 +109,9 @@ func _show_module() -> void:
 	_module_instance.scale = Vector2(PREVIEW_SCALE, PREVIEW_SCALE)
 	_module_instance.call(
 		"configure",
-		THEMES[_theme_index],
-		LIGHTING,
-		FIXED_SEEDS[_seed_index]
+		theme_profiles[_theme_index],
+		lighting_profile,
+		fixed_seeds[_seed_index]
 	)
 	add_child(_module_instance)
 	queue_redraw()
@@ -124,7 +138,7 @@ func _create_hud() -> void:
 func _update_hud() -> void:
 	if _hud_label == null:
 		return
-	var definition := MODULES[_module_index]
+	var definition := _modules[_module_index]
 	var family_names := ["LARGE MASS", "STRUCTURAL", "CONNECTOR", "SURFACE DETAIL"]
 	var depth_names := ["FAR", "MIDDLE", "NEAR"]
 	var points_text := "—"
@@ -134,7 +148,7 @@ func _update_hud() -> void:
 			values.append("(%.0f, %.0f)" % [point.x, point.y])
 		points_text = ", ".join(values)
 	_hud_label.text = (
-		"ART LIBRARY VIEWER   /   MODULE %d OF %d\n" % [_module_index + 1, MODULES.size()]
+		"ART LIBRARY VIEWER   /   MODULE %d OF %d\n" % [_module_index + 1, _modules.size()]
 		+ "%s   |   FAMILY: %s   |   DEPTH: %s\n" % [
 			String(definition.module_id),
 			family_names[definition.family],
@@ -145,6 +159,6 @@ func _update_hud() -> void:
 			str(definition.clearance_bounds),
 			points_text,
 		]
-		+ "THEME: %s   |   FIXED SEED: %d\n" % [String(THEMES[_theme_index].profile_id), FIXED_SEEDS[_seed_index]]
+		+ "THEME: %s   |   FIXED SEED: %d\n" % [String(theme_profiles[_theme_index].profile_id), fixed_seeds[_seed_index]]
 		+ "1–3 / ← → MODULE   T THEME   R FIXED SEED"
 	)
