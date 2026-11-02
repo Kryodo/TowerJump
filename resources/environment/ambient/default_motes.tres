@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="EnvironmentAmbientProfile" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/environment/environment_ambient_profile.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+profile_id = &"quiet_navy_motes"
+mote_tint = Color(0.62, 0.92, 1.0, 1.0)
+density_scale = 0.72
+speed_scale = 0.82
+highlight_share = 0.035
+far_parallax = 0.18
+middle_parallax = 0.46
+near_parallax = 0.82
