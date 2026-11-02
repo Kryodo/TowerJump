@@ -26,6 +26,7 @@ enum MidDetailTreatment {
 @export var layer_type: LayerType = LayerType.FAR_SILHOUETTES
 @export var theme_profile: EnvironmentThemeProfile
 @export var environment_seed: int = 7319
+@export var architecture_recipe: EnvironmentArchitectureRecipe
 @export var world_width: float = 720.0
 @export var section_top_y: float = -10400.0
 @export var section_bottom_y: float = 1600.0
@@ -136,7 +137,7 @@ func _draw_far_architecture() -> void:
 		_draw_far_mass(1.0, y + y_jitter, height, left_width, index)
 		_draw_far_mass(-1.0, y + y_jitter + (120.0 if index % 2 == 0 else -80.0), height, right_width, index + 1)
 		index += 1
-		y += 1580.0
+		y += architecture_recipe.far_repeat_spacing_px if architecture_recipe != null else 1580.0
 
 func _draw_far_mass(side: float, top_y: float, height: float, width: float, index: int) -> void:
 	var edge_x: float = 0.0 if side > 0.0 else world_width
@@ -443,7 +444,7 @@ func _draw_mid_architecture() -> void:
 		if index % 4 != 1 or _rng.randf() < 0.12:
 			_draw_support_module(-1.0, y + (180.0 if index % 2 == 0 else -110.0), index + 2)
 		index += 1
-		y += 1260.0
+		y += architecture_recipe.middle_repeat_spacing_px if architecture_recipe != null else 1260.0
 
 func _draw_support_module(side: float, top_y: float, index: int) -> void:
 	var edge_x: float = 0.0 if side > 0.0 else world_width
@@ -814,7 +815,7 @@ func _draw_near_frames() -> void:
 			draw_line(left_start, left_start + Vector2(0.0, length), _near_seam_color(), 2.0, true)
 		else:
 			draw_line(right_start, right_start + Vector2(0.0, -length), _near_seam_color(), 2.0, true)
-		y += 2140.0
+		y += architecture_recipe.near_repeat_spacing_px if architecture_recipe != null else 2140.0
 		index += 1
 
 
