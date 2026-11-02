@@ -3,14 +3,20 @@ extends RefCounted
 ## Builds a deterministic placement plan without creating scene nodes.
 ## Previews and regression tests consume the same plan.
 
+const RUN_ORIGIN_WORLD_Y: float = 600.0
+
 static func build_plan(
 	zone: EnvironmentZoneProfile,
 	world_seed: int,
 	theme_override: EnvironmentThemeProfile = null
 ) -> Dictionary:
 	var validation := EnvironmentProfileValidator.validate_zone(zone)
-	var errors: Array[String] = validation.errors.duplicate()
-	var warnings: Array[String] = validation.warnings.duplicate()
+	var errors: Array[String] = []
+	var warnings: Array[String] = []
+	for message in validation.get("errors", []):
+		errors.append(str(message))
+	for message in validation.get("warnings", []):
+		warnings.append(str(message))
 	var placements: Array[Dictionary] = []
 	var landmarks: Array[Dictionary] = []
 	var reservations: Array[Rect2] = []
@@ -31,7 +37,7 @@ static func build_plan(
 		)
 		var root_position := Vector2(
 			anchor.local_position.x,
-			-anchor.height_anchor_px + anchor.local_position.y
+			RUN_ORIGIN_WORLD_Y - anchor.height_anchor_px + anchor.local_position.y
 		)
 		var clearance := Rect2(
 			root_position + anchor.clearance_bounds.position,
@@ -98,7 +104,7 @@ static func build_plan(
 						root_x = 720.0 if mirrored else 0.0
 
 					var y_jitter := float(posmod(side_seed, 41)) - 20.0
-					var root_position := Vector2(root_x, -section_height + y_jitter)
+					var root_position := Vector2(root_x, RUN_ORIGIN_WORLD_Y - section_height + y_jitter)
 					var clearance := _module_clearance_rect(module, root_position, mirrored)
 					var blocked := false
 					for reservation in reservations:
