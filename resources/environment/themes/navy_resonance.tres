@@ -5,9 +5,9 @@
 [resource]
 script = ExtResource("1_script")
 profile_id = &"navy_resonance"
-far_fill_a = Color(0.004, 0.012, 0.026, 0.98)
-far_fill_b = Color(0.006, 0.016, 0.032, 0.98)
-middle_fill = Color(0.011, 0.024, 0.044, 0.96)
+far_fill_a = Color(0.011764706, 0.03137255, 0.0627451, 0.98)
+far_fill_b = Color(0.015686275, 0.039215688, 0.078431375, 0.98)
+middle_fill = Color(0.0055, 0.0165, 0.038, 0.96)
 near_detail = Color(0.018, 0.13, 0.18, 0.20)
 accent_primary = Color(0.012, 0.82, 1.15, 0.84)
 accent_secondary = Color(0.42, 0.16, 0.88, 0.78)
