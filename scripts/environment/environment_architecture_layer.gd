@@ -182,10 +182,15 @@ func _draw_far_mass(side: float, top_y: float, height: float, width: float, inde
 
 
 func _structured_far_palette() -> Dictionary:
-	# Extracted A2 Integrated compact-panel palette. These are the exact subdued
-	# far-layer panel/window values used by the approved reference composition.
+	# A2 remains the fallback for an unassigned profile. A1/A2 and future zone
+	# themes provide the entire far recess/window material, not just light tint.
 	var detail: Dictionary = FAR_STRUCTURED_A2.duplicate(true)
 	if theme_profile != null:
+		detail["panel_fill"] = theme_profile.far_panel_fill
+		detail["panel_edge"] = theme_profile.far_panel_edge
+		detail["panel_rail"] = theme_profile.far_panel_rail
+		detail["window_frame"] = theme_profile.far_window_frame
+		detail["window_dark"] = theme_profile.far_window_dark
 		detail["window_lit"] = theme_profile.far_window_lit
 		detail["window_neon"] = theme_profile.far_window_neon
 		detail["window_halo"] = theme_profile.far_window_halo
