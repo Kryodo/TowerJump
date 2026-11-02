@@ -56,6 +56,7 @@ static func build_plan(
 	var suppressed_count := 0
 	for subzone in zone.subzones:
 		var recipe := subzone.architecture_recipe
+		var stable_subzone_key: StringName = subzone.seed_key if not String(subzone.seed_key).is_empty() else subzone.subzone_id
 		if recipe == null:
 			continue
 		var theme := _resolve_theme(zone, subzone, theme_override)
@@ -77,7 +78,7 @@ static func build_plan(
 				var section_seed := EnvironmentSeedResolver.section_seed(
 					world_seed,
 					zone.zone_id,
-					subzone.subzone_id,
+					stable_subzone_key,
 					stable_key
 				)
 				var density_roll := float(posmod(section_seed, 10000)) / 10000.0
@@ -91,7 +92,7 @@ static func build_plan(
 					var side_seed := EnvironmentSeedResolver.section_seed(
 						world_seed,
 						zone.zone_id,
-						subzone.subzone_id,
+						stable_subzone_key,
 						side_key
 					)
 					var mirrored := false
