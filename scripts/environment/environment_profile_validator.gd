@@ -47,6 +47,11 @@ static func validate_zone(zone: EnvironmentZoneProfile) -> Dictionary:
 			errors.append("Subzone %s has an invalid or out-of-zone height range." % subzone_id)
 		sorted_ranges.append(Vector2(subzone.start_height_px, subzone.end_height_px))
 
+		if subzone.preserve_reference_overdraw and zone.subzones.size() > 1:
+			warnings.append(
+				"Subzone %s preserves reference-window overdraw; this can visually bridge neighboring void intervals."
+				% subzone_id
+			)
 		if subzone.architecture_recipe == null:
 			errors.append("Subzone %s has no architecture recipe." % subzone_id)
 			continue
