@@ -7,10 +7,11 @@ This folder is the maintained handoff point for TowerJump design and implementat
 ## Start here
 
 1. **[ART_PIPELINE_MASTERPLAN.md](ART_PIPELINE_MASTERPLAN.md)** — authoritative current plan for the environment-art pipeline, the bounded Art Library V1 scope, architecture and theme systems, the first two representative zones, preview tooling, and the next implementation steps.
-2. **[ART_LIBRARY_V1_IMPLEMENTATION.md](ART_LIBRARY_V1_IMPLEMENTATION.md)** — Art Library data model, deterministic planner, diagnostic fixtures, preview tools, regression baselines, and Godot validation handoff.
-3. **[design/TowerJump Neon Design V2.md](design/TowerJump%20Neon%20Design%20V2.md)** — broader game and visual-design reference. Treat it as historical design context; prefer newer explicitly approved decisions in the masterplan.
-4. **[Repository Organization and Validation.md](Repository%20Organization%20and%20Validation.md)** — record of the repository restructure, warning cleanup, successful owner runtime validation, and current branch/tag state.
-5. **[archive/conversation-history/TowerJump Neon Prototype-20261011-1854.md](archive/conversation-history/TowerJump%20Neon%20Prototype-20261011-1854.md)** — historical prototype transcript; useful for recovering decisions, not a current specification.
+2. **[ART_LIBRARY_V1_IMPLEMENTATION.md](ART_LIBRARY_V1_IMPLEMENTATION.md)** — Art Library data model, deterministic planner, diagnostic fixtures, preview tools, regression baselines, and implementation boundaries.
+3. **[ART_LIBRARY_V1_AUDIT_AND_FIXES.md](ART_LIBRARY_V1_AUDIT_AND_FIXES.md)** — recent source audit, reference-parity corrections, bounded subzone rendering, Viewer bounds, Jump-In diagnostics, and the remaining Godot test checklist.
+4. **[design/TowerJump Neon Design V2.md](design/TowerJump%20Neon%20Design%20V2.md)** — broader game and visual-design reference. Treat it as historical design context; prefer newer explicitly approved decisions in the masterplan.
+5. **[Repository Organization and Validation.md](Repository%20Organization%20and%20Validation.md)** — record of the repository restructure, warning cleanup, successful owner runtime validation, and current branch/tag state.
+6. **[archive/conversation-history/TowerJump Neon Prototype-20261011-1854.md](archive/conversation-history/TowerJump%20Neon%20Prototype-20261011-1854.md)** — historical prototype transcript; useful for recovering decisions, not a current specification.
 
 ## Documentation rules
 
