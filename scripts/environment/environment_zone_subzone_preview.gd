@@ -1,0 +1,157 @@
+extends Node2D
+## Independent vertical preview for zone/subzone structure, voids and fixed landmarks.
+
+const ZONE_PROFILE: EnvironmentZoneProfile = preload("res://resources/environment/zones/preview_diagnostic_zone.tres")
+const THEME_PROFILES: Array[EnvironmentThemeProfile] = [
+	preload("res://resources/environment/themes/navy_resonance.tres"),
+	preload("res://resources/environment/themes/amber_diagnostic.tres"),
+]
+const COMPOSITOR_SCRIPT: Script = preload("res://scripts/environment/environment_preview_compositor.gd")
+const BACKGROUND_COLOR := Color(0.007843138, 0.023529412, 0.050980393, 1.0)
+const HEIGHT_ORIGIN: float = 640.0
+const FIXED_SEEDS: Array[int] = [7319, 24017, 91207]
+
+var _camera: Camera2D
+var _compositor: Node2D
+var _hud_label: Label
+var _view_height_px: float = 3600.0
+var _seed_index: int = 0
+var _theme_index: int = 0
+
+
+func _ready() -> void:
+	_create_camera_and_background()
+	_create_compositor()
+	_create_hud()
+	_update_hud()
+
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	if not (event is InputEventKey):
+		return
+	var key_event := event as InputEventKey
+	if not key_event.pressed or key_event.echo:
+		return
+	match key_event.keycode:
+		KEY_UP:
+			_set_view_height(_view_height_px + 400.0)
+		KEY_DOWN:
+			_set_view_height(maxf(_view_height_px - 400.0, 0.0))
+		KEY_HOME:
+			_set_view_height(3600.0)
+		KEY_1, KEY_2, KEY_3:
+			_seed_index = key_event.keycode - KEY_1
+			_compositor.call("set_world_seed", FIXED_SEEDS[_seed_index])
+			_update_hud()
+		KEY_R:
+			_seed_index = posmod(_seed_index + 1, FIXED_SEEDS.size())
+			_compositor.call("set_world_seed", FIXED_SEEDS[_seed_index])
+			_update_hud()
+		KEY_T:
+			_theme_index = posmod(_theme_index + 1, THEME_PROFILES.size())
+			_compositor.call("set_theme_override", THEME_PROFILES[_theme_index])
+			_update_hud()
+		KEY_J:
+			var next_height: float = _compositor.call("get_next_landmark_height", _view_height_px)
+			if next_height >= 0.0:
+				_set_view_height(next_height)
+		KEY_P:
+			_capture_regression_image()
+
+
+func _create_camera_and_background() -> void:
+	_camera = Camera2D.new()
+	_camera.name = "PreviewCamera"
+	_camera.position = Vector2(360.0, HEIGHT_ORIGIN - _view_height_px)
+	_camera.enabled = true
+	add_child(_camera)
+	_camera.make_current()
+
+	var background := ColorRect.new()
+	background.name = "PreviewVoid"
+	background.position = Vector2(-360.0, -HEIGHT_ORIGIN)
+	background.size = Vector2(720.0, 1280.0)
+	background.color = BACKGROUND_COLOR
+	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	background.z_index = -60
+	_camera.add_child(background)
+
+
+func _create_compositor() -> void:
+	_compositor = COMPOSITOR_SCRIPT.new()
+	_compositor.name = "EnvironmentPreviewCompositor"
+	_compositor.zone_profile = ZONE_PROFILE
+	_compositor.world_seed = FIXED_SEEDS[_seed_index]
+	_compositor.camera_path = NodePath("../PreviewCamera")
+	_compositor.z_index = -50
+	add_child(_compositor)
+
+
+func _create_hud() -> void:
+	var canvas := CanvasLayer.new()
+	canvas.name = "ZonePreviewHUD"
+	canvas.layer = 5
+	add_child(canvas)
+	_hud_label = Label.new()
+	_hud_label.position = Vector2(20.0, 20.0)
+	_hud_label.size = Vector2(680.0, 170.0)
+	_hud_label.add_theme_font_size_override("font_size", 16)
+	_hud_label.add_theme_color_override("font_color", Color(0.75, 0.87, 0.94, 0.96))
+	_hud_label.add_theme_color_override("font_outline_color", Color(0.0, 0.01, 0.025, 1.0))
+	_hud_label.add_theme_constant_override("outline_size", 3)
+	_hud_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	canvas.add_child(_hud_label)
+
+
+func _set_view_height(value: float) -> void:
+	_view_height_px = clampf(value, ZONE_PROFILE.start_height_px, ZONE_PROFILE.end_height_px)
+	_camera.position.y = HEIGHT_ORIGIN - _view_height_px
+	_update_hud()
+
+
+func _update_hud() -> void:
+	if _hud_label == null:
+		return
+	var summary: Dictionary = _compositor.call("get_plan_summary") if _compositor != null else {}
+	var next_height: float = _compositor.call("get_next_landmark_height", _view_height_px) if _compositor != null else -1.0
+	var next_text := "NONE" if next_height < 0.0 else "%dm" % roundi(next_height)
+	_hud_label.text = (
+		"ZONE / SUBZONE PREVIEW   |   %s\n" % String(ZONE_PROFILE.zone_id).to_upper()
+		+ "HEIGHT: %dm   |   CURRENT: %s   |   NEXT LANDMARK: %s\n" % [
+			roundi(_view_height_px),
+			_compositor.call("get_subzone_id_at_height", _view_height_px),
+			next_text,
+		]
+		+ "SEED: %d   |   THEME: %s   |   MODULES: %d   |   LANDMARKS: %d\n" % [
+			FIXED_SEEDS[_seed_index],
+			String(THEME_PROFILES[_theme_index].profile_id),
+			int(summary.get("placement_count", 0)),
+			int(summary.get("landmark_count", 0)),
+		]
+		+ "↑ / ↓ HEIGHT   J NEXT LANDMARK   1–3 / R SEED   T THEME   P CAPTURE PNG   HOME RESET"
+	)
+
+
+func _capture_regression_image() -> void:
+	var directory := "user://environment_regression"
+	var absolute_directory := ProjectSettings.globalize_path(directory)
+	var directory_error := DirAccess.make_dir_recursive_absolute(absolute_directory)
+	if directory_error != OK:
+		push_warning("Zone Preview: Could not create regression capture directory.")
+		return
+	var filename := "zone_%s_seed_%d_height_%d.png" % [
+		String(ZONE_PROFILE.zone_id),
+		FIXED_SEEDS[_seed_index],
+		roundi(_view_height_px),
+	]
+	var path := directory.path_join(filename)
+	var image := get_viewport().get_texture().get_image()
+	if image == null:
+		push_warning("Zone Preview: Viewport image could not be read.")
+		return
+	var save_error := image.save_png(path)
+	if save_error != OK:
+		push_warning("Zone Preview: Could not save capture to %s." % path)
+	else:
+		print("Environment regression capture saved: %s" % path)
+	_update_hud()
