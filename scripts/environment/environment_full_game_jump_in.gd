@@ -94,6 +94,7 @@ func _spawn_game() -> void:
 	_compositor.world_seed = world_seed
 	_compositor.theme_override = theme_profiles[_theme_index]
 	_compositor.world_origin_height_px = jump_in_height_px
+	_compositor.camera_run_origin_y = 640.0
 	_compositor.camera_path = NodePath("../GameCamera")
 	_compositor.reuse_game_ambient_emitters = true
 	_compositor.z_index = -50
