@@ -9,7 +9,9 @@ extends Node2D
 @export var lighting_profile: EnvironmentLightingProfile = preload("res://resources/environment/lighting/restrained_structural_lights.tres")
 @export var fixed_seeds: Array[int] = [7319, 24017, 91207]
 
-const PREVIEW_SCALE: float = 0.72
+const ARCHITECTURE_LAYER_SCRIPT: Script = preload("res://scripts/environment/environment_architecture_layer.gd")
+const VIEW_SECTION_TOP_Y: float = -2200.0
+const VIEW_SECTION_BOTTOM_Y: float = 1800.0
 
 var _modules: Array[ArchitectureModuleDefinition] = []
 
@@ -51,31 +53,10 @@ func _ready() -> void:
 
 
 func _draw() -> void:
-	draw_rect(Rect2(-40.0, -40.0, 800.0, 1360.0), Color(0.0078, 0.0235, 0.051, 1.0), true)
+	draw_rect(Rect2(-40.0, -40.0, 800.0, 1360.0), Color(0.007843138, 0.023529412, 0.050980393, 1.0), true)
 	for x in range(0, 721, 60):
-		draw_line(Vector2(float(x), 0.0), Vector2(float(x), 1280.0), Color(0.12, 0.22, 0.31, 0.12), 1.0, true)
-	draw_line(Vector2(360.0, 0.0), Vector2(360.0, 1280.0), Color(0.30, 0.47, 0.61, 0.22), 1.0, true)
-	draw_rect(Rect2(30.0, 112.0, 660.0, 1050.0), Color(0.24, 0.40, 0.55, 0.15), false, 1.0)
-	if _module_instance != null:
-		var definition := _modules[_module_index]
-		var box := definition.local_bounds
-		var origin := Vector2(
-			360.0 - (definition.local_bounds.position.x + definition.local_bounds.size.x * 0.5) * PREVIEW_SCALE,
-			180.0 - definition.local_bounds.position.y * PREVIEW_SCALE
-		)
-		var preview_rect := Rect2(
-			origin + box.position * PREVIEW_SCALE,
-			box.size * PREVIEW_SCALE
-		)
-		draw_rect(preview_rect, Color(0.37, 0.70, 0.84, 0.62), false, 1.4)
-		var clearance := definition.clearance_bounds
-		if clearance.size.x > 0.0 and clearance.size.y > 0.0:
-			draw_rect(
-				Rect2(origin + clearance.position * PREVIEW_SCALE, clearance.size * PREVIEW_SCALE),
-				Color(0.77, 0.49, 0.20, 0.42),
-				false,
-				1.0
-			)
+		draw_line(Vector2(float(x), 0.0), Vector2(float(x), 1280.0), Color(0.12, 0.22, 0.31, 0.08), 1.0, true)
+	draw_line(Vector2(360.0, 0.0), Vector2(360.0, 1280.0), Color(0.30, 0.47, 0.61, 0.14), 1.0, true)
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -104,28 +85,26 @@ func _unhandled_key_input(event: InputEvent) -> void:
 func _show_module() -> void:
 	if _module_instance != null and is_instance_valid(_module_instance):
 		_module_instance.queue_free()
+
 	var definition := _modules[_module_index]
-	if definition.scene == null:
-		_module_instance = null
-		push_error("Architecture Library Viewer: module %s has no PackedScene." % String(definition.module_id))
-		_update_hud()
-		return
-	_module_instance = definition.scene.instantiate() as Node2D
-	if _module_instance == null:
-		push_error("Architecture Library Viewer: module scene root must be a Node2D.")
-		return
-	_module_instance.position = Vector2(
-		360.0 - (definition.local_bounds.position.x + definition.local_bounds.size.x * 0.5) * PREVIEW_SCALE,
-		180.0 - definition.local_bounds.position.y * PREVIEW_SCALE
-	)
-	_module_instance.scale = Vector2(PREVIEW_SCALE, PREVIEW_SCALE)
-	if _module_instance.has_method("configure"):
-		_module_instance.call(
-			"configure",
-			theme_profiles[_theme_index],
-			lighting_profile,
-			fixed_seeds[_seed_index]
-		)
+	# Show the selected depth using the actual extracted architectural grammar.
+	# A short vertical slice keeps the module's relationship to the surrounding
+	# construction visible; it avoids presenting a single thin primitive as a
+	# stand-alone substitute for the established architecture.
+	_module_instance = Node2D.new()
+	_module_instance.name = "ReferenceArchitectureLayerPreview"
+	_module_instance.set_script(ARCHITECTURE_LAYER_SCRIPT)
+	_module_instance.set("layer_type", int(definition.depth_layer))
+	_module_instance.set("theme_profile", theme_profiles[_theme_index])
+	_module_instance.set("environment_seed", fixed_seeds[_seed_index])
+	_module_instance.set("architecture_recipe", module_recipe)
+	_module_instance.set("world_width", 720.0)
+	_module_instance.set("section_top_y", VIEW_SECTION_TOP_Y)
+	_module_instance.set("section_bottom_y", VIEW_SECTION_BOTTOM_Y)
+	_module_instance.set("far_detail_treatment", int(module_recipe.far_detail_treatment))
+	_module_instance.set("mid_detail_treatment", int(module_recipe.middle_detail_treatment))
+	_module_instance.set("module_preview_mode", false)
+	_module_instance.z_index = 1
 	add_child(_module_instance)
 	queue_redraw()
 	_update_hud()
@@ -163,7 +142,7 @@ func _update_hud() -> void:
 			values.append("(%.0f, %.0f)" % [point.x, point.y])
 		points_text = ", ".join(values)
 	_hud_label.text = (
-		"ART LIBRARY VIEWER   /   MODULE %d OF %d\n" % [_module_index + 1, _modules.size()]
+		"ARCHITECTURE LIBRARY VIEWER   /   LAYER %d OF %d\n" % [_module_index + 1, _modules.size()]
 		+ "%s   |   FAMILY: %s   |   DEPTH: %s\n" % [
 			String(definition.module_id),
 			family_names[family_index],
@@ -175,5 +154,5 @@ func _update_hud() -> void:
 			points_text,
 		]
 		+ "THEME: %s   |   FIXED SEED: %d\n" % [String(theme_profiles[_theme_index].profile_id), fixed_seeds[_seed_index]]
-		+ "1–3 / ← → MODULE   T THEME   R FIXED SEED"
+		+ "1–3 / ← → DEPTH LAYER   T THEME   R FIXED SEED"
 	)
