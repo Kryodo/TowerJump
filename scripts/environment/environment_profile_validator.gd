@@ -103,7 +103,22 @@ static func validate_zone(zone: EnvironmentZoneProfile) -> Dictionary:
 			errors.append("Landmark %s is outside the zone height range." % landmark_id)
 		if anchor.clearance_bounds.size.x <= 0.0 or anchor.clearance_bounds.size.y <= 0.0:
 			errors.append("Landmark %s must reserve a positive clearance rectangle." % landmark_id)
-		if not String(anchor.subzone_id).is_empty() and not subzone_ids.has(String(anchor.subzone_id)):
-			errors.append("Landmark %s references unknown subzone %s." % [landmark_id, String(anchor.subzone_id)])
+		if not String(anchor.subzone_id).is_empty():
+			var owning_subzone := _find_subzone(zone, anchor.subzone_id)
+			if owning_subzone == null:
+				errors.append("Landmark %s references unknown subzone %s." % [landmark_id, String(anchor.subzone_id)])
+			elif (
+				anchor.height_anchor_px < owning_subzone.start_height_px
+				or anchor.height_anchor_px > owning_subzone.end_height_px
+			):
+				errors.append("Landmark %s is outside its assigned subzone %s." % [landmark_id, String(anchor.subzone_id)])
 
 	return {"errors": errors, "warnings": warnings}
+
+
+
+static func _find_subzone(zone: EnvironmentZoneProfile, subzone_id: StringName) -> EnvironmentSubzoneProfile:
+	for subzone in zone.subzones:
+		if subzone != null and subzone.subzone_id == subzone_id:
+			return subzone
+	return null
