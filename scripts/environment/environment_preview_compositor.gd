@@ -21,6 +21,8 @@ const AMBIENT_REPEAT_HEIGHT: float = 1520.0
 @export var world_seed: int = 7319
 ## Adds the selected jump-in height to all zone-local renderer and landmark coordinates.
 @export var world_origin_height_px: float = 0.0
+## Baseline global camera Y at climb height zero: 600 in standalone preview, 640 in the production scene.
+@export var camera_run_origin_y: float = 600.0
 @export var camera_path: NodePath
 @export var theme_override: EnvironmentThemeProfile
 ## When hosted inside the real game, reuse its existing three mote emitters and
@@ -219,7 +221,7 @@ func _update_parallax() -> void:
 		_architecture_layers[index].scale = Vector2(x_factor, y_factor)
 		_architecture_layers[index].position = Vector2(
 			WORLD_WIDTH * 0.5 * (1.0 - x_factor),
-			_camera.position.y * (1.0 - y_factor)
+			_camera.global_position.y * (1.0 - y_factor)
 		)
 
 	for index in range(_ambient_layers.size()):
@@ -279,7 +281,7 @@ func _resolve_ambient_profile_for_current_height() -> EnvironmentAmbientProfile:
 	if zone_profile == null or _camera == null:
 		return ambient
 
-	var view_height := world_origin_height_px + RUN_ORIGIN_WORLD_Y - _camera.position.y
+	var view_height := camera_run_origin_y - _camera.global_position.y
 	for subzone in zone_profile.subzones:
 		if (
 			subzone != null
