@@ -5,9 +5,9 @@
 
 [resource]
 script = ExtResource("1_script")
-module_id = &"middle_support_inset"
+module_id = &"middle_support_grammar"
 family = 1
 depth_layer = 1
 scene = ExtResource("2_scene")
-local_bounds = Rect2(0, 0, 210, 1200)
-clearance_bounds = Rect2(-6, -8, 222, 1216)
+local_bounds = Rect2(-28, 120, 212, 1090)
+clearance_bounds = Rect2(-38, 108, 232, 1114)
