@@ -8,11 +8,11 @@ const THEME_PROFILES: Array[EnvironmentThemeProfile] = [
 ]
 const COMPOSITOR_SCRIPT: Script = preload("res://scripts/environment/environment_preview_compositor.gd")
 const BACKGROUND_COLOR := Color(0.007843138, 0.023529412, 0.050980393, 1.0)
-const HEIGHT_ORIGIN: float = 640.0
+const HEIGHT_ORIGIN: float = 600.0
 const FIXED_SEEDS: Array[int] = [7319, 24017, 91207]
 
 var _camera: Camera2D
-var _compositor: Node2D
+var _compositor: EnvironmentPreviewCompositor
 var _hud_label: Label
 var _view_height_px: float = 3600.0
 var _seed_index: int = 0
@@ -78,7 +78,7 @@ func _create_camera_and_background() -> void:
 
 
 func _create_compositor() -> void:
-	_compositor = COMPOSITOR_SCRIPT.new()
+	_compositor = COMPOSITOR_SCRIPT.new() as EnvironmentPreviewCompositor
 	_compositor.name = "EnvironmentPreviewCompositor"
 	_compositor.zone_profile = ZONE_PROFILE
 	_compositor.world_seed = FIXED_SEEDS[_seed_index]
