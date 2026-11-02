@@ -48,7 +48,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		KEY_DOWN:
 			_set_view_height(maxf(_view_height_px - 400.0, 0.0))
 		KEY_HOME:
-			_set_view_height(3600.0)
+			_set_view_height(clampf(3600.0, zone_profile.start_height_px, zone_profile.end_height_px))
 		KEY_1, KEY_2, KEY_3:
 			var requested_index := key_event.keycode - KEY_1
 			if requested_index < fixed_seeds.size():
@@ -128,6 +128,11 @@ func _update_hud() -> void:
 	var summary: Dictionary = _compositor.call("get_plan_summary") if _compositor != null else {}
 	var next_height: float = _compositor.call("get_next_landmark_height", _view_height_px) if _compositor != null else -1.0
 	var next_text := "NONE" if next_height < 0.0 else "%dm" % roundi(next_height)
+	var errors: Array = summary.get("errors", [])
+	var warnings: Array = summary.get("warnings", [])
+	var validation_text := "VALID" if errors.is_empty() else "ERRORS %d" % errors.size()
+	if errors.is_empty() and not warnings.is_empty():
+		validation_text = "WARNINGS %d" % warnings.size()
 	_hud_label.text = (
 		"ZONE / SUBZONE PREVIEW   |   %s\n" % String(zone_profile.zone_id).to_upper()
 		+ "HEIGHT: %dm   |   CURRENT: %s   |   NEXT LANDMARK: %s\n" % [
@@ -135,11 +140,12 @@ func _update_hud() -> void:
 			_compositor.call("get_subzone_id_at_height", _view_height_px),
 			next_text,
 		]
-		+ "SEED: %d   |   THEME: %s   |   ARCHITECTURE SECTIONS: %d   |   LANDMARKS: %d\n" % [
+		+ "SEED: %d   |   THEME: %s   |   SECTIONS: %d   |   LANDMARKS: %d   |   PLAN: %s\n" % [
 			fixed_seeds[_seed_index],
 			String(theme_profiles[_theme_index].profile_id),
 			int(summary.get("section_count", 0)),
 			int(summary.get("landmark_count", 0)),
+			validation_text,
 		]
 		+ "↑ / ↓ HEIGHT   J NEXT LANDMARK   1–3 / R SEED   T THEME   P CAPTURE PNG   HOME RESET"
 	)
