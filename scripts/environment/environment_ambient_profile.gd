@@ -5,6 +5,8 @@ extends Resource
 @export var profile_id: StringName
 @export var mote_tint: Color = Color(0.62, 0.92, 1.0, 1.0)
 @export_range(0.0, 3.0, 0.05) var density_scale: float = 1.0
+@export_range(0.0, 2.0, 0.05) var speed_scale: float = 1.0
+@export_range(0.0, 1.0, 0.01) var highlight_share: float = 0.08
 
 ## Approved architecture-matched depth relationship.
 @export_range(0.0, 1.0, 0.01) var far_parallax: float = 0.18
