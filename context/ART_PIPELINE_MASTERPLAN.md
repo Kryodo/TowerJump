@@ -1,7 +1,9 @@
 # TowerJump — Environment Art Pipeline Masterplan
 
-Last updated: 2026-11-01  
-Status: Production pipeline definition; repository organization branch passed the initial folder-migration runtime check, and the warning-cleanup pass awaits focused retest.
+Last updated: 2026-11-02  
+Status: **Art Pipeline V1 planning and implementation — active on `feature/environment-art-library-v1`.** Repository organization and warning cleanup are merged into `main`; the owner verified the game in Godot with no errors or warnings.
+
+This document is the primary handoff for TowerJump's reusable environment-art pipeline. The immediate scope is deliberately bounded: establish a repeatable pipeline and prove it with two contrasting representative early zones, then freeze environment production while gameplay systems are developed. It records approved visual foundations, minimum viable data relationships and preview tools, architecture module scope, deterministic landmark rules, validation criteria, and the current implementation steps.
 
 This document is the primary handoff for building TowerJump's procedural environmental world and reusable Art Library. It records approved visual foundations, the production phases, data relationships, preview tools, architecture module scope, deterministic landmark rules, and the next implementation steps.
 
@@ -71,69 +73,90 @@ The library must support multiple valid relationships rather than one universal 
 - Middle recess materials should remain indigo/blue-purple rather than switching to black just because a palette is brighter.
 - Future zones may use warm or otherwise distinctive theme hues, but every profile must preserve depth separation and the foreground hierarchy.
 
-# 3. Production roadmap — six phases
+# 3. Production roadmap — bounded Art Pipeline V1
 
-## Phase 1 — Give the existing architecture more life
+The current priority is to prove a reusable environment-art production process before scaling content. Art Pipeline V1 is intentionally limited to two contrasting representative early zones.
+
+## Phase 1 — Lock the existing environmental foundation
 
 **Status: COMPLETE.**
 
-Approved far aperture clusters, three illumination states, restrained flicker, middle structural detail treatments, and architecture-matched mote parallax are established. Keep these as reusable references. Do not continue generic detail expansion until zone concepts identify a need.
+Approved far aperture clusters, three illumination states, restrained flicker, middle structural detail treatments, and architecture-matched mote parallax are established. Keep these as reusable references. Do not continue generic detail expansion until the two zone concepts identify a specific need.
 
-## Phase 2 — Build the Art Library foundation and preview tools
+## Phase 2 — Establish the minimum viable Art Library foundation
 
-**Status: NEXT IMPLEMENTATION PHASE.**
+**Status: ACTIVE — NEXT IMPLEMENTATION WORK.**
 
-Define the data model and the three permanent preview tools before producing a large module inventory.
+Audit the existing environment implementation and derive a small, useful technical foundation. Do not build a large generalized framework before the first zone requirements are understood.
 
-Deliverables:
-- Architecture module definitions and metadata.
-- Theme/palette profiles.
-- Architecture recipes and module pools.
-- Ambient/lighting profiles.
-- Zone/subzone profile definitions.
-- Fixed-height landmark anchors and deterministic height/seed resolver.
-- Fixed-seed regression support.
-- Architecture Library Viewer.
-- Zone and Subzone Preview.
-- Full-Game Environment Jump-In.
+Initial deliverables:
+- Minimal architecture-module definitions and metadata.
+- Theme/palette profiles separated from module geometry.
+- Simple architecture recipes/module pools only where the first concepts need them.
+- Ambient/lighting profile representation, reusing existing approved behavior where practical.
+- Zone/subzone profile definitions sized for two representative zones.
+- Deterministic seed/height resolution suitable for repeatable previews.
+- Fixed-height landmark reservation/clearance concept.
+- A minimal way to preview an individual module and a composed zone.
+- A route to verify the same composition in the actual game rendering setup.
 
-Build only the fields and tools required by the first zone concepts. Avoid premature generic frameworks.
+The long-term capabilities are an Architecture Library Viewer, Zone/Subzone Preview, Full-Game Environment Jump-In, and fixed-seed regression support. Implement them incrementally as real needs emerge; do not build three oversized independent tools before the first vertical slice works.
 
-## Phase 3 — Concept the early zones
+## Phase 3 — Concept the first two contrasting zones
 
-**Status: NOT STARTED.**
+**Status: NEXT AFTER THE INITIAL AUDIT / MINIMAL FOUNDATION.**
 
-Concept the first few contrasting zones before filling the library. Each zone concept must establish:
+Develop only two representative early zones:
+- **Zone 1 — Reference zone:** establishes the baseline process for identity, far/middle/near composition, architectural rhythm, theme, lighting, ambient treatment, void intervals, transitions, and at least one memorable landmark/discovery.
+- **Zone 2 — Variation test:** demonstrates a genuinely different architectural identity, silhouette composition, structural rhythm, palette/atmosphere relationship, and landmark treatment while reusing the same pipeline.
+
+Do not choose zone names or final themes by assumption. Derive them from the approved visual foundation and deliberate concept work. The Resonance Gate and Archive Fragment are promising prior landmark ideas to revisit, not mandatory final choices.
+
+Each concept should establish:
 - Environmental identity and role in the climb.
 - Palette relationship and theme accent.
 - Far, middle, and near structural language.
 - Large masses and repeating structural rhythm.
-- Landmark/discovery ideas and their height anchors.
+- Landmark/discovery ideas and proposed height anchors.
 - Entry/exit transitions and subzone sequence.
 - Ambient mote/light behavior.
-- Special environmental events or scenery, if appropriate.
+- Special environmental events or scenery only when they contribute to identity.
 
-The first zone concepts should reveal the actual library requirements.
+The concepts must reveal actual library requirements before a large module inventory is created.
 
-## Phase 4 — Build the reusable architectural library
-
-**Status: NOT STARTED.**
-
-Build the first useful reusable module pool from the approved zone requirements. Use both reusable scenes and procedural systems; do not force every structure into one approach.
-
-## Phase 5 — Assemble zones and subzones
+## Phase 4 — Implement and compose the two zones
 
 **Status: NOT STARTED.**
 
-Compose complete environmental sequences using zone profiles, architecture recipes, module pools, palette profiles, ambient profiles, transitions, and landmark anchors. Preserve the void → structure → void rhythm.
+Build only the reusable scenes and procedural modules required by the two concepts. Compose the zones from profiles, recipes, module pools, lighting/ambient treatments, transitions, and fixed landmark anchors. Preserve the void → structure → void rhythm.
 
-## Phase 6 — Validate, refine, and expand
+Use authored Godot scenes for signature silhouettes and procedural systems for controlled continuity/variation. Do not force every architectural element into a generic module abstraction.
+
+## Phase 5 — Validate, document, and freeze Art Pipeline V1
 
 **Status: NOT STARTED.**
 
-Validate compositions at actual gameplay scale and across deterministic seeds. Review silhouette clarity, depth, contrast, performance, transitions, landmark readability, and interaction with ball/platform glow. Refine the library from real zone results, then expand.
+Validate both compositions:
+- In independent preview tooling.
+- In the actual TowerJump rendering setup.
+- At representative gameplay scale.
+- Across repeatable fixed seeds.
+- For silhouette clarity, depth separation, contrast, landmark readability, transitions, foreground readability, and performance.
 
----
+When the exit criteria in Section 14 are met, document the production workflow, preserve reference compositions, update the context docs, create a clean checkpoint, and deliberately pause environment production.
+
+## Deferred beyond Art Pipeline V1
+
+**Status: INTENTIONALLY DEFERRED.**
+
+- Concepting and producing every remaining game zone.
+- Building a comprehensive catalog of every possible architectural module.
+- Platform-specific environmental effects for gameplay types not yet established.
+- Trap/hazard-specific environmental art before those mechanics are designed.
+- Exhaustive zone transitions, special events, and landmark collections.
+- Full content scaling before gameplay pacing and mechanics stabilize.
+
+After Art Pipeline V1 is frozen, the project returns to gameplay foundation and mechanics. The full environment library expands later, once platform types, hazards, FLOW, progression, and visual-feedback requirements are understood.
 
 # 4. Art Library — two complementary systems
 
@@ -315,46 +338,42 @@ Required capabilities:
 
 Fixed-seed regression tests should capture known-good module and zone compositions. A change to a library module must be reviewable against previous outputs.
 
-# 9. Complete workflow: idea to finished zone
+# 9. Complete workflow: idea to validated Art Pipeline V1
 
-1. Lock the visual principles — **complete**.
-2. Finish bounded generic detail experiments — **complete**.
-3. Define the data model and preview tools.
-4. Concept the first few zones.
-5. Derive library requirements from those concepts.
-6. Build initial reusable scenes and procedural modules.
-7. Compose playable zone/subzone sequences.
-8. Review them in the Architecture Library Viewer and Zone Preview.
-9. Refine the reusable library based on composition results.
-10. Validate at actual gameplay scale in the Full-Game Environment Jump-In.
-11. Expand the zone schedule and library only when a new zone needs it.
+1. Lock the global visual principles — **complete**.
+2. Preserve the approved far/middle architecture, lighting, and mote references — **complete**.
+3. Audit existing environment scenes, scripts, shaders, assets, and comparison harnesses.
+4. Define only the minimum viable data model and preview workflow.
+5. Concept two contrasting representative early zones.
+6. Derive the actual module/profile requirements from those concepts.
+7. Build the initial reusable scenes and procedural modules.
+8. Compose both zone sequences, including transitions, void intervals, and fixed-height landmark spaces.
+9. Review modules and compositions in lightweight preview tools.
+10. Validate both zones in the actual TowerJump rendering setup and across deterministic seeds.
+11. Document the repeatable workflow, save fixed-seed reference compositions, and freeze Art Pipeline V1.
+12. Return to gameplay foundation and mechanics; expand the full Art Library only later.
 
-Do not build a large generic asset catalog before the first zone concepts. Zone concepts → library requirements → initial modules → playable zone composition → visual review → library refinement.
+Do not build a large generic asset catalog before the first two zone concepts. The working sequence is: audit → minimum foundation → two zone concepts → requirements → modules → two compositions → game-scale validation → documentation/freeze.
 
 # 10. Dedicated repository and project structure
 
-The organization branch is establishing this target structure:
+The repository organization is **implemented, merged, and owner-verified**. Current relevant directories include:
 
 ```text
 TowerJump/
 ├── assets/
 │   ├── player/
 │   ├── particles/
-│   ├── environment/
 │   ├── references/
 │   └── legacy/
 ├── shaders/
 │   ├── player/
 │   ├── platform/
-│   ├── ui/
-│   └── ...
+│   └── ui/
 ├── scenes/
 │   ├── gameplay/
-│   ├── ui/
-│   ├── environment/
 │   └── tests/
-│       ├── gameplay/
-│       └── environment/
+│       └── gameplay/
 ├── scripts/
 │   ├── core/
 │   ├── player/
@@ -363,7 +382,6 @@ TowerJump/
 │   ├── platform/
 │   ├── landing/
 │   ├── ui/
-│   ├── environment/
 │   └── tests/
 ├── context/
 │   ├── README.md
@@ -373,41 +391,51 @@ TowerJump/
 └── project.godot
 ```
 
-Current organization moves preserve all image binaries. Runtime-used textures are grouped under `assets/player` and `assets/particles`; unreferenced old concept images and experimental particles are retained in `assets/references` or `assets/legacy`, not deleted. `scripts/landing/` remains a dedicated subsystem. Shader resources are separated from scenes. Keep Godot `.uid` sidecars and paired `.import` metadata with moved files.
+This is the existing organized structure, not a requirement to create every possible environment folder immediately. Add environment-specific directories such as `assets/environment/`, `scenes/environment/`, `scripts/environment/`, and `scenes/tests/environment/` only when the first implementation slice demonstrates that they are useful.
+
+The migration preserved all image binaries. Runtime-used textures are grouped under `assets/player/` and `assets/particles/`; unreferenced concept images and experimental particles remain under `assets/references/` or `assets/legacy/`. `scripts/landing/` remains a dedicated subsystem. Shader resources are separated from scenes. Keep Godot `.uid` sidecars and paired `.import` metadata with their resources.
 
 # 11. Validation and implementation discipline
 
-- Use a separate working branch for repository structure changes and for library features.
-- Keep `main` as the production baseline.
-- Never modify the preserved `experiment-middle-architecture-details` reference branch.
+- Keep `main` as the stable production baseline; all Art Library work belongs on `feature/environment-art-library-v1`.
+- Never modify the preserved `experiment-middle-architecture-details` reference branch. Inspect it read-only.
 - Do not copy architecture comparison harnesses wholesale into the production or Art Library branch.
+- Keep environment generation and preview tooling separate from player movement, physics, platform gameplay, scoring, difficulty, and other gameplay systems.
+- Do not modify existing gameplay logic for visual/environment experiments unless a specific, necessary integration change is first justified and kept narrowly scoped.
 - Change one concern at a time and maintain a known-good control.
 - Preserve UIDs and update all paths when moving scripts, scenes, shaders, and imported assets.
 - Do not delete assets solely because they have no current runtime reference; classify them as references/legacy first.
-- Run Godot 4.7.x project import and scene-load validation after file moves.
-- Verify the main gameplay scene, ball/trail shaders, platform scene, landing feedback, test room, and Android export.
-- Any runtime parse/import error discovered by the project owner must be fixed before merging the organization branch.
-- Only after project loading and export are verified should the Art Library feature branch be created.
+- Run Godot 4.7.x project import and relevant scene/runtime checks after resource or scene changes.
+- The owner has already verified the organized project and warning-cleanup changes in Godot with no errors or warnings. Do not claim assistant-side runtime verification.
+- Verify the actual game rendering setup as well as isolated preview scenes. Do not accept a beautiful preview if it compromises foreground gameplay readability or runtime performance.
+- Use deterministic local seeds and stable IDs/height keys; never let unrelated random draws shift fixed landmark positions.
+- Keep changes small, documented, and committed at clear checkpoints.
 
 # 12. Branches, tags, and current handoff state
 
-## Current branch strategy
+## Current branch strategy — verified 2026-11-02
 
-- `main` — stable production baseline. On 2026-11-01 it received the verified gameplay baseline through PR #5.
-- `chore/project-organization` — current folder and context cleanup branch; awaiting local Godot validation.
-- `experiment-middle-architecture-details` — preserved approved environment-art reference; keep untouched.
+- `main` — stable production baseline at `d47ef2206a1326472de3ac1cc1a8a9f7ccda6baa`.
+- `feature/environment-art-library-v1` — active Art Library V1 working branch, created from the exact same commit as `main`. All implementation work in this phase belongs here.
+- `experiment-middle-architecture-details` — preserved approved environment-art reference; inspect read-only and keep untouched.
 - `experiment-forward-assembly-platforms` — important future gameplay/environment design reference.
 - `feature/combo-system-prototype` — preserved early combo/resonance prototype.
 - `experiment-unified-comet-shape` — preserved comet contour/shape and future cosmetic-skin direction.
 - `experiment-plant-bank-jumping` — preserved small gameplay experiment.
 
-`experiment-vertical-resonance-field` has been merged into main and is preserved by tag; its remote/local branch can be retired after the owner updates their local repository. `merge/gameplay-baseline-to-main` was a temporary integration branch used to resolve independent Godot sterilization metadata; it can be retired after the merge. The old conflicted PR #4 was closed; PR #5 was merged.
+Retired branches:
+- `experiment-vertical-resonance-field` — merged into `main`; exact baseline is preserved by `milestone/gameplay-baseline-v1`.
+- `chore/project-organization` — merged through PR #6; the integrated result is preserved by `milestone/project-organization-v1`.
+- `merge/gameplay-baseline-to-main` — temporary two-parent integration branch; its history is already part of `main` and it has been deleted.
+
+PR #6 — [Organize project structure and resolve Godot warnings](https://github.com/Kryodo/TowerJump/pull/6) — is merged. Its merge commit is `d47ef2206a1326472de3ac1cc1a8a9f7ccda6baa`. The owner confirmed the project runs in Godot with no errors or warnings after the final retest.
 
 ## Preserved tag inventory
 
-The user created and pushed these checkpoint/reference tags:
+The following checkpoint/reference tags are present on the remote:
 - `foundation/pre-comet-redesign-v1`
 - `milestone/gameplay-baseline-v1`
+- `milestone/project-organization-v1`
 - `milestone/far-apertures-v1`
 - `milestone/ambient-mote-depth-v1`
 - `milestone/middle-architecture-v1`
@@ -420,18 +448,55 @@ The user created and pushed these checkpoint/reference tags:
 - `reference/early-comet-redesign-v1`
 - `reference/first-background-concept`
 
-Tags preserve exact historical commits without keeping every experiment as an active branch.
+The `milestone/project-organization-v1` tag points to the integrated PR #6 merge commit `d47ef2206a1326472de3ac1cc1a8a9f7ccda6baa`. The `milestone/gameplay-baseline-v1` tag preserves the verified gameplay-baseline branch head `2b57faf68de98ace8221e8b233152214a334388b`.
 
-# 13. Immediate next steps
+Tags preserve exact historical commits without requiring every completed experiment branch to remain active.
 
-1. Finish and audit `chore/project-organization` (folder and context changes).
-2. Owner fetches the branch in GitHub Desktop and opens the project in Godot 4.7.x. Initial folder-migration and platform test-room checks have already passed.
-3. Retest the warning-cleanup pass: desktop/touch input resolution, trail material initialization, platform resonance drawing, main-game landing camera response, and the standalone platform test room.
-4. Run an Android export and resolve any path/import issues.
-5. Merge the organization branch into main only after focused retest and warning review.
-6. Delete the merged `experiment-vertical-resonance-field` and temporary merge branch locally/remotely; preserve their tags.
-7. Create `feature/environment-art-library-v1` from the validated main.
-8. Start Phase 2: data model and Architecture Library Viewer, then Zone/Subzone Preview and Full-Game Environment Jump-In.
-9. Concept the first contrasting zones before expanding the reusable module library.
+# 13. Immediate next steps — Art Library V1
 
-The environment is ready to move from isolated experiments to a reusable world-building pipeline once repository validation is complete.
+1. Confirm the active working branch is `feature/environment-art-library-v1` and that its starting point matches `main`.
+2. Read this masterplan, `context/README.md`, and `context/Repository Organization and Validation.md`.
+3. Inspect the existing organized project structure and environment implementation.
+4. Inspect `experiment-middle-architecture-details` read-only; identify approved implementations worth reusing and separate them from diagnostic/comparison-only scenes.
+5. Reconcile any remaining documentation discrepancies before implementation.
+6. Propose the minimum viable architecture-module, theme-profile, zone/subzone, seed, and landmark data structures. Avoid speculative fields.
+7. Establish a small preview vertical slice: inspect one module, compose one small environment sequence, and verify it in the actual game rendering setup.
+8. Concept Zone 1 and derive its actual module requirements.
+9. Implement and validate Zone 1.
+10. Concept and implement Zone 2 as a genuine variation test using the same pipeline.
+11. Validate both zones with deterministic seeds and at gameplay scale.
+12. Document the proven workflow, save reference compositions, and freeze Art Pipeline V1.
+13. Return to gameplay foundation and mechanics. Defer the remaining zone catalog and full environment production until those systems are established.
+
+Do not start by generating a large library, building all three preview tools as separate frameworks, or designing every remaining zone. Start with the audit and the smallest complete vertical slice that proves the pipeline can work.
+
+
+
+---
+
+# 14. Art Pipeline V1 exit criteria and intentional handoff back to gameplay
+
+Art Pipeline V1 is complete when all of the following are true:
+
+- Two representative early zones have distinct and recognizable environmental identities.
+- Both zones use the same documented underlying pipeline for architecture, theme treatment, composition, and preview.
+- The shared system supports authored signature structures alongside procedural repeating architecture.
+- Far/middle/near depth, the global navy void, and foreground gameplay readability remain coherent.
+- Each zone has a composed environmental sequence with deliberate void intervals and appropriate transitions.
+- At least one memorable landmark/discovery is integrated into the representative zone set, with reserved space and a deterministic height anchor.
+- Fixed world seed + zone/subzone identifiers + stable height/section keys reproduce the same intended compositions and landmark placement.
+- Both zones can be inspected in independent preview tooling and verified in the actual TowerJump rendering setup.
+- Runtime/performance and visual readability have been checked at representative gameplay scale.
+- The workflow, data relationships, approved decisions, deferred work, and reference seeds are documented.
+
+Once these conditions are met, stop adding zones or expanding the generic module catalog. Preserve a clean Art Pipeline V1 checkpoint and return primary development focus to gameplay.
+
+## Broader development sequence after Art Pipeline V1
+
+1. **Gameplay foundation:** establish movement, gravity, jump velocity, climbing speed, platform spacing, generation patterns, and difficulty progression.
+2. **Gameplay mechanics:** define platform types, traps, route challenges, dodging, recovery, FLOW, the rising bottom threat, safe capsules, and progression.
+3. **Core visual feedback:** finish landing impact, Streak visuals, platform environmental responses, and the visual communication required by the established mechanics.
+4. **Full environment production:** expand the Art Library and produce remaining zones based on the now-established gameplay and visual requirements.
+5. **Integration and polish:** balance pacing, transitions, visual consistency, progression, performance, and mobile presentation.
+
+This ordering is deliberate. Art Pipeline V1 should prove that future environment content can be produced reliably; it should not pre-emptively design content for gameplay systems that do not yet exist.
