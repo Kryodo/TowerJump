@@ -120,7 +120,7 @@ func _create_hud() -> void:
 
 func _set_view_height(value: float) -> void:
 	_view_height_px = clampf(value, zone_profile.start_height_px, zone_profile.end_height_px)
-	_camera.position.y = HEIGHT_ORIGIN - _view_height_px
+	_camera.position.y = CAMERA_RUN_ORIGIN_Y - _view_height_px
 	_update_hud()
 
 
