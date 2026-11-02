@@ -31,6 +31,7 @@ func _ready() -> void:
 	if _modules.is_empty():
 		push_error("Architecture Library Viewer: selected recipe contains no modules.")
 		return
+	_module_index = clampi(_module_index, 0, _modules.size() - 1)
 	if theme_profiles.is_empty():
 		push_error("Architecture Library Viewer: at least one theme profile is required.")
 		return
