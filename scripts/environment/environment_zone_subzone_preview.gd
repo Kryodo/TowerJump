@@ -11,7 +11,8 @@ extends Node2D
 
 const COMPOSITOR_SCRIPT: Script = preload("res://scripts/environment/environment_preview_compositor.gd")
 const BACKGROUND_COLOR := Color(0.007843138, 0.023529412, 0.050980393, 1.0)
-const HEIGHT_ORIGIN: float = 600.0
+# The production Ball origin is Y=600, while the production Camera2D starts at Y=640.
+const CAMERA_RUN_ORIGIN_Y: float = 640.0
 
 var _camera: Camera2D
 var _compositor: EnvironmentPreviewCompositor
@@ -74,14 +75,14 @@ func _unhandled_key_input(event: InputEvent) -> void:
 func _create_camera_and_background() -> void:
 	_camera = Camera2D.new()
 	_camera.name = "PreviewCamera"
-	_camera.position = Vector2(360.0, HEIGHT_ORIGIN - _view_height_px)
+	_camera.position = Vector2(360.0, CAMERA_RUN_ORIGIN_Y - _view_height_px)
 	_camera.enabled = true
 	add_child(_camera)
 	_camera.make_current()
 
 	var background := ColorRect.new()
 	background.name = "PreviewVoid"
-	background.position = Vector2(-360.0, -HEIGHT_ORIGIN)
+	background.position = Vector2(-360.0, -CAMERA_RUN_ORIGIN_Y)
 	background.size = Vector2(720.0, 1280.0)
 	background.color = BACKGROUND_COLOR
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -96,6 +97,7 @@ func _create_compositor() -> void:
 	_compositor.world_seed = fixed_seeds[_seed_index]
 	_compositor.theme_override = theme_profiles[_theme_index]
 	_compositor.camera_path = NodePath("../PreviewCamera")
+	_compositor.camera_run_origin_y = CAMERA_RUN_ORIGIN_Y
 	_compositor.z_index = -50
 	add_child(_compositor)
 
