@@ -219,9 +219,13 @@ func _update_parallax() -> void:
 		var x_factor: float = _architecture_x_factors[index]
 		var y_factor: float = _architecture_y_factors[index]
 		_architecture_layers[index].scale = Vector2(x_factor, y_factor)
+		# The full-game preview shifts its game root upward by the jump-in
+		# height and offsets section coordinates by the same amount. Add that
+		# origin back here so the layer's GLOBAL parallax offset remains exactly
+		# camera.global_position.y * (1 - factor), as in the preserved study.
 		_architecture_layers[index].position = Vector2(
 			WORLD_WIDTH * 0.5 * (1.0 - x_factor),
-			_camera.global_position.y * (1.0 - y_factor)
+			world_origin_height_px + _camera.global_position.y * (1.0 - y_factor)
 		)
 
 	for index in range(_ambient_layers.size()):
@@ -232,7 +236,7 @@ func _update_parallax() -> void:
 		_ambient_layers[index].scale = Vector2(x_factor, y_factor)
 		_ambient_layers[index].position = Vector2(
 			WORLD_WIDTH * 0.5 * (1.0 - x_factor),
-			_camera.position.y * (1.0 - y_factor)
+			world_origin_height_px + _camera.global_position.y * (1.0 - y_factor)
 		)
 
 
