@@ -40,6 +40,8 @@ func _run_suite() -> void:
 
 	if ZONE_PROFILE.subzones.size() != 1:
 		failures.append("Reference parity zone must contain exactly one full-height subzone.")
+	elif not ZONE_PROFILE.subzones[0].preserve_reference_overdraw:
+		failures.append("Reference parity fixture must explicitly preserve the original full-window overdraw.")
 	if ZONE_PROFILE.landmark_anchors.size() != 2:
 		failures.append("Reference parity zone must contain the Gate and Archive anchors.")
 
@@ -62,6 +64,8 @@ func _run_suite() -> void:
 			or not is_equal_approx(upper_subzone.end_height_px, 11400.0)
 		):
 			failures.append("Diagnostic zone height ranges or intentional void gap changed.")
+		if lower_subzone.preserve_reference_overdraw or upper_subzone.preserve_reference_overdraw:
+			failures.append("Diagnostic zone subzones must use bounded rendering to preserve the intentional void gap.")
 	var diagnostic_plan := EnvironmentCompositionPlanner.build_plan(DIAGNOSTIC_ZONE_PROFILE, 7319)
 	var diagnostic_repeat := EnvironmentCompositionPlanner.build_plan(DIAGNOSTIC_ZONE_PROFILE, 7319)
 	if EnvironmentCompositionPlanner.plan_signature(diagnostic_plan) != EnvironmentCompositionPlanner.plan_signature(diagnostic_repeat):
@@ -74,6 +78,13 @@ func _run_suite() -> void:
 		var upper_section: Dictionary = diagnostic_sections[1]
 		if int(lower_section.get("architecture_seed", -1)) == int(upper_section.get("architecture_seed", -1)):
 			failures.append("Diagnostic subzones must have independent stable architecture seeds.")
+		if (
+			not is_equal_approx(float(lower_section.get("section_top_y", 0.0)), -4800.0)
+			or not is_equal_approx(float(lower_section.get("section_bottom_y", 0.0)), -1200.0)
+			or not is_equal_approx(float(upper_section.get("section_top_y", 0.0)), -10800.0)
+			or not is_equal_approx(float(upper_section.get("section_bottom_y", 0.0)), -5400.0)
+		):
+			failures.append("Bounded diagnostic section windows must end at their authored height boundaries without reference overdraw.")
 
 	# Full-game jump-in shifts the parent game root by -jump_height and adds
 	# jump_height to architecture draw coordinates before those coordinates are
