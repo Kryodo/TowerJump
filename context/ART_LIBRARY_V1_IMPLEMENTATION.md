@@ -217,7 +217,7 @@ These files are scaffolding for exercising the pipeline. They are not the first 
 - Full-Game Environment Jump-In using the real production scene in a test-only wrapper.
 - Three-case fixed-seed regression manifest and runnable regression scene, including parity-zone validity, exact reference section bounds, A2 fill values, landmark anchor positions, and treatment checks.
 - Full-game parallax origin correction: when the test wrapper offsets the instantiated game root, local layer positions compensate for that offset so global parallax matches the original camera-relative behavior.
-- Parity fixture landmark ownership corrected to the single reference subzone; invalid cross-fixture subzone IDs are no longer carried into the parity zone.
+- Parity fixture uses dedicated Gate/Archive anchor resources bound to its single reference subzone; the original diagnostic anchor resources retain their lower/upper subzone ownership.
 - Documentation of the model, controls, and validation workflow.
 
 ### Still required from the owner
