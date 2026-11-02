@@ -6,7 +6,7 @@
 [resource]
 script = ExtResource("1_script")
 landmark_id = &"archive_fragment"
-subzone_id = &"upper_structure"
+subzone_id = &"reference_full_composition"
 scene = ExtResource("2_scene")
 height_anchor_px = 7280.0
 local_position = Vector2(602, 0)
