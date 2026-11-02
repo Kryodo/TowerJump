@@ -24,6 +24,10 @@ func _ready() -> void:
 	if zone_profile == null or theme_profiles.is_empty() or fixed_seeds.is_empty():
 		push_error("Zone/Subzone Preview: assign a zone, at least one theme, and at least one fixed seed.")
 		return
+	for profile in theme_profiles:
+		if profile == null:
+			push_error("Zone/Subzone Preview: theme_profiles must not contain null entries.")
+			return
 	_view_height_px = clampf(_view_height_px, zone_profile.start_height_px, zone_profile.end_height_px)
 	_create_camera_and_background()
 	_create_compositor()
