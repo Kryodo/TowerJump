@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="EnvironmentLightingProfile" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/environment/environment_lighting_profile.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+profile_id = &"restrained_structural_lights"
+dormant_share = 0.72
+subtle_share = 0.24
+neon_share = 0.04
+intensity_scale = 0.88
+flicker_enabled = false
+flicker_rate_hz = 1.2
+flicker_minimum_alpha = 0.94
