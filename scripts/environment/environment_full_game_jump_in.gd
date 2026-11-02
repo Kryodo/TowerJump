@@ -146,16 +146,24 @@ func _update_hud() -> void:
 	if is_instance_valid(_ball):
 		current_height = START_BALL_Y - _ball.global_position.y
 	var subzone := "VOID"
-	var module_count := 0
+	var section_count := 0
+	var validation_text := "PENDING"
 	if is_instance_valid(_compositor):
 		subzone = _compositor.get_subzone_id_at_height(current_height)
-		module_count = int(_compositor.get_plan_summary().get("section_count", 0))
+		var summary: Dictionary = _compositor.get_plan_summary()
+		section_count = int(summary.get("section_count", 0))
+		var errors: Array = summary.get("errors", [])
+		var warnings: Array = summary.get("warnings", [])
+		validation_text = "VALID" if errors.is_empty() else "ERRORS %d" % errors.size()
+		if errors.is_empty() and not warnings.is_empty():
+			validation_text = "WARNINGS %d" % warnings.size()
 	_hud_label.text = (
 		"FULL-GAME ENVIRONMENT JUMP-IN   |   %s\n" % String(zone_profile.zone_id).to_upper()
-		+ "HEIGHT: %dm   |   SUBZONE: %s   |   ARCHITECTURE SECTIONS: %d\n" % [
+		+ "HEIGHT: %dm   |   SUBZONE: %s   |   SECTIONS: %d   |   PLAN: %s\n" % [
 			roundi(current_height),
 			subzone,
-			module_count,
+			section_count,
+			validation_text,
 		]
 		+ "SEED: %d   |   THEME: %s\n" % [world_seed, String(theme_profiles[_theme_index].profile_id)]
 		+ "TOUCH LEFT/RIGHT OR UI LEFT/RIGHT   1–3 JUMP-IN PRESETS   R RESTART   N NEXT SEED   T THEME"
