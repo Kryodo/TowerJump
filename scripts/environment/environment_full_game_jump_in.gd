@@ -46,10 +46,11 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_seed_index = index
 			_restart_game(JUMP_HEIGHTS[index], FIXED_SEEDS[index])
 		KEY_R:
-			_restart_game(jump_in_height_px, world_seed)
+			_restart_game(_get_current_height(), world_seed)
 		KEY_N:
+			var resume_height := _get_current_height()
 			world_seed = posmod(world_seed + 7919, 2147483646) + 1
-			_restart_game(jump_in_height_px, world_seed)
+			_restart_game(resume_height, world_seed)
 		KEY_T:
 			_theme_index = posmod(_theme_index + 1, THEME_PROFILES.size())
 			if _compositor != null:
@@ -98,6 +99,12 @@ func _restart_game(height_px: float, seed_value: int) -> void:
 	_camera = null
 	_compositor = null
 	call_deferred("_spawn_game")
+
+
+func _get_current_height() -> float:
+	if is_instance_valid(_ball):
+		return maxf(START_BALL_Y - _ball.global_position.y, 0.0)
+	return jump_in_height_px
 
 
 func _create_hud() -> void:
