@@ -77,11 +77,11 @@ func _spawn_game() -> void:
 		push_error("Full-Game Jump-In: scenes/gameplay/main.tscn did not instantiate as Node2D.")
 		return
 	_game_root.name = "TowerJumpMain"
-	add_child(_game_root)
-
-	# The main scene's _ready() records its normal 600 px ball origin first.
-	# Moving the instantiated root afterwards preserves the absolute climb height.
+	# Apply the jump-in transform before entering the scene tree. Child _ready()
+	# methods (especially PlatformSpawner) must initialize from the final global
+	# positions, otherwise their cached spawn cursor remains at the run origin.
 	_game_root.position.y = -jump_in_height_px
+	add_child(_game_root)
 	_ball = _game_root.get_node_or_null("Ball") as CharacterBody2D
 	_camera = _game_root.get_node_or_null("GameCamera") as Camera2D
 	if _ball == null or _camera == null:
@@ -106,7 +106,9 @@ func _restart_game(height_px: float, seed_value: int) -> void:
 	jump_in_height_px = maxf(height_px, 0.0)
 	world_seed = seed_value
 	if is_instance_valid(_game_root):
-		_game_root.queue_free()
+		# Remove the old platform pool synchronously before creating its
+		# replacement so two jump-in instances can never overlap for a frame.
+		_game_root.free()
 	_game_root = null
 	_ball = null
 	_camera = null
