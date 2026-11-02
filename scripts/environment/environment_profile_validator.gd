@@ -20,6 +20,8 @@ static func validate_zone(zone: EnvironmentZoneProfile) -> Dictionary:
 		warnings.append("Zone has no default ambient profile.")
 	if zone.lighting_profile == null:
 		warnings.append("Zone has no default lighting profile.")
+	else:
+		_validate_lighting_profile(zone.lighting_profile, "Zone", errors)
 
 	var subzone_ids: Dictionary = {}
 	var sorted_ranges: Array[Vector2] = []
@@ -79,6 +81,8 @@ static func validate_zone(zone: EnvironmentZoneProfile) -> Dictionary:
 			warnings.append("Subzone %s has no resolved ambient profile." % subzone_id)
 		if subzone.lighting_profile == null and zone.lighting_profile == null:
 			warnings.append("Subzone %s has no resolved lighting profile." % subzone_id)
+		elif subzone.lighting_profile != null:
+			_validate_lighting_profile(subzone.lighting_profile, "Subzone %s" % subzone_id, errors)
 
 	sorted_ranges.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x < b.x)
 	for index in range(1, sorted_ranges.size()):
@@ -122,3 +126,16 @@ static func _find_subzone(zone: EnvironmentZoneProfile, subzone_id: StringName) 
 		if subzone != null and subzone.subzone_id == subzone_id:
 			return subzone
 	return null
+
+
+
+static func _validate_lighting_profile(
+	profile: EnvironmentLightingProfile,
+	scope_label: String,
+	errors: Array[String]
+) -> void:
+	var shares_total := profile.dormant_share + profile.subtle_share + profile.neon_share
+	if profile.dormant_share < 0.0 or profile.subtle_share < 0.0 or profile.neon_share < 0.0:
+		errors.append("%s lighting profile contains a negative light-state share." % scope_label)
+	if shares_total <= 0.0:
+		errors.append("%s lighting profile must enable at least one light state." % scope_label)
