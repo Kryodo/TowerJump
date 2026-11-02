@@ -1,9 +1,8 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://scripts/environment/environment_architecture_module_visual.gd" id="1_visual"]
+[ext_resource type="Script" path="res://scripts/environment/environment_architecture_layer.gd" id="1_layer"]
 
-[node name="MiddleSupportInset" type="Node2D"]
-script = ExtResource("1_visual")
-module_style = 1
-module_width = 210.0
-module_height = 1200.0
+[node name="MiddleSupportGrammar" type="Node2D"]
+script = ExtResource("1_layer")
+layer_type = 1
+module_preview_mode = true
