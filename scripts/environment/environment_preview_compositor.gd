@@ -7,9 +7,14 @@ const WORLD_WIDTH: float = 720.0
 const RUN_ORIGIN_WORLD_Y: float = 600.0
 const AMBIENT_TEXTURE: Texture2D = preload("res://assets/particles/ambient_mote.svg")
 const ARCHITECTURE_LAYER_SCRIPT: Script = preload("res://scripts/environment/environment_architecture_layer.gd")
-const BASE_AMBIENT_AMOUNTS: Array[int] = [54, 18, 5]
-const AMBIENT_PARALLAX_X: Array[float] = [0.88, 0.96, 1.0]
+const BASE_AMBIENT_AMOUNTS: Array[int] = [60, 16, 4]
+const ARCHITECTURE_PARALLAX_X: Array[float] = [0.88, 0.96, 1.0]
 const AMBIENT_PARALLAX_Y: Array[float] = [0.18, 0.46, 0.82]
+const AMBIENT_EMITTER_Z_INDEX: Array[int] = [-30, -28, -29]
+const AMBIENT_VELOCITY_MIN: Array[float] = [2.0, 3.0, 2.5]
+const AMBIENT_VELOCITY_MAX: Array[float] = [8.0, 9.0, 7.0]
+const AMBIENT_SCALE_MIN: Array[float] = [0.18, 0.34, 0.32]
+const AMBIENT_SCALE_MAX: Array[float] = [0.62, 0.72, 0.66]
 const GAME_MOTE_NODE_NAMES: Array[String] = [
 	"AmbientMotes",
 	"AmbientMotesNear",
@@ -169,7 +174,7 @@ func _create_subzone_architecture(section: Dictionary) -> void:
 		layer.z_index = depth + 1
 		add_child(layer)
 		_architecture_layers.append(layer)
-		_architecture_x_factors.append(AMBIENT_PARALLAX_X[depth])
+		_architecture_x_factors.append(ARCHITECTURE_PARALLAX_X[depth])
 		_architecture_y_factors.append(factors[depth])
 
 		if depth == 1:
@@ -240,16 +245,9 @@ func _update_parallax() -> void:
 			local_parallax_y(_camera.global_position.y, y_factor, world_origin_height_px)
 		)
 
-	for index in range(_ambient_layers.size()):
-		if _ambient_layers[index] is Parallax2D:
-			continue
-		var x_factor := AMBIENT_PARALLAX_X[index % AMBIENT_PARALLAX_X.size()]
-		var y_factor := _get_parallax_factors()[index % 3]
-		_ambient_layers[index].scale = Vector2(x_factor, y_factor)
-		_ambient_layers[index].position = Vector2(
-			WORLD_WIDTH * 0.5 * (1.0 - x_factor),
-			local_parallax_y(_camera.global_position.y, y_factor, world_origin_height_px)
-		)
+	# Ambient layers are Parallax2D nodes and use scroll_scale directly. Unlike
+	# architecture layers, motes must not be vertically scaled: the reference
+	# experiment changes their camera-relative motion, not particle size.
 
 
 func _adopt_existing_game_motes() -> void:
@@ -356,57 +354,63 @@ func _rebuild_ambient_layers(profile: EnvironmentAmbientProfile) -> void:
 		profile.near_parallax,
 	]
 	for index in range(3):
-		var factor := maxf(factors[index], 0.08)
-		var layer := Node2D.new()
+		var layer := Parallax2D.new()
 		layer.name = "AmbientParallax%d" % index
-		layer.scale = Vector2(AMBIENT_PARALLAX_X[index], factor)
-		layer.z_index = 20 + index
+		layer.scroll_scale = Vector2(1.0, factors[index])
+		layer.repeat_size = Vector2(0.0, AMBIENT_REPEAT_HEIGHT)
+		layer.repeat_times = 2
+		# The compositor is z=-50. Match the original emitters' own z positions
+		# (-30/-28/-29) after the Parallax2D wrapper is added beneath it.
+		layer.z_index = 50
 		add_child(layer)
+		if _camera != null:
+			layer.global_position = _camera.global_position
 		_ambient_layers.append(layer)
 
 		var emitter := GPUParticles2D.new()
-		emitter.name = "AmbientMoteEmitter"
+		emitter.name = GAME_MOTE_NODE_NAMES[index]
 		emitter.texture = AMBIENT_TEXTURE
-		emitter.amount = maxi(1, roundi(float(BASE_AMBIENT_AMOUNTS[index]) * profile.density_scale))
+		if index == 2:
+			emitter.amount = maxi(
+				1,
+				roundi(float(BASE_AMBIENT_AMOUNTS[0] + BASE_AMBIENT_AMOUNTS[1])
+					* profile.highlight_share * profile.density_scale)
+			)
+		else:
+			emitter.amount = maxi(
+				1,
+				roundi(float(BASE_AMBIENT_AMOUNTS[index]) * profile.density_scale)
+			)
+		emitter.z_index = AMBIENT_EMITTER_Z_INDEX[index]
 		emitter.lifetime = 8.0
 		emitter.preprocess = 8.0
-		emitter.visibility_rect = Rect2(-540.0, -2500.0, 1080.0, 5000.0)
+		emitter.visibility_rect = Rect2(-520.0, -900.0, 1040.0, 1800.0)
+		emitter.local_coords = true
 
 		var material := ParticleProcessMaterial.new()
 		material.emission_shape = 3
-		material.emission_box_extents = Vector3(440.0, 760.0 / factor, 1.0)
+		material.emission_box_extents = (
+			Vector3(440.0, 380.0, 1.0) if index == 2 else Vector3(440.0, 760.0, 1.0)
+		)
+		if index == 2:
+			material.emission_shape_offset = Vector3(0.0, -340.0, 0.0)
 		material.direction = Vector3(0.0, -1.0, 0.0)
 		material.spread = 180.0
-		material.initial_velocity_min = 2.0 * profile.speed_scale
-		material.initial_velocity_max = 8.0 * profile.speed_scale
+		material.initial_velocity_min = AMBIENT_VELOCITY_MIN[index] * profile.speed_scale
+		material.initial_velocity_max = AMBIENT_VELOCITY_MAX[index] * profile.speed_scale
 		material.gravity = Vector3.ZERO
 		material.linear_accel_min = -0.25
 		material.linear_accel_max = 0.25
-		material.scale_min = 0.18 if index == 0 else (0.25 if index == 1 else 0.34)
-		material.scale_max = 0.48 if index == 0 else (0.58 if index == 1 else 0.72)
-		material.color = profile.mote_tint
+		material.scale_min = AMBIENT_SCALE_MIN[index]
+		material.scale_max = AMBIENT_SCALE_MAX[index]
+		material.color = (
+			profile.mote_tint.lightened(0.12) if index == 2 else profile.mote_tint
+		)
 		emitter.process_material = material
 		layer.add_child(emitter)
 		_ambient_emitters.append(emitter)
+		emitter.restart()
 		emitter.emitting = true
-
-		var highlight_count := roundi(float(emitter.amount) * profile.highlight_share)
-		if highlight_count > 0:
-			var highlight_emitter := GPUParticles2D.new()
-			highlight_emitter.name = "AmbientMoteHighlights"
-			highlight_emitter.texture = AMBIENT_TEXTURE
-			highlight_emitter.amount = highlight_count
-			highlight_emitter.lifetime = emitter.lifetime
-			highlight_emitter.preprocess = emitter.preprocess
-			highlight_emitter.visibility_rect = emitter.visibility_rect
-			var highlight_material := material.duplicate() as ParticleProcessMaterial
-			highlight_material.scale_min *= 0.62
-			highlight_material.scale_max *= 0.78
-			highlight_material.color = profile.mote_tint.lightened(0.12)
-			highlight_emitter.process_material = highlight_material
-			layer.add_child(highlight_emitter)
-			_ambient_emitters.append(highlight_emitter)
-			highlight_emitter.emitting = true
 
 	_update_parallax()
 
