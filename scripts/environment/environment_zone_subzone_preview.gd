@@ -4,6 +4,7 @@ extends Node2D
 @export var zone_profile: EnvironmentZoneProfile = preload("res://resources/environment/zones/reference_extraction_parity.tres")
 @export var theme_profiles: Array[EnvironmentThemeProfile] = [
 	preload("res://resources/environment/themes/navy_resonance.tres"),
+	preload("res://resources/environment/themes/navy_depth_a1.tres"),
 	preload("res://resources/environment/themes/amber_diagnostic.tres"),
 ]
 @export var fixed_seeds: Array[int] = [7319, 24017, 91207]
