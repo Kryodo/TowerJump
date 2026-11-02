@@ -53,7 +53,8 @@ func set_theme_override(profile: EnvironmentThemeProfile) -> void:
 
 func rebuild() -> void:
 	if zone_profile == null:
-		validation_errors = ["No EnvironmentZoneProfile is assigned."]
+		validation_errors.clear()
+		validation_errors.append("No EnvironmentZoneProfile is assigned.")
 		return
 	if _architecture_layers.is_empty():
 		_create_architecture_layers()
