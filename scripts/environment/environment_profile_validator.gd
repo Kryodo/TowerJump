@@ -53,14 +53,14 @@ static func validate_zone(zone: EnvironmentZoneProfile) -> Dictionary:
 		var recipe := subzone.architecture_recipe
 		if String(recipe.recipe_id).is_empty():
 			errors.append("Subzone %s uses a recipe with an empty ID." % subzone_id)
-		if recipe.section_step_px < 200.0 or recipe.section_step_px > 5000.0:
-			errors.append("Recipe %s section step must remain in the supported 200–5000 px range." % String(recipe.recipe_id))
 		if (
-			recipe.far_density < 0.0 or recipe.far_density > 1.0
-			or recipe.middle_density < 0.0 or recipe.middle_density > 1.0
-			or recipe.near_density < 0.0 or recipe.near_density > 1.0
+			recipe.far_repeat_spacing_px < 800.0 or recipe.far_repeat_spacing_px > 2600.0
+			or recipe.middle_repeat_spacing_px < 800.0 or recipe.middle_repeat_spacing_px > 2200.0
+			or recipe.near_repeat_spacing_px < 1200.0 or recipe.near_repeat_spacing_px > 3200.0
 		):
-			errors.append("Recipe %s has a depth density outside the 0–1 range." % String(recipe.recipe_id))
+			errors.append("Recipe %s has an architectural repeat interval outside the supported range." % String(recipe.recipe_id))
+		if recipe.section_bottom_padding_px < 0.0 or recipe.section_bottom_padding_px > 2000.0:
+			errors.append("Recipe %s has invalid section bottom padding." % String(recipe.recipe_id))
 		if recipe.module_pool.is_empty():
 			errors.append("Recipe %s has an empty module pool." % String(recipe.recipe_id))
 
