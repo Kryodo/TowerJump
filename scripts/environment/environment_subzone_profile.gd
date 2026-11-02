@@ -10,5 +10,6 @@ extends Resource
 ## Null values inherit the corresponding zone-level profile.
 @export var theme_profile: EnvironmentThemeProfile
 @export var ambient_profile: EnvironmentAmbientProfile
+@export var lighting_profile: EnvironmentLightingProfile
 ## Stable identity used for section-local deterministic seed derivation.
 @export var seed_key: StringName
