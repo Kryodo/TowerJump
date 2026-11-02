@@ -59,7 +59,10 @@ func _draw() -> void:
 	if _module_instance != null:
 		var definition := _modules[_module_index]
 		var box := definition.local_bounds
-		var origin := Vector2(360.0 - definition.local_bounds.size.x * PREVIEW_SCALE * 0.5, 180.0)
+		var origin := Vector2(
+			360.0 - (definition.local_bounds.position.x + definition.local_bounds.size.x * 0.5) * PREVIEW_SCALE,
+			180.0 - definition.local_bounds.position.y * PREVIEW_SCALE
+		)
 		var preview_rect := Rect2(
 			origin + box.position * PREVIEW_SCALE,
 			box.size * PREVIEW_SCALE
@@ -112,8 +115,8 @@ func _show_module() -> void:
 		push_error("Architecture Library Viewer: module scene root must be a Node2D.")
 		return
 	_module_instance.position = Vector2(
-		360.0 - definition.local_bounds.size.x * PREVIEW_SCALE * 0.5,
-		180.0
+		360.0 - (definition.local_bounds.position.x + definition.local_bounds.size.x * 0.5) * PREVIEW_SCALE,
+		180.0 - definition.local_bounds.position.y * PREVIEW_SCALE
 	)
 	_module_instance.scale = Vector2(PREVIEW_SCALE, PREVIEW_SCALE)
 	if _module_instance.has_method("configure"):
