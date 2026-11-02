@@ -63,8 +63,12 @@ func rebuild() -> void:
 			child.free()
 
 	_last_plan = EnvironmentCompositionPlanner.build_plan(zone_profile, world_seed, theme_override)
-	validation_errors = _last_plan.get("errors", []).duplicate()
-	validation_warnings = _last_plan.get("warnings", []).duplicate()
+	validation_errors.clear()
+	for message in _last_plan.get("errors", []):
+		validation_errors.append(str(message))
+	validation_warnings.clear()
+	for message in _last_plan.get("warnings", []):
+		validation_warnings.append(str(message))
 	if not validation_errors.is_empty():
 		for message in validation_errors:
 			push_error("EnvironmentPreviewCompositor: " + message)
@@ -80,13 +84,14 @@ func rebuild() -> void:
 			continue
 		instance.position = placement.root_position + Vector2(0.0, world_origin_height_px)
 		instance.scale.x = -1.0 if placement.mirror_x else 1.0
-		instance.call(
-			"configure",
-			placement.theme_profile,
-			placement.lighting_profile,
-			int(placement.seed),
-			int(placement.light_state)
-		)
+		if instance.has_method("configure"):
+			instance.call(
+				"configure",
+				placement.theme_profile,
+				placement.lighting_profile,
+				int(placement.seed),
+				int(placement.light_state)
+			)
 		_architecture_layers[int(definition.depth_layer)].add_child(instance)
 
 	for landmark in _last_plan.landmarks:
@@ -98,12 +103,13 @@ func rebuild() -> void:
 			push_warning("EnvironmentPreviewCompositor: Landmark %s did not instantiate as Node2D." % String(anchor.landmark_id))
 			continue
 		instance.position = landmark.root_position + Vector2(0.0, world_origin_height_px)
-		instance.call(
-			"configure",
-			landmark.theme_profile,
-			landmark.lighting_profile,
-			int(landmark.seed)
-		)
+		if instance.has_method("configure"):
+			instance.call(
+				"configure",
+				landmark.theme_profile,
+				landmark.lighting_profile,
+				int(landmark.seed)
+			)
 		# Landmarks sit in the middle architectural depth, above far masses.
 		_architecture_layers[1].add_child(instance)
 
