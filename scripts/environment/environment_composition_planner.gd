@@ -1,9 +1,11 @@
 class_name EnvironmentCompositionPlanner
 extends RefCounted
-## Builds a deterministic placement plan without creating scene nodes.
-## Previews and regression tests consume the same plan.
+## Resolves a zone into deterministic architectural sections and authored landmarks.
+## The geometry itself is rendered by EnvironmentArchitectureLayer, which contains
+## the extracted far/middle/near grammar from the preserved experiment.
 
 const RUN_ORIGIN_WORLD_Y: float = 600.0
+
 
 static func build_plan(
 	zone: EnvironmentZoneProfile,
@@ -17,14 +19,62 @@ static func build_plan(
 		errors.append(str(message))
 	for message in validation.get("warnings", []):
 		warnings.append(str(message))
-	var placements: Array[Dictionary] = []
+
+	var architecture_sections: Array[Dictionary] = []
 	var landmarks: Array[Dictionary] = []
 	var reservations: Array[Rect2] = []
 
 	if not errors.is_empty():
-		return _make_result(zone, world_seed, placements, landmarks, reservations, errors, warnings)
+		return _make_result(zone, world_seed, architecture_sections, landmarks, reservations, errors, warnings)
 
-	# Landmark reservations are established before any procedural module is considered.
+	for subzone in zone.subzones:
+		if subzone == null or subzone.architecture_recipe == null:
+			continue
+		var stable_subzone_key: StringName = (
+			subzone.seed_key
+			if not String(subzone.seed_key).is_empty()
+			else subzone.subzone_id
+		)
+
+		# A one-subzone reference composition receives the world seed unchanged.
+		# This is required to reproduce the established seed-7319 comparison exactly.
+		# Multi-subzone compositions derive independent stable section seeds.
+		var architecture_seed := world_seed
+		if zone.subzones.size() > 1:
+			architecture_seed = EnvironmentSeedResolver.section_seed(
+				world_seed,
+				zone.zone_id,
+				stable_subzone_key,
+				&"architecture_grammar"
+			)
+
+		var theme := _resolve_theme(zone, subzone, theme_override)
+		var ambient := _resolve_ambient(zone, subzone)
+		var lighting := _resolve_lighting(zone, subzone)
+		var recipe: EnvironmentArchitectureRecipe = subzone.architecture_recipe
+		var section_top_y := RUN_ORIGIN_WORLD_Y - subzone.end_height_px
+		var section_bottom_y := (
+			RUN_ORIGIN_WORLD_Y
+			- subzone.start_height_px
+			+ recipe.section_bottom_padding_px
+		)
+		architecture_sections.append({
+			"subzone_id": subzone.subzone_id,
+			"stable_seed_key": stable_subzone_key,
+			"start_height_px": subzone.start_height_px,
+			"end_height_px": subzone.end_height_px,
+			"section_top_y": section_top_y,
+			"section_bottom_y": section_bottom_y,
+			"architecture_seed": architecture_seed,
+			"recipe": recipe,
+			"theme_profile": theme,
+			"ambient_profile": ambient,
+			"lighting_profile": lighting,
+		})
+
+	# Register all fixed landmark reservations before returning the plan.
+	# The base architecture is allowed to remain behind a landmark, as in the
+	# original study; additional authored modules must respect these clearances.
 	for anchor in zone.landmark_anchors:
 		var subzone := _find_subzone(zone, anchor.subzone_id)
 		var theme := _resolve_theme(zone, subzone, theme_override, anchor.theme_override)
@@ -53,92 +103,14 @@ static func build_plan(
 			"clearance_rect": clearance,
 		})
 
-	var suppressed_count := 0
-	for subzone in zone.subzones:
-		var recipe := subzone.architecture_recipe
-		var stable_subzone_key: StringName = subzone.seed_key if not String(subzone.seed_key).is_empty() else subzone.subzone_id
-		if recipe == null:
-			continue
-		var theme := _resolve_theme(zone, subzone, theme_override)
-		var lighting := _resolve_lighting(zone, subzone)
-		var step_px := maxf(recipe.section_step_px, 200.0)
-		var section_count := int(ceil((subzone.end_height_px - subzone.start_height_px) / step_px))
-
-		for section_index in range(section_count):
-			var section_height := subzone.start_height_px + float(section_index) * step_px
-			if section_height >= subzone.end_height_px:
-				continue
-			for depth in range(3):
-				var density := _density_for_depth(recipe, depth)
-				var candidates := _modules_for_depth(recipe, depth)
-				if candidates.is_empty() or density <= 0.0:
-					continue
-
-				var stable_key := StringName("height_%d_depth_%d" % [roundi(section_height), depth])
-				var section_seed := EnvironmentSeedResolver.section_seed(
-					world_seed,
-					zone.zone_id,
-					stable_subzone_key,
-					stable_key
-				)
-				var density_roll := float(posmod(section_seed, 10000)) / 10000.0
-				if density_roll >= density:
-					continue
-
-				var module: ArchitectureModuleDefinition = candidates[posmod(section_seed, candidates.size())]
-				var side_count := 1 if depth == ArchitectureModuleDefinition.DepthLayer.NEAR else 2
-				for side_index in range(side_count):
-					var side_key := StringName("%s_side_%d" % [String(stable_key), side_index])
-					var side_seed := EnvironmentSeedResolver.section_seed(
-						world_seed,
-						zone.zone_id,
-						stable_subzone_key,
-						side_key
-					)
-					var mirrored := false
-					var root_x := 0.0
-					if depth == ArchitectureModuleDefinition.DepthLayer.NEAR:
-						mirrored = posmod(side_seed, 2) == 1
-						root_x = 720.0 if mirrored else 0.0
-					else:
-						mirrored = side_index == 1
-						root_x = 720.0 if mirrored else 0.0
-
-					var y_jitter := float(posmod(side_seed, 41)) - 20.0
-					var root_position := Vector2(root_x, RUN_ORIGIN_WORLD_Y - section_height + y_jitter)
-					var clearance := _module_clearance_rect(module, root_position, mirrored)
-					var blocked := false
-					for reservation in reservations:
-						if clearance.intersects(reservation):
-							blocked = true
-							break
-					if blocked:
-						suppressed_count += 1
-						continue
-
-					placements.append({
-						"definition": module,
-						"root_position": root_position,
-						"mirror_x": mirrored,
-						"height_anchor_px": section_height,
-						"subzone_id": subzone.subzone_id,
-						"section_key": stable_key,
-						"seed": side_seed,
-						"light_state": lighting.state_for_seed(side_seed) if lighting != null else EnvironmentLightingProfile.LightState.DORMANT,
-						"theme_profile": theme,
-						"lighting_profile": lighting,
-						"clearance_rect": clearance,
-					})
-
 	return _make_result(
 		zone,
 		world_seed,
-		placements,
+		architecture_sections,
 		landmarks,
 		reservations,
 		errors,
-		warnings,
-		suppressed_count
+		warnings
 	)
 
 
@@ -148,16 +120,15 @@ static func plan_signature(plan: Dictionary) -> int:
 		String(plan.get("zone_id", "")),
 		int(plan.get("world_seed", 0)),
 	])
-	for placement in plan.get("placements", []):
-		var definition: ArchitectureModuleDefinition = placement.definition
-		lines.append("M|%s|%s|%d|%d|%d|%d|%s" % [
-			String(definition.module_id),
-			String(placement.subzone_id),
-			int(placement.height_anchor_px),
-			roundi(placement.root_position.x),
-			roundi(placement.root_position.y),
-			int(placement.seed),
-			String(placement.section_key),
+	for section in plan.get("architecture_sections", []):
+		var recipe: EnvironmentArchitectureRecipe = section.recipe
+		lines.append("S|%s|%s|%d|%d|%d|%s" % [
+			String(section.subzone_id),
+			String(section.stable_seed_key),
+			int(section.start_height_px),
+			int(section.end_height_px),
+			int(section.architecture_seed),
+			String(recipe.recipe_id),
 		])
 	for landmark in plan.get("landmarks", []):
 		var anchor: EnvironmentLandmarkAnchor = landmark.anchor
@@ -174,24 +145,23 @@ static func plan_signature(plan: Dictionary) -> int:
 static func _make_result(
 	zone: EnvironmentZoneProfile,
 	world_seed: int,
-	placements: Array[Dictionary],
+	architecture_sections: Array[Dictionary],
 	landmarks: Array[Dictionary],
 	reservations: Array[Rect2],
 	errors: Array[String],
-	warnings: Array[String],
-	suppressed_count: int = 0
+	warnings: Array[String]
 ) -> Dictionary:
 	return {
 		"zone_id": String(zone.zone_id) if zone != null else "",
 		"world_seed": world_seed,
-		"placements": placements,
+		"architecture_sections": architecture_sections,
 		"landmarks": landmarks,
 		"reservations": reservations,
 		"errors": errors,
 		"warnings": warnings,
-		"suppressed_count": suppressed_count,
-		"placement_count": placements.size(),
+		"section_count": architecture_sections.size(),
 		"landmark_count": landmarks.size(),
+		"reservation_count": reservations.size(),
 	}
 
 
@@ -217,6 +187,15 @@ static func _resolve_theme(
 	return zone.theme_profile
 
 
+static func _resolve_ambient(
+	zone: EnvironmentZoneProfile,
+	subzone: EnvironmentSubzoneProfile
+) -> EnvironmentAmbientProfile:
+	if subzone != null and subzone.ambient_profile != null:
+		return subzone.ambient_profile
+	return zone.ambient_profile
+
+
 static func _resolve_lighting(
 	zone: EnvironmentZoneProfile,
 	subzone: EnvironmentSubzoneProfile
@@ -224,39 +203,3 @@ static func _resolve_lighting(
 	if subzone != null and subzone.lighting_profile != null:
 		return subzone.lighting_profile
 	return zone.lighting_profile
-
-
-static func _modules_for_depth(
-	recipe: EnvironmentArchitectureRecipe,
-	depth: int
-) -> Array[ArchitectureModuleDefinition]:
-	var result: Array[ArchitectureModuleDefinition] = []
-	for module in recipe.module_pool:
-		if module != null and module.depth_layer == depth:
-			result.append(module)
-	return result
-
-
-static func _density_for_depth(recipe: EnvironmentArchitectureRecipe, depth: int) -> float:
-	match depth:
-		ArchitectureModuleDefinition.DepthLayer.FAR:
-			return recipe.far_density
-		ArchitectureModuleDefinition.DepthLayer.NEAR:
-			return recipe.near_density
-		_:
-			return recipe.middle_density
-
-
-static func _module_clearance_rect(
-	module: ArchitectureModuleDefinition,
-	root_position: Vector2,
-	mirrored: bool
-) -> Rect2:
-	var local_rect := module.clearance_bounds
-	if local_rect.size.x <= 0.0 or local_rect.size.y <= 0.0:
-		local_rect = module.local_bounds
-	var world_x := root_position.x - local_rect.position.x - local_rect.size.x if mirrored else root_position.x + local_rect.position.x
-	return Rect2(
-		Vector2(world_x, root_position.y + local_rect.position.y),
-		local_rect.size
-	)
