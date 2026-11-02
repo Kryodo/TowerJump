@@ -98,21 +98,27 @@ func _show_module() -> void:
 	if _module_instance != null and is_instance_valid(_module_instance):
 		_module_instance.queue_free()
 	var definition := _modules[_module_index]
+	if definition.scene == null:
+		_module_instance = null
+		push_error("Architecture Library Viewer: module %s has no PackedScene." % String(definition.module_id))
+		_update_hud()
+		return
 	_module_instance = definition.scene.instantiate() as Node2D
 	if _module_instance == null:
-		push_error("Architecture Library Viewer: module scene failed to instantiate.")
+		push_error("Architecture Library Viewer: module scene root must be a Node2D.")
 		return
 	_module_instance.position = Vector2(
 		360.0 - definition.local_bounds.size.x * PREVIEW_SCALE * 0.5,
 		180.0
 	)
 	_module_instance.scale = Vector2(PREVIEW_SCALE, PREVIEW_SCALE)
-	_module_instance.call(
-		"configure",
-		theme_profiles[_theme_index],
-		lighting_profile,
-		fixed_seeds[_seed_index]
-	)
+	if _module_instance.has_method("configure"):
+		_module_instance.call(
+			"configure",
+			theme_profiles[_theme_index],
+			lighting_profile,
+			fixed_seeds[_seed_index]
+		)
 	add_child(_module_instance)
 	queue_redraw()
 	_update_hud()
