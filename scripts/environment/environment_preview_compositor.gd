@@ -46,6 +46,17 @@ var _active_ambient_profile: EnvironmentAmbientProfile
 var _last_plan: Dictionary = {}
 
 
+static func local_parallax_y(
+	camera_global_y: float,
+	parallax_factor: float,
+	world_origin_height: float
+) -> float:
+	# The compositor is parented below the jump-shifted game root in Full-Game
+	# Jump-In. This converts a desired global parallax offset into that parent's
+	# local coordinates while remaining identical to the original at origin 0.
+	return world_origin_height + camera_global_y * (1.0 - parallax_factor)
+
+
 func _ready() -> void:
 	_camera = get_node_or_null(camera_path) as Camera2D if not camera_path.is_empty() else null
 	if _camera == null:
@@ -225,7 +236,7 @@ func _update_parallax() -> void:
 		# camera.global_position.y * (1 - factor), as in the preserved study.
 		_architecture_layers[index].position = Vector2(
 			WORLD_WIDTH * 0.5 * (1.0 - x_factor),
-			world_origin_height_px + _camera.global_position.y * (1.0 - y_factor)
+			local_parallax_y(_camera.global_position.y, y_factor, world_origin_height_px)
 		)
 
 	for index in range(_ambient_layers.size()):
@@ -236,7 +247,7 @@ func _update_parallax() -> void:
 		_ambient_layers[index].scale = Vector2(x_factor, y_factor)
 		_ambient_layers[index].position = Vector2(
 			WORLD_WIDTH * 0.5 * (1.0 - x_factor),
-			world_origin_height_px + _camera.global_position.y * (1.0 - y_factor)
+			local_parallax_y(_camera.global_position.y, y_factor, world_origin_height_px)
 		)
 
 
