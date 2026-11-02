@@ -9,5 +9,5 @@ module_id = &"middle_support_grammar"
 family = 1
 depth_layer = 1
 scene = ExtResource("2_scene")
-local_bounds = Rect2(-28, 120, 220, 1090)
-clearance_bounds = Rect2(-38, 108, 232, 1114)
+local_bounds = Rect2(-28, 120, 250, 1172)
+clearance_bounds = Rect2(-38, 108, 262, 1196)
