@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/environment/environment_full_game_jump_in.gd" id="1_script"]
+
+[node name="FullGameEnvironmentJumpIn" type="Node2D"]
+script = ExtResource("1_script")
+jump_in_height_px = 3600.0
+world_seed = 7319
