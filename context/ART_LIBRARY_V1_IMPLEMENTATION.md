@@ -175,7 +175,7 @@ The baseline manifest is resources/environment/regression/preview_diagnostic_fix
 | 24017 | 3501769721 | 21 | 2 | 6 |
 | 91207 | 81216545 | 21 | 2 | 6 |
 
-The regression scene checks stable seed repeatability, distinct stable section keys, profile validity, repeated plan-signature equality, manifest signature/count equality, and absence of module-clearance overlap with any landmark reservation.
+The regression scene checks stable seed repeatability, distinct stable section keys, that changing an authored subzone seed key changes the composition, that changing a landmark neighborhood key changes its derived seed, profile validity, repeated plan-signature equality, manifest signature/count equality, and absence of module-clearance overlap with any landmark reservation.
 
 Run after project import:
 
