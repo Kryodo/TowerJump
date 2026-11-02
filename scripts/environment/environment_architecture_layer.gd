@@ -186,11 +186,9 @@ func _structured_far_palette() -> Dictionary:
 	# far-layer panel/window values used by the approved reference composition.
 	var detail: Dictionary = FAR_STRUCTURED_A2.duplicate(true)
 	if theme_profile != null:
-		detail["window_lit"] = theme_profile.light_subtle
-		detail["window_neon"] = Color(0.13, 0.37, 0.55, 0.74)
-		var halo: Color = theme_profile.accent_primary
-		halo.a = 0.10
-		detail["window_halo"] = halo
+		detail["window_lit"] = theme_profile.far_window_lit
+		detail["window_neon"] = theme_profile.far_window_neon
+		detail["window_halo"] = theme_profile.far_window_halo
 	return detail
 
 
