@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="EnvironmentZoneProfile" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/environment/environment_zone_profile.gd" id="1_script"]
+[ext_resource type="Resource" path="res://resources/environment/themes/navy_resonance.tres" id="2_theme"]
+[ext_resource type="Resource" path="res://resources/environment/ambient/default_motes.tres" id="3_ambient"]
+[ext_resource type="Resource" path="res://resources/environment/lighting/restrained_structural_lights.tres" id="4_lighting"]
+[ext_resource type="Resource" path="res://resources/environment/subzones/reference_full_composition.tres" id="5_subzone"]
+[ext_resource type="Resource" path="res://resources/environment/landmarks/resonance_gate_anchor.tres" id="6_gate"]
+[ext_resource type="Resource" path="res://resources/environment/landmarks/archive_fragment_anchor.tres" id="7_archive"]
+
+[resource]
+script = ExtResource("1_script")
+zone_id = &"reference_extraction_parity"
+start_height_px = 0.0
+end_height_px = 11000.0
+theme_profile = ExtResource("2_theme")
+ambient_profile = ExtResource("3_ambient")
+lighting_profile = ExtResource("4_lighting")
+subzones = Array[EnvironmentSubzoneProfile]([ExtResource("5_subzone")])
+landmark_anchors = Array[EnvironmentLandmarkAnchor]([ExtResource("6_gate"), ExtResource("7_archive")])
