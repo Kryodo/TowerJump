@@ -30,6 +30,8 @@ enum MidDetailTreatment {
 @export var world_width: float = 720.0
 @export var section_top_y: float = -10400.0
 @export var section_bottom_y: float = 1600.0
+## True for the isolated original-study fixture; normal subzones use bounded geometry.
+@export var preserve_reference_overdraw: bool = false
 @export var far_detail_treatment: FarDetailTreatment = FarDetailTreatment.COMPACT_PANEL_FLICKER
 @export var mid_detail_treatment: MidDetailTreatment = MidDetailTreatment.INSETS_AND_MECHANICAL_RECESSES
 @export var module_preview_mode: bool = false
@@ -84,6 +86,18 @@ func _draw() -> void:
 				_draw_near_frames()
 		return
 
+	if not preserve_reference_overdraw:
+		match layer_type:
+			LayerType.FAR_SILHOUETTES:
+				_draw_far_architecture_bounded()
+			LayerType.MID_ARCHITECTURE:
+				_draw_mid_architecture_bounded()
+			LayerType.NEAR_FRAMES:
+				_draw_near_frames_bounded()
+		return
+
+	# The explicit reference path below preserves the original study's overdraw
+	# and coordinates exactly. Do not change it without refreshing parity baselines.
 	match layer_type:
 		LayerType.FAR_SILHOUETTES:
 			_draw_far_architecture()
@@ -138,6 +152,27 @@ func _draw_far_architecture() -> void:
 		_draw_far_mass(-1.0, y + y_jitter + (120.0 if index % 2 == 0 else -80.0), height, right_width, index + 1)
 		index += 1
 		y += architecture_recipe.far_repeat_spacing_px if architecture_recipe != null else 1580.0
+
+func _draw_far_architecture_bounded() -> void:
+	# Same silhouettes, spacing, palette, and aperture grammar as the reference
+	# renderer, but no mass is allowed to extend outside this subzone's height.
+	var y: float = section_top_y
+	var index := 0
+	while y < section_bottom_y:
+		var height: float = 1920.0 + _rng.randf_range(-110.0, 120.0)
+		var left_width: float = 165.0 + float(index % 3) * 24.0 + _rng.randf_range(-10.0, 10.0)
+		var right_width: float = 162.0 + float((index + 1) % 3) * 26.0 + _rng.randf_range(-10.0, 10.0)
+		var y_jitter: float = _rng.randf_range(-60.0, 60.0)
+		var right_offset: float = 120.0 if index % 2 == 0 else -80.0
+		var left_top_y: float = maxf(section_top_y, y + y_jitter)
+		var right_top_y: float = maxf(section_top_y, y + y_jitter + right_offset)
+		if left_top_y + height <= section_bottom_y:
+			_draw_far_mass(1.0, left_top_y, height, left_width, index)
+		if right_top_y + height <= section_bottom_y:
+			_draw_far_mass(-1.0, right_top_y, height, right_width, index + 1)
+		index += 1
+		y += architecture_recipe.far_repeat_spacing_px if architecture_recipe != null else 1580.0
+
 
 func _draw_far_mass(side: float, top_y: float, height: float, width: float, index: int) -> void:
 	var edge_x: float = 0.0 if side > 0.0 else world_width
@@ -452,6 +487,26 @@ func _draw_mid_architecture() -> void:
 			_draw_support_module(-1.0, y + (180.0 if index % 2 == 0 else -110.0), index + 2)
 		index += 1
 		y += architecture_recipe.middle_repeat_spacing_px if architecture_recipe != null else 1260.0
+
+func _draw_mid_architecture_bounded() -> void:
+	# The largest authored support variant is 1,172 px tall. Use that conservative
+	# envelope so neither the primary nor offset opposing support crosses a boundary.
+	const MAX_SUPPORT_HEIGHT: float = 1172.0
+	var y: float = section_top_y + 120.0
+	var index := 0
+	var spacing: float = architecture_recipe.middle_repeat_spacing_px if architecture_recipe != null else 1260.0
+	while y + MAX_SUPPORT_HEIGHT <= section_bottom_y:
+		_draw_support_module(1.0, y, index)
+		if index % 4 != 1 or _rng.randf() < 0.12:
+			var opposite_y: float = y + (180.0 if index % 2 == 0 else -110.0)
+			if (
+				opposite_y >= section_top_y
+				and opposite_y + MAX_SUPPORT_HEIGHT <= section_bottom_y
+			):
+				_draw_support_module(-1.0, opposite_y, index + 2)
+		index += 1
+		y += spacing
+
 
 func _draw_support_module(side: float, top_y: float, index: int) -> void:
 	var edge_x: float = 0.0 if side > 0.0 else world_width
@@ -823,6 +878,26 @@ func _draw_near_frames() -> void:
 		else:
 			draw_line(right_start, right_start + Vector2(0.0, -length), _near_seam_color(), 2.0, true)
 		y += architecture_recipe.near_repeat_spacing_px if architecture_recipe != null else 2140.0
+		index += 1
+
+
+func _draw_near_frames_bounded() -> void:
+	var y: float = section_top_y + 400.0
+	var index := 0
+	var spacing: float = architecture_recipe.near_repeat_spacing_px if architecture_recipe != null else 2140.0
+	while y < section_bottom_y:
+		var length: float = (430.0 if index % 2 == 0 else 280.0) + _rng.randf_range(-45.0, 45.0)
+		if index % 2 == 0:
+			if y + length <= section_bottom_y:
+				var left_start := Vector2(14.0, y)
+				draw_line(left_start, left_start + Vector2(0.0, length), _near_seam_color(), 2.0, true)
+		else:
+			var right_start_y: float = y + 360.0
+			var right_top_y: float = right_start_y - length
+			if right_top_y >= section_top_y and right_start_y <= section_bottom_y:
+				var right_start := Vector2(world_width - 14.0, right_start_y)
+				draw_line(right_start, right_start + Vector2(0.0, -length), _near_seam_color(), 2.0, true)
+		y += spacing
 		index += 1
 
 
