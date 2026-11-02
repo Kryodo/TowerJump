@@ -89,6 +89,7 @@ func _create_compositor() -> void:
 	_compositor.name = "EnvironmentPreviewCompositor"
 	_compositor.zone_profile = zone_profile
 	_compositor.world_seed = fixed_seeds[_seed_index]
+	_compositor.theme_override = theme_profiles[_theme_index]
 	_compositor.camera_path = NodePath("../PreviewCamera")
 	_compositor.z_index = -50
 	add_child(_compositor)
