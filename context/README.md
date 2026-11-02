@@ -7,9 +7,10 @@ This folder is the maintained handoff point for TowerJump design and implementat
 ## Start here
 
 1. **[ART_PIPELINE_MASTERPLAN.md](ART_PIPELINE_MASTERPLAN.md)** — authoritative current plan for the environment-art pipeline, the bounded Art Library V1 scope, architecture and theme systems, the first two representative zones, preview tooling, and the next implementation steps.
-2. **[design/TowerJump Neon Design V2.md](design/TowerJump%20Neon%20Design%20V2.md)** — broader game and visual-design reference. Treat it as historical design context; prefer newer explicitly approved decisions in the masterplan.
-3. **[Repository Organization and Validation.md](Repository%20Organization%20and%20Validation.md)** — record of the repository restructure, warning cleanup, successful owner runtime validation, and current branch/tag state.
-4. **[archive/conversation-history/TowerJump Neon Prototype-20261011-1854.md](archive/conversation-history/TowerJump%20Neon%20Prototype-20261011-1854.md)** — historical prototype transcript; useful for recovering decisions, not a current specification.
+2. **[ART_LIBRARY_V1_IMPLEMENTATION.md](ART_LIBRARY_V1_IMPLEMENTATION.md)** — source audit, initial data contracts, reuse decisions, and implementation checkpoints.
+3. **[design/TowerJump Neon Design V2.md](design/TowerJump%20Neon%20Design%20V2.md)** — broader game and visual-design reference. Treat it as historical design context; prefer newer explicitly approved decisions in the masterplan.
+4. **[Repository Organization and Validation.md](Repository%20Organization%20and%20Validation.md)** — record of the repository restructure, warning cleanup, successful owner runtime validation, and current branch/tag state.
+5. **[archive/conversation-history/TowerJump Neon Prototype-20261011-1854.md](archive/conversation-history/TowerJump%20Neon%20Prototype-20261011-1854.md)** — historical prototype transcript; useful for recovering decisions, not a current specification.
 
 ## Documentation rules
 
@@ -46,6 +47,8 @@ Environment-art folders and data structures should be introduced deliberately as
 ## Current Art Library V1 status
 
 **Approved strategic scope:** establish a reusable, deterministic environment-art pipeline and prove it with two contrasting representative early zones. Once both zones work in independent preview and the actual game rendering setup, document and freeze Art Pipeline V1. Do not produce the complete game's zone catalog yet.
+
+**Foundation checkpoint (2026-11-02):** repository/reference audit completed; typed resource contracts and stable local seed derivation added on `feature/environment-art-library-v1`. Godot 4.7.x import/parser and runtime validation of these new scripts is still pending. Next: concept Zone 1, derive its actual module needs, and build the first preview vertical slice.
 
 The immediate implementation phase is a source/repository audit, reconciliation of the remaining context documents, and design of a minimal data model plus preview workflow. See the masterplan for the complete scope and exit criteria.
 

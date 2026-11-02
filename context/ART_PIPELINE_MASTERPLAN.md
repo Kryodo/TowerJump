@@ -454,21 +454,29 @@ Tags preserve exact historical commits without requiring every completed experim
 
 # 13. Immediate next steps — Art Library V1
 
-1. Confirm the active working branch is `feature/environment-art-library-v1` and that its starting point matches `main`.
-2. Read this masterplan, `context/README.md`, and `context/Repository Organization and Validation.md`.
-3. Inspect the existing organized project structure and environment implementation.
-4. Inspect `experiment-middle-architecture-details` read-only; identify approved implementations worth reusing and separate them from diagnostic/comparison-only scenes.
-5. Reconcile any remaining documentation discrepancies before implementation.
-6. Propose the minimum viable architecture-module, theme-profile, zone/subzone, seed, and landmark data structures. Avoid speculative fields.
-7. Establish a small preview vertical slice: inspect one module, compose one small environment sequence, and verify it in the actual game rendering setup.
-8. Concept Zone 1 and derive its actual module requirements.
-9. Implement and validate Zone 1.
-10. Concept and implement Zone 2 as a genuine variation test using the same pipeline.
-11. Validate both zones with deterministic seeds and at gameplay scale.
-12. Document the proven workflow, save reference compositions, and freeze Art Pipeline V1.
-13. Return to gameplay foundation and mechanics. Defer the remaining zone catalog and full environment production until those systems are established.
+## Completed foundation checkpoint — 2026-11-02
 
-Do not start by generating a large library, building all three preview tools as separate frameworks, or designing every remaining zone. Start with the audit and the smallest complete vertical slice that proves the pipeline can work.
+- Confirmed `main` at `d47ef2206a1326472de3ac1cc1a8a9f7ccda6baa` and the active feature branch at `379f4910e3b108c4bbce8f0aff9482c40227e556`.
+- Verified that the feature branch's three commits ahead of `main` change only the masterplan, context index, and repository-validation document; no gameplay or art source was changed by those commits.
+- Audited the organized production project and the preserved architecture branch read-only.
+- Classified the old palette/architecture comparison scenes and wrappers as diagnostic references, not production assets.
+- Added the initial typed data contracts under `scripts/environment/` and a stable local seed resolver.
+- Recorded the audit and reuse boundaries in `context/ART_LIBRARY_V1_IMPLEMENTATION.md`.
+
+The new scripts have received source-level review only. Godot 4.7.x import/parser and runtime validation remains pending; do not treat the new resources as runtime-verified yet.
+
+## Next implementation steps
+
+1. Run a Godot 4.7.x project import and inspect the new resource scripts for parser/import issues. Preserve any generated `.uid` sidecars.
+2. Concept Zone 1 deliberately from the approved environmental references and new architectural directions. Do not assume a final name, palette, or landmark.
+3. Derive the first actual module requirements from that concept; build only those modules.
+4. Create the smallest useful preview slice: inspect one module, compose a short void → structure → void sequence, and verify it using the actual `scenes/gameplay/main.tscn` rendering setup.
+5. Revisit the data contracts only where the first slice exposes a real missing requirement.
+6. Concept Zone 2 as a genuine architectural and atmospheric variation, then produce it using the same pipeline.
+7. Validate both zones with stable seeds at gameplay scale, document the production workflow, preserve reference compositions, and freeze Art Pipeline V1.
+8. Return to gameplay foundation and mechanics. Defer the remaining zone catalog and full environment production until those systems are established.
+
+Do not start by generating a large library, building all three preview tools as separate frameworks, or designing every remaining zone. Continue with the smallest complete vertical slice that proves the pipeline can work.
 
 
 
