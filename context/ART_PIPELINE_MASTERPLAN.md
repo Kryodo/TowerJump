@@ -452,33 +452,71 @@ The `milestone/project-organization-v1` tag points to the integrated PR #6 merge
 
 Tags preserve exact historical commits without requiring every completed experiment branch to remain active.
 
-# 13. Immediate next steps — Art Library V1
+# 13. Phase 2 — Art Library data model and preview tooling
 
-## Completed foundation checkpoint — 2026-11-02
+## Status — 2026-11-02
 
-- Confirmed `main` at `d47ef2206a1326472de3ac1cc1a8a9f7ccda6baa` and the active feature branch at `379f4910e3b108c4bbce8f0aff9482c40227e556`.
-- Verified that the feature branch's three commits ahead of `main` change only the masterplan, context index, and repository-validation document; no gameplay or art source was changed by those commits.
-- Audited the organized production project and the preserved architecture branch read-only.
-- Classified the old palette/architecture comparison scenes and wrappers as diagnostic references, not production assets.
-- Added the initial typed data contracts under `scripts/environment/` and a stable local seed resolver.
-- Recorded the audit and reuse boundaries in `context/ART_LIBRARY_V1_IMPLEMENTATION.md`.
+**Implementation status: complete at source level on feature/environment-art-library-v1. Godot 4.7.x import, parser, and runtime validation is still pending.**
 
-The new scripts have received source-level review only. Godot 4.7.x import/parser and runtime validation remains pending; do not treat the new resources as runtime-verified yet.
+Phase 2 is the reusable model and the tools needed to inspect it. It is deliberately separate from Zone 1/Zone 2 concept production. The implementation uses one shared profile validator, deterministic composition planner, and compositor; the three preview capabilities are lightweight runnable test scenes rather than separate editor-plugin frameworks.
 
-## Next implementation steps
+The active production branch main and the preserved architecture reference experiment-middle-architecture-details have not been modified by this implementation.
 
-1. Run a Godot 4.7.x project import and inspect the new resource scripts for parser/import issues. Preserve any generated `.uid` sidecars.
-2. Concept Zone 1 deliberately from the approved environmental references and new architectural directions. Do not assume a final name, palette, or landmark.
-3. Derive the first actual module requirements from that concept; build only those modules.
-4. Create the smallest useful preview slice: inspect one module, compose a short void → structure → void sequence, and verify it using the actual `scenes/gameplay/main.tscn` rendering setup.
-5. Revisit the data contracts only where the first slice exposes a real missing requirement.
-6. Concept Zone 2 as a genuine architectural and atmospheric variation, then produce it using the same pipeline.
-7. Validate both zones with stable seeds at gameplay scale, document the production workflow, preserve reference compositions, and freeze Art Pipeline V1.
-8. Return to gameplay foundation and mechanics. Defer the remaining zone catalog and full environment production until those systems are established.
+## Required Phase 2 deliverables
 
-Do not start by generating a large library, building all three preview tools as separate frameworks, or designing every remaining zone. Continue with the smallest complete vertical slice that proves the pipeline can work.
+| Required deliverable | Implementation | Current scope |
+|---|---|---|
+| Architecture module definitions and metadata | ArchitectureModuleDefinition Resource | Stable ID, family, depth layer, PackedScene, visual bounds, clearance bounds, connection points. |
+| Theme/palette profiles | EnvironmentThemeProfile Resource | Far/middle fills, near detail, accents, and dormant/subtle/neon light colors. The global navy void remains a scene/background responsibility. |
+| Architecture recipes and module pools | EnvironmentArchitectureRecipe Resource | Ordered module pool, section step, and per-depth density. |
+| Ambient/lighting profiles | EnvironmentAmbientProfile and EnvironmentLightingProfile Resources | Mote tint/density/speed/highlight share and parallax; seeded light-state shares and optional low-amplitude flicker (off by default). |
+| Zone/subzone profile definitions | EnvironmentZoneProfile and EnvironmentSubzoneProfile Resources | Bounded positive climb-height ranges, overrides, recipes, and stable IDs/seed keys. Gaps between subzones are intentional void intervals. |
+| Fixed-height landmark anchors and deterministic height/seed resolver | EnvironmentLandmarkAnchor and EnvironmentSeedResolver | Authored local position, absolute climb-height anchor, neighborhood seed, optional theme override, and a local clearance rectangle. |
+| Fixed-seed regression support | Regression scene + JSON manifest | Repeated plan signatures, expected module/landmark/suppression counts, profile validation, and clearance-overlap checks across three stored seeds. |
+| Architecture Library Viewer | architecture_library_viewer.tscn | Inspect diagnostic modules, family/depth, visual and clearance bounds, connection points, theme, and fixed-seed variants. |
+| Zone and Subzone Preview | zone_subzone_preview.tscn | Inspect the diagnostic zone vertically, including void intervals, subzone identity, landmark heights/reservations, ambient layers, theme overrides, and repeatable seeds. |
+| Full-Game Environment Jump-In | full_game_environment_jump_in.tscn | Instantiate the actual scenes/gameplay/main.tscn, overlay the same compositor at a selected height, and inspect the environment with the real foreground, camera, glow, and game controls. |
 
+### Shared composition behavior
 
+- The planner creates a deterministic, inspectable plan without instantiating scene nodes.
+- Every repeating section gets a seed derived from the world seed, zone ID, subzone stable seed key, and absolute section/depth key. Side placements derive their own seeds from stable side keys.
+- Landmark seeds derive independently from the zone ID, landmark ID, and stable neighborhood key.
+- All landmark clearance rectangles are registered before procedural modules are considered. Any module whose clearance intersects a landmark reservation is suppressed.
+- Positive climb-height zero maps to the production ball's starting local Y coordinate, 600 px. The plan converts a positive height h to local world Y 600 - h; the full-game wrapper applies its jump-in origin offset to overlay nodes only.
+- Far/Middle/Near parallax defaults remain 0.18 / 0.46 / 0.82. Per-subzone ambient profiles can override those values.
+- The compositor uses the zone/subzone-resolved ambient profile and creates three restrained parallax mote layers. Optional highlights are controlled by highlight_share.
+- The production scene, gameplay scripts, movement, physics, platform generation, scoring, and camera script remain untouched.
+
+### Diagnostic fixture boundaries
+
+The current fixture is preview_diagnostic_fixture. It supplies three reusable diagnostic modules (far_aperture_cluster, middle_support_inset, and near_edge_frame), two landmark scene examples (resonance_gate and archive_fragment), navy and amber diagnostic theme profiles, and two structural subzones with deliberate void gaps.
+
+These are implementation fixtures only. They do not select Zone 1 or Zone 2, establish final zone names/palettes, approve either landmark for production, or represent a large production module inventory. The amber profile exists to test theme switching and is not a second-zone design.
+
+### Preview scenes and controls
+
+| Test scene | Controls |
+|---|---|
+| scenes/tests/environment/architecture_library_viewer.tscn | 1–3 or Left/Right: module. T: theme. R: fixed seed. |
+| scenes/tests/environment/zone_subzone_preview.tscn | Up/Down: move 400 px in height. Home: return to the initial 3600 px view. J: jump to the next landmark. 1–3 or R: fixed seed. T: theme. P: save a PNG capture under user://environment_regression/. |
+| scenes/tests/environment/full_game_environment_jump_in.tscn | The instantiated game's normal input controls remain active. 1–3: jump-in presets (1800 / 5400 / 9600 px) and matching fixed seeds. R: restart current height/seed. N: next seed. T: cycle diagnostic theme. |
+| scenes/tests/environment/environment_regression_suite.tscn | Runs deterministic source/layout checks and exits with a status code. |
+
+For a headless regression run after Godot has imported the project:
+
+1. Open/import the project once in Godot 4.7.x, or run godot --headless --editor --path . --quit.
+2. Run godot --headless --path . res://scenes/tests/environment/environment_regression_suite.tscn.
+
+The expected signatures and counts live in resources/environment/regression/preview_diagnostic_fixed_seeds.json. This is a deterministic plan/layout regression, not a pixel-perfect renderer screenshot test. The Zone Preview's P capture is a manual visual-comparison aid.
+
+## Phase 2 completion boundary
+
+All ten required deliverables above now exist in source on the feature branch. This closes the implementation sequence at the data/model/tooling level. It does not close the owner-side Godot validation requirement, nor does it mean that either representative production zone is designed or complete.
+
+The next action is an owner-side Godot 4.7.x import and run-through of the four test scenes. Resolve any parser, resource-registration, rendering, or runtime issues on this same feature branch. Preserve any .uid sidecars Godot generates.
+
+Only after that validation should the work move to Zone 1 concept definition, deriving its actual module needs, and later a genuinely contrasting Zone 2. Do not expand the generic module catalog or lock production zone palettes before those concepts exist.
 
 ---
 
