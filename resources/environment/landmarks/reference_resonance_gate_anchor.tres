@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="EnvironmentLandmarkAnchor" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/environment/environment_landmark_anchor.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://scenes/environment/landmarks/resonance_gate.tscn" id="2_scene"]
+
+[resource]
+script = ExtResource("1_script")
+landmark_id = &"resonance_gate"
+subzone_id = &"reference_full_composition"
+scene = ExtResource("2_scene")
+height_anchor_px = 4880.0
+local_position = Vector2(360, 0)
+clearance_bounds = Rect2(-245, -390, 490, 825)
+seed_key = &"gate_neighborhood"
