@@ -11,5 +11,8 @@ extends Resource
 @export var theme_profile: EnvironmentThemeProfile
 @export var ambient_profile: EnvironmentAmbientProfile
 @export var lighting_profile: EnvironmentLightingProfile
+## Keeps the original full-window renderer overdraw for the isolated parity fixture only.
+## Normal zone subzones stay within their authored height range so intentional void gaps remain open.
+@export var preserve_reference_overdraw: bool = false
 ## Stable identity used for section-local deterministic seed derivation.
 @export var seed_key: StringName
