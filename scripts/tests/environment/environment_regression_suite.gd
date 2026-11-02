@@ -4,6 +4,7 @@ extends Node
 ## godot --headless --path . res://scenes/tests/environment/environment_regression_suite.tscn
 
 const ZONE_PROFILE: EnvironmentZoneProfile = preload("res://resources/environment/zones/reference_extraction_parity.tres")
+const A1_THEME: EnvironmentThemeProfile = preload("res://resources/environment/themes/navy_depth_a1.tres")
 const BASELINE_PATH: String = "res://resources/environment/regression/preview_diagnostic_fixed_seeds.json"
 const REFERENCE_TOP_Y: float = -10400.0
 const REFERENCE_BOTTOM_Y: float = 1600.0
@@ -80,6 +81,31 @@ func _run_suite() -> void:
 			or not is_equal_approx(theme.middle_fill.b, 0.038)
 		):
 			failures.append("Navy theme middle fill no longer matches the established A2 fill.")
+		if not _color_matches(
+			theme.far_panel_fill,
+			Color(0.009, 0.026, 0.052, 0.68)
+		):
+			failures.append("Navy theme far panel fill no longer matches A2 Integrated.")
+		if not _color_matches(
+			theme.far_window_neon,
+			Color(0.13, 0.37, 0.55, 0.74)
+		):
+			failures.append("Navy theme far aperture neon no longer matches A2 Integrated.")
+
+	if String(A1_THEME.profile_id) != "navy_depth_a1":
+		failures.append("A1 theme profile ID is missing or has changed.")
+	if (
+		not _color_matches(A1_THEME.far_fill_a, Color(0.012, 0.010, 0.032, 0.98))
+		or not _color_matches(A1_THEME.far_fill_b, Color(0.016, 0.012, 0.038, 0.98))
+		or not _color_matches(A1_THEME.middle_fill, Color(0.015686275, 0.03137255, 0.0627451, 0.96))
+	):
+		failures.append("A1 dark-far / lifted-middle fill relationship no longer matches the approved reference.")
+	if (
+		not _color_matches(A1_THEME.far_panel_fill, Color(0.003, 0.004, 0.012, 0.82))
+		or not _color_matches(A1_THEME.far_window_neon, Color(0.36, 0.18, 0.54, 0.76))
+		or not _color_matches(A1_THEME.far_window_halo, Color(0.26, 0.12, 0.40, 0.11))
+	):
+		failures.append("A1 near-black recess / purple aperture materials no longer match the approved reference.")
 
 	for case_data in cases:
 		var seed_value := int(case_data.get("seed", 0))
@@ -181,3 +207,12 @@ func _run_suite() -> void:
 		push_error(failure)
 	print("ENVIRONMENT REFERENCE REGRESSION FAIL (%d issue(s))" % failures.size())
 	get_tree().quit(1)
+
+
+func _color_matches(actual: Color, expected: Color) -> bool:
+	return (
+		is_equal_approx(actual.r, expected.r)
+		and is_equal_approx(actual.g, expected.g)
+		and is_equal_approx(actual.b, expected.b)
+		and is_equal_approx(actual.a, expected.a)
+	)
