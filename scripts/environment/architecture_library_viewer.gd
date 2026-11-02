@@ -35,6 +35,10 @@ func _ready() -> void:
 	if fixed_seeds.is_empty():
 		push_error("Architecture Library Viewer: at least one fixed seed is required.")
 		return
+	for profile in theme_profiles:
+		if profile == null:
+			push_error("Architecture Library Viewer: theme_profiles must not contain null entries.")
+			return
 
 	_camera = Camera2D.new()
 	_camera.name = "LibraryViewerCamera"
@@ -147,6 +151,8 @@ func _update_hud() -> void:
 	var definition := _modules[_module_index]
 	var family_names := ["LARGE MASS", "STRUCTURAL", "CONNECTOR", "SURFACE DETAIL"]
 	var depth_names := ["FAR", "MIDDLE", "NEAR"]
+	var family_index := clampi(int(definition.family), 0, family_names.size() - 1)
+	var depth_index := clampi(int(definition.depth_layer), 0, depth_names.size() - 1)
 	var points_text := "—"
 	if not definition.connection_points.is_empty():
 		var values: Array[String] = []
@@ -157,8 +163,8 @@ func _update_hud() -> void:
 		"ART LIBRARY VIEWER   /   MODULE %d OF %d\n" % [_module_index + 1, _modules.size()]
 		+ "%s   |   FAMILY: %s   |   DEPTH: %s\n" % [
 			String(definition.module_id),
-			family_names[definition.family],
-			depth_names[definition.depth_layer],
+			family_names[family_index],
+			depth_names[depth_index],
 		]
 		+ "VISUAL BOUNDS: %s   |   CLEARANCE: %s   |   CONNECTIONS: %s\n" % [
 			str(definition.local_bounds),
