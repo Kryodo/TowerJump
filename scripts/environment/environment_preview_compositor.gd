@@ -291,14 +291,18 @@ func _adopt_existing_game_motes() -> void:
 		layer.scroll_scale = Vector2(1.0, factors[index])
 		layer.repeat_size = Vector2(0.0, AMBIENT_REPEAT_HEIGHT)
 		layer.repeat_times = 2
-		# The compositor itself is z=-50. Cancel that parent offset so each
-		# original emitter retains its reference z-index (-30/-28/-29).
-		layer.z_index = 50
-		add_child(layer)
+		# Match the preserved study's hierarchy exactly: the Parallax2D wrapper
+		# is a sibling of this compositor under the gameplay root, not a child of
+		# the compositor. This avoids inheriting its architecture z-index/transform.
+		var parallax_host := get_parent()
+		if parallax_host == null:
+			push_warning("EnvironmentPreviewCompositor: Cannot attach game mote parallax without a parent host.")
+			layer.free()
+			continue
+		parallax_host.add_child(layer)
 		layer.global_position = _camera.global_position
 
-		# This is the same reparent/local-coordinate operation used by the
-		# preserved middle-architecture detail study.
+		# Same operation as the preserved middle-architecture detail study.
 		emitter.reparent(layer, true)
 		emitter.local_coords = true
 		emitter.restart()
