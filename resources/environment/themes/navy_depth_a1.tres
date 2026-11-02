@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="EnvironmentThemeProfile" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/environment/environment_theme_profile.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+profile_id = &"navy_depth_a1"
+far_fill_a = Color(0.012, 0.010, 0.032, 0.98)
+far_fill_b = Color(0.016, 0.012, 0.038, 0.98)
+middle_fill = Color(0.015686275, 0.03137255, 0.0627451, 0.96)
+near_detail = Color(0.018, 0.13, 0.18, 0.20)
+far_panel_fill = Color(0.003, 0.004, 0.012, 0.82)
+far_panel_edge = Color(0.070, 0.052, 0.112, 0.54)
+far_panel_rail = Color(0.105, 0.078, 0.166, 0.42)
+far_window_frame = Color(0.092, 0.066, 0.138, 0.78)
+far_window_dark = Color(0.003, 0.004, 0.011, 0.98)
+far_window_lit = Color(0.085, 0.048, 0.142, 0.84)
+far_window_neon = Color(0.36, 0.18, 0.54, 0.76)
+far_window_halo = Color(0.26, 0.12, 0.40, 0.11)
+accent_primary = Color(0.012, 0.82, 1.15, 0.84)
+accent_secondary = Color(0.42, 0.16, 0.88, 0.78)
+light_dormant = Color(0.003, 0.004, 0.011, 0.98)
+light_subtle = Color(0.085, 0.048, 0.142, 0.84)
+light_neon = Color(0.36, 0.18, 0.54, 0.76)
