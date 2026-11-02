@@ -1,0 +1,9 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/environment/environment_architecture_module_visual.gd" id="1_visual"]
+
+[node name="NearEdgeFrame" type="Node2D"]
+script = ExtResource("1_visual")
+module_style = 2
+module_width = 40.0
+module_height = 1200.0
