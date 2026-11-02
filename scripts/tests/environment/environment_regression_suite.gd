@@ -41,20 +41,28 @@ func _run_suite() -> void:
 	if ZONE_PROFILE.landmark_anchors.size() != 2:
 		failures.append("Reference parity zone must contain the Gate and Archive anchors.")
 
-	# Full-game jump-in shifts the parent game root. The compositor's local
-	# offset must still resolve to the same GLOBAL camera-relative parallax as
-	# the preserved experiment at every supported depth and jump-in height.
-	for jump_height in [0.0, 3600.0, 9600.0]:
-		var camera_global_y := 640.0 - jump_height
-		for parallax_factor in [0.18, 0.46, 0.82]:
-			var local_y := EnvironmentPreviewCompositor.local_parallax_y(
+	# Full-game jump-in shifts the parent game root by -jump_height and adds
+	# jump_height to architecture draw coordinates before those coordinates are
+	# scaled. Check the combined transform, not just the layer's unscaled origin.
+	var jump_heights: Array[float] = [0.0, 3600.0, 9600.0]
+	var parallax_factors: Array[float] = [0.18, 0.46, 0.82]
+	for jump_height_value in jump_heights:
+		var jump_height: float = float(jump_height_value)
+		var camera_global_y: float = 640.0 - jump_height
+		for parallax_factor_value in parallax_factors:
+			var parallax_factor: float = float(parallax_factor_value)
+			var local_y: float = EnvironmentPreviewCompositor.local_parallax_y(
 				camera_global_y, parallax_factor, jump_height
 			)
-			var resolved_global_offset := local_y - jump_height
-			var expected_global_offset := camera_global_y * (1.0 - parallax_factor)
+			# Parent translation (-jump_height) and scaled draw-origin translation
+			# (+jump_height * parallax_factor) both contribute to the global result.
+			var resolved_global_offset: float = (
+				local_y - jump_height + jump_height * parallax_factor
+			)
+			var expected_global_offset: float = camera_global_y * (1.0 - parallax_factor)
 			if not is_equal_approx(resolved_global_offset, expected_global_offset):
 				failures.append(
-					"Jump height %.0f / parallax %.2f: local origin conversion changed global parallax."
+					"Jump height %.0f / parallax %.2f: combined local/global conversion changed global parallax."
 					% [jump_height, parallax_factor]
 				)
 
