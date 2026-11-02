@@ -53,11 +53,12 @@ static func build_plan(
 		var lighting := _resolve_lighting(zone, subzone)
 		var recipe: EnvironmentArchitectureRecipe = subzone.architecture_recipe
 		var section_top_y := RUN_ORIGIN_WORLD_Y - subzone.end_height_px
-		var section_bottom_y := (
-			RUN_ORIGIN_WORLD_Y
-			- subzone.start_height_px
-			+ recipe.section_bottom_padding_px
-		)
+		# The historical parity fixture intentionally renders past its inspection
+		# window to reproduce the original isolated study. Real subzones use their
+		# actual lower boundary so explicit void intervals stay clear.
+		var section_bottom_y := RUN_ORIGIN_WORLD_Y - subzone.start_height_px
+		if subzone.preserve_reference_overdraw:
+			section_bottom_y += recipe.section_bottom_padding_px
 		architecture_sections.append({
 			"subzone_id": subzone.subzone_id,
 			"stable_seed_key": stable_subzone_key,
@@ -65,6 +66,7 @@ static func build_plan(
 			"end_height_px": subzone.end_height_px,
 			"section_top_y": section_top_y,
 			"section_bottom_y": section_bottom_y,
+			"preserve_reference_overdraw": subzone.preserve_reference_overdraw,
 			"architecture_seed": architecture_seed,
 			"recipe": recipe,
 			"theme_profile": theme,
