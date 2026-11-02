@@ -86,11 +86,16 @@ func _run_suite() -> void:
 			Color(0.009, 0.026, 0.052, 0.68)
 		):
 			failures.append("Navy theme far panel fill no longer matches A2 Integrated.")
-		if not _color_matches(
-			theme.far_window_neon,
-			Color(0.13, 0.37, 0.55, 0.74)
+		if (
+			not _color_matches(theme.far_panel_edge, Color(0.055, 0.095, 0.145, 0.40))
+			or not _color_matches(theme.far_panel_rail, Color(0.070, 0.120, 0.180, 0.32))
+			or not _color_matches(theme.far_window_frame, Color(0.045, 0.092, 0.132, 0.70))
+			or not _color_matches(theme.far_window_dark, Color(0.005, 0.014, 0.028, 0.90))
+			or not _color_matches(theme.far_window_lit, Color(0.024, 0.090, 0.142, 0.82))
+			or not _color_matches(theme.far_window_neon, Color(0.13, 0.37, 0.55, 0.74))
+			or not _color_matches(theme.far_window_halo, Color(0.08, 0.24, 0.38, 0.10))
 		):
-			failures.append("Navy theme far aperture neon no longer matches A2 Integrated.")
+			failures.append("Navy theme far recess/aperture material set no longer matches A2 Integrated.")
 
 	if String(A1_THEME.profile_id) != "navy_depth_a1":
 		failures.append("A1 theme profile ID is missing or has changed.")
@@ -102,10 +107,15 @@ func _run_suite() -> void:
 		failures.append("A1 dark-far / lifted-middle fill relationship no longer matches the approved reference.")
 	if (
 		not _color_matches(A1_THEME.far_panel_fill, Color(0.003, 0.004, 0.012, 0.82))
+		or not _color_matches(A1_THEME.far_panel_edge, Color(0.070, 0.052, 0.112, 0.54))
+		or not _color_matches(A1_THEME.far_panel_rail, Color(0.105, 0.078, 0.166, 0.42))
+		or not _color_matches(A1_THEME.far_window_frame, Color(0.092, 0.066, 0.138, 0.78))
+		or not _color_matches(A1_THEME.far_window_dark, Color(0.003, 0.004, 0.011, 0.98))
+		or not _color_matches(A1_THEME.far_window_lit, Color(0.085, 0.048, 0.142, 0.84))
 		or not _color_matches(A1_THEME.far_window_neon, Color(0.36, 0.18, 0.54, 0.76))
 		or not _color_matches(A1_THEME.far_window_halo, Color(0.26, 0.12, 0.40, 0.11))
 	):
-		failures.append("A1 near-black recess / purple aperture materials no longer match the approved reference.")
+		failures.append("A1 near-black recess / purple aperture material set no longer matches the approved reference.")
 
 	for case_data in cases:
 		var seed_value := int(case_data.get("seed", 0))
