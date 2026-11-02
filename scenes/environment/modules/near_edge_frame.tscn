@@ -6,3 +6,5 @@
 script = ExtResource("1_layer")
 layer_type = 2
 module_preview_mode = true
+section_top_y = 0.0
+section_bottom_y = 1280.0
