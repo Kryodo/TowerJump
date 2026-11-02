@@ -1,37 +1,55 @@
 class_name EnvironmentPreviewCompositor
 extends Node2D
-## Shared data-driven renderer used by the library viewer, zone preview and full-game jump-in.
+## Shared renderer for Architecture Library, Zone/Subzone Preview and Full-Game Jump-In.
+## All three contexts use the same extracted EnvironmentArchitectureLayer grammar.
 
 const WORLD_WIDTH: float = 720.0
 const RUN_ORIGIN_WORLD_Y: float = 600.0
 const AMBIENT_TEXTURE: Texture2D = preload("res://assets/particles/ambient_mote.svg")
-const LAYER_NAMES: Array[String] = ["FarArchitecture", "MiddleArchitecture", "NearArchitecture"]
+const ARCHITECTURE_LAYER_SCRIPT: Script = preload("res://scripts/environment/environment_architecture_layer.gd")
 const BASE_AMBIENT_AMOUNTS: Array[int] = [54, 18, 5]
+const AMBIENT_PARALLAX_X: Array[float] = [0.88, 0.96, 1.0]
+const AMBIENT_PARALLAX_Y: Array[float] = [0.18, 0.46, 0.82]
+const GAME_MOTE_NODE_NAMES: Array[String] = [
+	"AmbientMotes",
+	"AmbientMotesNear",
+	"AmbientMoteHighlights",
+]
+const AMBIENT_REPEAT_HEIGHT: float = 1520.0
 
 @export var zone_profile: EnvironmentZoneProfile
 @export var world_seed: int = 7319
-## Adds the previewed climb height to local plan coordinates in the full-game wrapper.
+## Adds the selected jump-in height to all zone-local renderer and landmark coordinates.
 @export var world_origin_height_px: float = 0.0
 @export var camera_path: NodePath
 @export var theme_override: EnvironmentThemeProfile
-@export var replace_game_ambient_emitters: bool = false
+## When hosted inside the real game, reuse its existing three mote emitters and
+## wrap them with the same Parallax2D setup as the preserved architecture study.
+@export var reuse_game_ambient_emitters: bool = false
 @export var ambient_particles_enabled: bool = true
 
 var validation_errors: Array[String] = []
 var validation_warnings: Array[String] = []
+
 var _camera: Camera2D
 var _architecture_layers: Array[Node2D] = []
+var _architecture_x_factors: Array[float] = []
+var _architecture_y_factors: Array[float] = []
+var _middle_layers_by_subzone: Dictionary = {}
 var _ambient_layers: Array[Node2D] = []
 var _ambient_emitters: Array[GPUParticles2D] = []
+var _original_mote_layers: Array[Parallax2D] = []
+var _using_original_game_motes: bool = false
 var _active_ambient_profile: EnvironmentAmbientProfile
 var _last_plan: Dictionary = {}
 
 
 func _ready() -> void:
 	_camera = get_node_or_null(camera_path) as Camera2D if not camera_path.is_empty() else null
-	_create_architecture_layers()
-	if replace_game_ambient_emitters:
-		_disable_existing_game_emitters()
+	if _camera == null:
+		push_warning("EnvironmentPreviewCompositor: No Camera2D was resolved; parallax will remain at its origin.")
+	if reuse_game_ambient_emitters:
+		_adopt_existing_game_motes()
 	rebuild()
 	_update_parallax()
 
@@ -56,13 +74,8 @@ func rebuild() -> void:
 		validation_errors.clear()
 		validation_errors.append("No EnvironmentZoneProfile is assigned.")
 		return
-	if _architecture_layers.is_empty():
-		_create_architecture_layers()
 
-	for layer in _architecture_layers:
-		for child in layer.get_children():
-			child.free()
-
+	_clear_architecture_layers()
 	_last_plan = EnvironmentCompositionPlanner.build_plan(zone_profile, world_seed, theme_override)
 	validation_errors.clear()
 	for message in _last_plan.get("errors", []):
@@ -70,60 +83,29 @@ func rebuild() -> void:
 	validation_warnings.clear()
 	for message in _last_plan.get("warnings", []):
 		validation_warnings.append(str(message))
+
 	if not validation_errors.is_empty():
 		for message in validation_errors:
 			push_error("EnvironmentPreviewCompositor: " + message)
 		return
 
-	for placement in _last_plan.placements:
-		var definition: ArchitectureModuleDefinition = placement.definition
-		if definition.scene == null:
-			continue
-		var instance := definition.scene.instantiate() as Node2D
-		if instance == null:
-			push_warning("EnvironmentPreviewCompositor: Module %s did not instantiate as Node2D." % String(definition.module_id))
-			continue
-		instance.position = placement.root_position + Vector2(0.0, world_origin_height_px)
-		instance.scale.x = -1.0 if placement.mirror_x else 1.0
-		if instance.has_method("configure"):
-			instance.call(
-				"configure",
-				placement.theme_profile,
-				placement.lighting_profile,
-				int(placement.seed),
-				int(placement.light_state)
-			)
-		_architecture_layers[int(definition.depth_layer)].add_child(instance)
+	for section in _last_plan.get("architecture_sections", []):
+		_create_subzone_architecture(section)
 
-	for landmark in _last_plan.landmarks:
-		var anchor: EnvironmentLandmarkAnchor = landmark.anchor
-		if anchor.scene == null:
-			continue
-		var instance := anchor.scene.instantiate() as Node2D
-		if instance == null:
-			push_warning("EnvironmentPreviewCompositor: Landmark %s did not instantiate as Node2D." % String(anchor.landmark_id))
-			continue
-		instance.position = landmark.root_position + Vector2(0.0, world_origin_height_px)
-		if instance.has_method("configure"):
-			instance.call(
-				"configure",
-				landmark.theme_profile,
-				landmark.lighting_profile,
-				int(landmark.seed)
-			)
-		# Landmarks sit in the middle architectural depth, above far masses.
-		_architecture_layers[1].add_child(instance)
+	for landmark in _last_plan.get("landmarks", []):
+		_add_landmark(landmark)
 
 	_update_ambient_for_view_height(true)
+	_update_parallax()
 
 
 func get_plan_summary() -> Dictionary:
 	return {
 		"zone_id": String(zone_profile.zone_id) if zone_profile != null else "",
 		"world_seed": world_seed,
-		"placement_count": int(_last_plan.get("placement_count", 0)),
+		"section_count": int(_last_plan.get("section_count", 0)),
 		"landmark_count": int(_last_plan.get("landmark_count", 0)),
-		"suppressed_count": int(_last_plan.get("suppressed_count", 0)),
+		"reservation_count": int(_last_plan.get("reservation_count", 0)),
 		"signature": EnvironmentCompositionPlanner.plan_signature(_last_plan) if not _last_plan.is_empty() else 0,
 		"errors": validation_errors.duplicate(),
 		"warnings": validation_warnings.duplicate(),
@@ -149,23 +131,79 @@ func get_next_landmark_height(height_px: float) -> float:
 	return -1.0 if is_inf(next_height) else next_height
 
 
-func _create_architecture_layers() -> void:
-	if not _architecture_layers.is_empty():
-		return
-	var factors := _get_parallax_factors()
-	var x_factors: Array[float] = [0.88, 0.96, 1.0]
-	for index in range(3):
+func _create_subzone_architecture(section: Dictionary) -> void:
+	var recipe: EnvironmentArchitectureRecipe = section.recipe
+	var ambient: EnvironmentAmbientProfile = section.ambient_profile
+	var factors := _get_parallax_factors(ambient)
+
+	for depth in range(3):
 		var layer := Node2D.new()
-		layer.name = LAYER_NAMES[index]
-		layer.scale = Vector2(x_factors[index], factors[index])
-		layer.z_index = index + 1
+		layer.name = "%s_%s" % [
+			String(section.subzone_id),
+			["FarArchitecture", "MiddleArchitecture", "NearArchitecture"][depth],
+		]
+		layer.set_script(ARCHITECTURE_LAYER_SCRIPT)
+		layer.set("layer_type", depth)
+		layer.set("theme_profile", section.theme_profile)
+		layer.set("environment_seed", int(section.architecture_seed))
+		layer.set("architecture_recipe", recipe)
+		layer.set("world_width", WORLD_WIDTH)
+		layer.set("section_top_y", float(section.section_top_y) + world_origin_height_px)
+		layer.set("section_bottom_y", float(section.section_bottom_y) + world_origin_height_px)
+		layer.set("far_detail_treatment", int(recipe.far_detail_treatment))
+		layer.set("mid_detail_treatment", int(recipe.middle_detail_treatment))
+		layer.z_index = depth + 1
 		add_child(layer)
 		_architecture_layers.append(layer)
+		_architecture_x_factors.append(AMBIENT_PARALLAX_X[depth])
+		_architecture_y_factors.append(factors[depth])
+
+		if depth == 1:
+			_middle_layers_by_subzone[String(section.subzone_id)] = layer
+
+
+func _add_landmark(landmark: Dictionary) -> void:
+	var anchor: EnvironmentLandmarkAnchor = landmark.anchor
+	if anchor.scene == null:
+		return
+	var instance := anchor.scene.instantiate() as Node2D
+	if instance == null:
+		push_warning("EnvironmentPreviewCompositor: Landmark %s scene root must be Node2D." % String(anchor.landmark_id))
+		return
+
+	instance.position = landmark.root_position + Vector2(0.0, world_origin_height_px)
+	if instance.has_method("configure"):
+		instance.call(
+			"configure",
+			landmark.theme_profile,
+			landmark.lighting_profile,
+			int(landmark.seed)
+		)
+
+	var target_layer: Node2D = _middle_layers_by_subzone.get(String(anchor.subzone_id)) as Node2D
+	if target_layer == null and not _architecture_layers.is_empty():
+		target_layer = _architecture_layers[min(1, _architecture_layers.size() - 1)]
+	if target_layer == null:
+		add_child(instance)
+	else:
+		# The authored landmark draws after the procedural support layer, matching
+		# the original study's deliberate foreground ordering inside the middle layer.
+		target_layer.add_child(instance)
+
+
+func _clear_architecture_layers() -> void:
+	for layer in _architecture_layers:
+		if is_instance_valid(layer):
+			layer.free()
+	_architecture_layers.clear()
+	_architecture_x_factors.clear()
+	_architecture_y_factors.clear()
+	_middle_layers_by_subzone.clear()
 
 
 func _get_parallax_factors(ambient: EnvironmentAmbientProfile = null) -> Array[float]:
 	if ambient == null:
-		ambient = _resolve_ambient_profile_for_current_height()
+		ambient = zone_profile.ambient_profile if zone_profile != null else null
 	if ambient == null:
 		return [0.18, 0.46, 0.82]
 	return [ambient.far_parallax, ambient.middle_parallax, ambient.near_parallax]
@@ -174,32 +212,66 @@ func _get_parallax_factors(ambient: EnvironmentAmbientProfile = null) -> Array[f
 func _update_parallax() -> void:
 	if _camera == null:
 		return
-	var active_profile := _resolve_ambient_profile_for_current_height()
-	var factors := _get_parallax_factors(active_profile)
-	var x_factors: Array[float] = [0.88, 0.96, 1.0]
+
 	for index in range(_architecture_layers.size()):
-		var factor: float = factors[index]
-		_architecture_layers[index].scale.y = factor
+		var x_factor: float = _architecture_x_factors[index]
+		var y_factor: float = _architecture_y_factors[index]
+		_architecture_layers[index].scale = Vector2(x_factor, y_factor)
 		_architecture_layers[index].position = Vector2(
-			WORLD_WIDTH * 0.5 * (1.0 - x_factors[index]),
-			_camera.position.y * (1.0 - factor)
+			WORLD_WIDTH * 0.5 * (1.0 - x_factor),
+			_camera.position.y * (1.0 - y_factor)
 		)
+
 	for index in range(_ambient_layers.size()):
-		var factor: float = factors[index]
-		_ambient_layers[index].scale.y = factor
+		if _ambient_layers[index] is Parallax2D:
+			continue
+		var x_factor := AMBIENT_PARALLAX_X[index % AMBIENT_PARALLAX_X.size()]
+		var y_factor := _get_parallax_factors()[index % 3]
+		_ambient_layers[index].scale = Vector2(x_factor, y_factor)
 		_ambient_layers[index].position = Vector2(
-			WORLD_WIDTH * 0.5 * (1.0 - x_factors[index]),
-			_camera.position.y * (1.0 - factor)
+			WORLD_WIDTH * 0.5 * (1.0 - x_factor),
+			_camera.position.y * (1.0 - y_factor)
 		)
 
 
-func _disable_existing_game_emitters() -> void:
+func _adopt_existing_game_motes() -> void:
 	if _camera == null:
 		return
-	for node_name in ["AmbientMotes", "AmbientMotesNear", "AmbientMoteHighlights"]:
-		var emitter := _camera.get_node_or_null(node_name) as GPUParticles2D
-		if emitter != null:
-			emitter.emitting = false
+
+	var adopted_count := 0
+	var factors := _get_parallax_factors()
+	for index in range(GAME_MOTE_NODE_NAMES.size()):
+		var emitter := _camera.get_node_or_null(GAME_MOTE_NODE_NAMES[index]) as GPUParticles2D
+		if emitter == null:
+			push_warning(
+				"EnvironmentPreviewCompositor: The production camera has no %s mote emitter."
+				% GAME_MOTE_NODE_NAMES[index]
+			)
+			continue
+
+		var layer := Parallax2D.new()
+		layer.name = "AmbientMotesParallax%d" % index
+		layer.scroll_scale = Vector2(1.0, factors[index])
+		layer.repeat_size = Vector2(0.0, AMBIENT_REPEAT_HEIGHT)
+		layer.repeat_times = 2
+		layer.z_index = 20 + index
+		add_child(layer)
+		layer.global_position = _camera.global_position
+
+		# This is the same reparent/local-coordinate operation used by the
+		# preserved middle-architecture detail study.
+		emitter.reparent(layer, true)
+		emitter.local_coords = true
+		emitter.restart()
+		_original_mote_layers.append(layer)
+		adopted_count += 1
+
+	_using_original_game_motes = adopted_count > 0
+	if adopted_count != GAME_MOTE_NODE_NAMES.size():
+		push_warning(
+			"EnvironmentPreviewCompositor: Adopted %d of %d original game mote emitters."
+			% [adopted_count, GAME_MOTE_NODE_NAMES.size()]
+		)
 
 
 func _resolve_ambient_profile_for_current_height() -> EnvironmentAmbientProfile:
@@ -220,9 +292,9 @@ func _resolve_ambient_profile_for_current_height() -> EnvironmentAmbientProfile:
 
 
 func _update_ambient_for_view_height(force_rebuild: bool = false) -> void:
-	if not ambient_particles_enabled:
-		_clear_ambient_layers()
-		_active_ambient_profile = null
+	if _using_original_game_motes or not ambient_particles_enabled:
+		if not ambient_particles_enabled and not _using_original_game_motes:
+			_clear_ambient_layers()
 		return
 
 	var ambient := _resolve_ambient_profile_for_current_height()
@@ -236,17 +308,17 @@ func _rebuild_ambient_layers(profile: EnvironmentAmbientProfile) -> void:
 	_clear_ambient_layers()
 	if profile == null:
 		return
+
 	var factors: Array[float] = [
 		profile.far_parallax,
 		profile.middle_parallax,
 		profile.near_parallax,
 	]
-	var x_factors: Array[float] = [0.88, 0.96, 1.0]
 	for index in range(3):
 		var factor := maxf(factors[index], 0.08)
 		var layer := Node2D.new()
 		layer.name = "AmbientParallax%d" % index
-		layer.scale = Vector2(x_factors[index], factor)
+		layer.scale = Vector2(AMBIENT_PARALLAX_X[index], factor)
 		layer.z_index = 20 + index
 		add_child(layer)
 		_ambient_layers.append(layer)
@@ -294,6 +366,7 @@ func _rebuild_ambient_layers(profile: EnvironmentAmbientProfile) -> void:
 			layer.add_child(highlight_emitter)
 			_ambient_emitters.append(highlight_emitter)
 			highlight_emitter.emitting = true
+
 	_update_parallax()
 
 
