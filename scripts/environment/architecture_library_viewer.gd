@@ -7,7 +7,6 @@ extends Node2D
 	preload("res://resources/environment/themes/navy_depth_a1.tres"),
 	preload("res://resources/environment/themes/amber_diagnostic.tres"),
 ]
-@export var lighting_profile: EnvironmentLightingProfile = preload("res://resources/environment/lighting/restrained_structural_lights.tres")
 @export var fixed_seeds: Array[int] = [7319, 24017, 91207]
 
 const VIEW_CENTER: Vector2 = Vector2(360.0, 700.0)
@@ -167,7 +166,7 @@ func _update_hud() -> void:
 			values.append("(%.0f, %.0f)" % [point.x, point.y])
 		points_text = ", ".join(values)
 	_hud_label.text = (
-		"ARCHITECTURE LIBRARY VIEWER   /   LAYER %d OF %d\n" % [_module_index + 1, _modules.size()]
+		"ARCHITECTURE LIBRARY VIEWER   /   MODULE %d OF %d\n" % [_module_index + 1, _modules.size()]
 		+ "%s   |   FAMILY: %s   |   DEPTH: %s\n" % [
 			String(definition.module_id),
 			family_names[family_index],
