@@ -60,7 +60,7 @@ func rebuild() -> void:
 
 	for layer in _architecture_layers:
 		for child in layer.get_children():
-			child.queue_free()
+			child.free()
 
 	_last_plan = EnvironmentCompositionPlanner.build_plan(zone_profile, world_seed, theme_override)
 	validation_errors = _last_plan.get("errors", []).duplicate()
@@ -215,6 +215,7 @@ func _resolve_ambient_profile_for_current_height() -> EnvironmentAmbientProfile:
 func _update_ambient_for_view_height(force_rebuild: bool = false) -> void:
 	if not ambient_particles_enabled:
 		_clear_ambient_layers()
+		_active_ambient_profile = null
 		return
 
 	var ambient := _resolve_ambient_profile_for_current_height()
