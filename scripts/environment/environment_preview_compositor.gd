@@ -131,6 +131,25 @@ func get_plan_summary() -> Dictionary:
 	}
 
 
+func get_ambient_summary() -> Dictionary:
+	var valid_layers := 0
+	if _using_original_game_motes:
+		for layer in _original_mote_layers:
+			if is_instance_valid(layer):
+				valid_layers += 1
+	elif ambient_particles_enabled:
+		for layer in _ambient_layers:
+			if is_instance_valid(layer):
+				valid_layers += 1
+	var factors: Array[float] = _get_parallax_factors(_active_ambient_profile)
+	return {
+		"source": "GAME" if _using_original_game_motes else ("PREVIEW" if ambient_particles_enabled else "DISABLED"),
+		"layer_count": valid_layers,
+		"expected_layer_count": GAME_MOTE_NODE_NAMES.size(),
+		"parallax_factors": factors,
+	}
+
+
 func get_subzone_id_at_height(height_px: float) -> String:
 	if zone_profile == null:
 		return "NO ZONE"
