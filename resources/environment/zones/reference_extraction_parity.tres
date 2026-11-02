@@ -5,8 +5,8 @@
 [ext_resource type="Resource" path="res://resources/environment/ambient/default_motes.tres" id="3_ambient"]
 [ext_resource type="Resource" path="res://resources/environment/lighting/restrained_structural_lights.tres" id="4_lighting"]
 [ext_resource type="Resource" path="res://resources/environment/subzones/reference_full_composition.tres" id="5_subzone"]
-[ext_resource type="Resource" path="res://resources/environment/landmarks/resonance_gate_anchor.tres" id="6_gate"]
-[ext_resource type="Resource" path="res://resources/environment/landmarks/archive_fragment_anchor.tres" id="7_archive"]
+[ext_resource type="Resource" path="res://resources/environment/landmarks/reference_resonance_gate_anchor.tres" id="6_gate"]
+[ext_resource type="Resource" path="res://resources/environment/landmarks/reference_archive_fragment_anchor.tres" id="7_archive"]
 
 [resource]
 script = ExtResource("1_script")
