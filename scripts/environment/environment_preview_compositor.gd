@@ -412,7 +412,7 @@ func _rebuild_ambient_layers(profile: EnvironmentAmbientProfile) -> void:
 		emitter.local_coords = true
 
 		var particle_material := ParticleProcessMaterial.new()
-		particle_particle_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+		particle_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
 		particle_material.emission_box_extents = (
 			Vector3(440.0, 380.0, 1.0) if index == 2 else Vector3(440.0, 760.0, 1.0)
 		)
