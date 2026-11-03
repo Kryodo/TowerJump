@@ -411,26 +411,26 @@ func _rebuild_ambient_layers(profile: EnvironmentAmbientProfile) -> void:
 		emitter.visibility_rect = Rect2(-520.0, -900.0, 1040.0, 1800.0)
 		emitter.local_coords = true
 
-		var material := ParticleProcessMaterial.new()
-		material.emission_shape = 3
-		material.emission_box_extents = (
+		var particle_material := ParticleProcessMaterial.new()
+		particle_particle_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+		particle_material.emission_box_extents = (
 			Vector3(440.0, 380.0, 1.0) if index == 2 else Vector3(440.0, 760.0, 1.0)
 		)
 		if index == 2:
-			material.emission_shape_offset = Vector3(0.0, -340.0, 0.0)
-		material.direction = Vector3(0.0, -1.0, 0.0)
-		material.spread = 180.0
-		material.initial_velocity_min = AMBIENT_VELOCITY_MIN[index] * profile.speed_scale
-		material.initial_velocity_max = AMBIENT_VELOCITY_MAX[index] * profile.speed_scale
-		material.gravity = Vector3.ZERO
-		material.linear_accel_min = -0.25
-		material.linear_accel_max = 0.25
-		material.scale_min = AMBIENT_SCALE_MIN[index]
-		material.scale_max = AMBIENT_SCALE_MAX[index]
-		material.color = (
+			particle_material.emission_shape_offset = Vector3(0.0, -340.0, 0.0)
+		particle_material.direction = Vector3(0.0, -1.0, 0.0)
+		particle_material.spread = 180.0
+		particle_material.initial_velocity_min = AMBIENT_VELOCITY_MIN[index] * profile.speed_scale
+		particle_material.initial_velocity_max = AMBIENT_VELOCITY_MAX[index] * profile.speed_scale
+		particle_material.gravity = Vector3.ZERO
+		particle_material.linear_accel_min = -0.25
+		particle_material.linear_accel_max = 0.25
+		particle_material.scale_min = AMBIENT_SCALE_MIN[index]
+		particle_material.scale_max = AMBIENT_SCALE_MAX[index]
+		particle_material.color = (
 			profile.mote_tint.lightened(0.12) if index == 2 else profile.mote_tint
 		)
-		emitter.process_material = material
+		emitter.process_material = particle_material
 		layer.add_child(emitter)
 		_ambient_emitters.append(emitter)
 		emitter.restart()
